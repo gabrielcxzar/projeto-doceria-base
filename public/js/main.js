@@ -943,47 +943,61 @@ function atualizarDashboardPrincipal() {
     const hoje = new Date();
     const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
 
-    const vendasMes = vendas.filter(v => new Date(v.data) >= inicioMes);
+    // 1. Filtra todas as transações do mês (Vendas e Encomendas)
+    // Usamos 'criadoEm' que é adicionado automaticamente pelo FirebaseService
+    const vendasMes = vendas.filter(v => {
+        const dataTransacao = v.criadoEm?.toDate() || new Date(v.data);
+        return dataTransacao >= inicioMes;
+    });
+
+    const encomendasMes = encomendas.filter(e => {
+        const dataTransacao = e.criadoEm?.toDate() || new Date(); // Usa data atual se não houver data de criação
+        return dataTransacao >= inicioMes;
+    });
+
     const despesasMes = despesas.filter(d => new Date(d.data) >= inicioMes);
 
-    // Cálculos Gerais
-    const totalVendido = vendasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
+    // --- LÓGICA DE CÁLCULO CORRIGIDA ---
+
+    // 2. Calcula o "Total Vendido" = (soma das vendas) + (soma do VALOR TOTAL das encomendas)
+    const totalVendidoVendas = vendasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
+    const totalVendidoEncomendas = encomendasMes.reduce((acc, e) => acc + e.valorTotal, 0);
+    const totalVendido = totalVendidoVendas + totalVendidoEncomendas;
+
+    // 3. Calcula os "Valores Recebidos" = (soma das vendas pagas) + (soma do VALOR DE ENTRADA das encomendas)
+    const recebidoVendas = vendasMes
+        .filter(v => v.status === 'A' || v.status === 'E')
+        .reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
+    const recebidoEncomendas = encomendasMes.reduce((acc, e) => acc + (e.valorEntrada || 0), 0);
+    const totalRecebidoMes = recebidoVendas + recebidoEncomendas;
+
+    // --- FIM DA LÓGICA CORRIGIDA ---
+
+    // Cálculos restantes
     const totalDespesas = despesasMes.reduce((acc, d) => acc + d.valor, 0);
     const lucroLiquido = totalVendido - totalDespesas;
-    // CÁLCULO DA MARGEM CORRIGIDO
     const margemLucro = totalVendido > 0 ? (lucroLiquido / totalVendido * 100) : 0;
     
-    // --- LÓGICA DE PENDÊNCIAS CORRIGIDA ---
-    const aReceberVendas = vendas
-        .filter(v => v.status === 'P')
-        .reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
-
-    const aReceberEncomendas = encomendas
-        .filter(e => e.status !== 'Finalizado' && (e.valorTotal - (e.valorEntrada || 0)) > 0)
-        .reduce((acc, e) => acc + (e.valorTotal - (e.valorEntrada || 0)), 0);
-        
+    // "A Receber" (Vendas Pendentes + Saldo Restante das Encomendas)
+    const aReceberVendas = vendas.filter(v => v.status === 'P').reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
+    const aReceberEncomendas = encomendas.filter(e => e.status !== 'Finalizado').reduce((acc, e) => acc + (e.valorTotal - (e.valorEntrada || 0)), 0);
     const totalAReceber = aReceberVendas + aReceberEncomendas;
 
-    // CONTAGEM DE CLIENTES PENDENTES CORRIGIDA
     const clientesComVendasPendentes = vendas.filter(v => v.status === 'P').map(v => v.pessoa);
     const clientesComEncomendasPendentes = encomendas.filter(e => e.status !== 'Finalizado' && (e.valorTotal - (e.valorEntrada || 0)) > 0).map(e => e.clienteNome);
     const clientesComPendencia = new Set([...clientesComVendasPendentes, ...clientesComEncomendasPendentes]).size;
-    // --- FIM DA CORREÇÃO ---
-    
-    const vendasPagasMes = vendasMes.filter(v => v.status === 'A' || v.status === 'E');
-    const totalRecebidoMes = vendasPagasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
 
     // Atualização do HTML
     document.getElementById('dashTotalVendido').textContent = formatarMoeda(totalVendido);
+    document.getElementById('vendidoChange').textContent = `${vendasMes.length + encomendasMes.length} pedidos no mês`;
     document.getElementById('dashTotalDespesas').textContent = formatarMoeda(totalDespesas);
+    document.getElementById('despesasChange').textContent = `${despesasMes.length} lançamentos`;
     document.getElementById('dashLucroLiquido').textContent = formatarMoeda(lucroLiquido);
     document.getElementById('lucroChange').textContent = `Margem: ${margemLucro.toFixed(1)}%`;
     document.getElementById('dashAReceber').textContent = formatarMoeda(totalAReceber);
     document.getElementById('receberCount').textContent = `${clientesComPendencia} cliente(s) pendente(s)`;
-    
     document.getElementById('dashValoresRecebidos').textContent = formatarMoeda(totalRecebidoMes);
-    document.getElementById('recebidosChange').textContent = `${vendasPagasMes.length} vendas pagas`;
-
+    document.getElementById('recebidosChange').textContent = `${vendasPagasMes.length} vendas pagas + ${encomendasMes.length} entradas`;
     document.getElementById('totalPendente').textContent = formatarMoeda(totalAReceber);
     document.getElementById('clientesPendentes').textContent = clientesComPendencia;
 }
