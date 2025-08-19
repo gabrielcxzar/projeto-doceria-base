@@ -943,42 +943,29 @@ function atualizarDashboardPrincipal() {
     const hoje = new Date();
     const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
 
-    // 1. Filtra todas as transações do mês (Vendas e Encomendas)
-    // Usamos 'criadoEm' que é adicionado automaticamente pelo FirebaseService
-    const vendasMes = vendas.filter(v => {
-        const dataTransacao = v.criadoEm?.toDate() || new Date(v.data);
-        return dataTransacao >= inicioMes;
-    });
-
-    const encomendasMes = encomendas.filter(e => {
-        const dataTransacao = e.criadoEm?.toDate() || new Date(); // Usa data atual se não houver data de criação
-        return dataTransacao >= inicioMes;
-    });
-
+    // Filtra transações do mês
+    const vendasMes = vendas.filter(v => (v.criadoEm?.toDate() || new Date(v.data)) >= inicioMes);
+    const encomendasMes = encomendas.filter(e => (e.criadoEm?.toDate() || new Date()) >= inicioMes);
     const despesasMes = despesas.filter(d => new Date(d.data) >= inicioMes);
 
-    // --- LÓGICA DE CÁLCULO CORRIGIDA ---
-
-    // 2. Calcula o "Total Vendido" = (soma das vendas) + (soma do VALOR TOTAL das encomendas)
+    // Cálculos de Vendas e Receitas
     const totalVendidoVendas = vendasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
     const totalVendidoEncomendas = encomendasMes.reduce((acc, e) => acc + e.valorTotal, 0);
     const totalVendido = totalVendidoVendas + totalVendidoEncomendas;
 
-    // 3. Calcula os "Valores Recebidos" = (soma das vendas pagas) + (soma do VALOR DE ENTRADA das encomendas)
-    const recebidoVendas = vendasMes
-        .filter(v => v.status === 'A' || v.status === 'E')
-        .reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
+    // A linha que estava faltando provavelmente é esta abaixo
+    const vendasPagasMes = vendasMes.filter(v => v.status === 'A' || v.status === 'E');
+    
+    const recebidoVendas = vendasPagasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
     const recebidoEncomendas = encomendasMes.reduce((acc, e) => acc + (e.valorEntrada || 0), 0);
     const totalRecebidoMes = recebidoVendas + recebidoEncomendas;
 
-    // --- FIM DA LÓGICA CORRIGIDA ---
-
-    // Cálculos restantes
+    // Cálculos Financeiros
     const totalDespesas = despesasMes.reduce((acc, d) => acc + d.valor, 0);
     const lucroLiquido = totalVendido - totalDespesas;
     const margemLucro = totalVendido > 0 ? (lucroLiquido / totalVendido * 100) : 0;
     
-    // "A Receber" (Vendas Pendentes + Saldo Restante das Encomendas)
+    // Cálculos de Pendências
     const aReceberVendas = vendas.filter(v => v.status === 'P').reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
     const aReceberEncomendas = encomendas.filter(e => e.status !== 'Finalizado').reduce((acc, e) => acc + (e.valorTotal - (e.valorEntrada || 0)), 0);
     const totalAReceber = aReceberVendas + aReceberEncomendas;
