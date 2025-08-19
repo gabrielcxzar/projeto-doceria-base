@@ -691,4 +691,11 @@ body {
 @keyframes spin {
     0% { transform: translate(-50%, -50%) rotate(0deg); }
     100% { transform: translate(-50%, -50%) rotate(360deg); }
+
+}
+/* Estilo para a nova logo no cabeçalho */
+.header-logo {
+    height: 80px;  /* Você pode ajustar este valor para deixar a logo maior ou menor */
+    width: auto;   /* Mantém a proporção da imagem */
+    margin-bottom: 5px; /* Adiciona um pequeno espaço abaixo da logo */
 }
