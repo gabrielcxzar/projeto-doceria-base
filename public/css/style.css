@@ -30,7 +30,10 @@ body {
     padding: 10px 15px;
 }
 
-.header { 
+.header {
+    display: flex;             /* ADICIONE ESTA LINHA */
+    flex-direction: column;    /* ADICIONE ESTA LINHA */
+    align-items: center;       /* ADICIONE ESTA LINHA */
     text-align: center; 
     margin-bottom: 20px; 
     color: var(--primary-color);
@@ -694,8 +697,11 @@ body {
 
 }
 /* Estilo para a nova logo no cabeçalho */
+/* Estilo para a nova logo no cabeçalho */
 .header-logo {
-    height: 90x;  /* Você pode ajustar este valor para deixar a logo maior ou menor */
-    width: auto;   /* Mantém a proporção da imagem */
-    margin-bottom: 5px; /* Adiciona um pequeno espaço abaixo da logo */
+    height: 80px;        /* Tente este valor. É o principal para ajustar! */
+    width: auto;
+    max-width: 100%;     /* Medida de segurança: a logo nunca será maior que a tela */
+    object-fit: contain; /* Garante que a imagem se ajuste bem sem distorcer */
+    margin-bottom: 5px;
 }

@@ -920,16 +920,20 @@ async function marcarPendenciasComoPagas(clienteNome) {
         if (confirmado) {
             mostrarLoading(true);
 
-            // 1. Encontra e prepara a baixa das VENDAS pendentes
+            // 1. Encontra e prepara a baixa das VENDAS pendentes (esta parte já estava correta)
             const pendenciasVendas = vendas.filter(v => v.pessoa === clienteNome && v.status === 'P');
             const updatesVendas = pendenciasVendas.map(venda => 
-                FirebaseService.atualizar('vendas', venda.id, { status: 'A' }) // 'A' de Aprovado/Pago
+                FirebaseService.atualizar('vendas', venda.id, { status: 'A' })
             );
 
-            // 2. Encontra e prepara a baixa das ENCOMENDAS pendentes
+            // 2. Encontra e prepara a baixa das ENCOMENDAS pendentes (A CORREÇÃO ESTÁ AQUI)
             const pendenciasEncomendas = encomendas.filter(e => e.clienteNome === clienteNome && e.status !== 'Finalizado');
             const updatesEncomendas = pendenciasEncomendas.map(encomenda => 
-                FirebaseService.atualizar('encomendas', encomenda.id, { status: 'Finalizado' }) // Finalizar implica em quitação
+                // Além de finalizar, agora também atualizamos o valor de entrada para o valor total.
+                FirebaseService.atualizar('encomendas', encomenda.id, { 
+                    status: 'Finalizado',
+                    valorEntrada: encomenda.valorTotal // <-- ESTA É A LINHA DA CORREÇÃO
+                })
             );
 
             // 3. Junta todas as atualizações e executa de uma vez
@@ -943,7 +947,7 @@ async function marcarPendenciasComoPagas(clienteNome) {
 
             await Promise.all(todasAsAtualizacoes);
             
-            // 4. Exibe a mensagem de sucesso CORRIGIDA (usando crases ``)
+            // Mensagem de sucesso corrigida (usando crases)
             mostrarAlerta(`Pendências de ${clienteNome} marcadas como pagas!`, 'success');
             
             await carregarTodosDados();
