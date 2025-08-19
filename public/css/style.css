@@ -699,7 +699,7 @@ body {
 /* Estilo para a nova logo no cabeçalho */
 /* Estilo para a nova logo no cabeçalho */
 .header-logo {
-    height: 120px;        /* Tente este valor. É o principal para ajustar! */
+    height: 140px;        /* Tente este valor. É o principal para ajustar! */
     width: auto;
     max-width: 100%;     /* Medida de segurança: a logo nunca será maior que a tela */
     object-fit: contain; /* Garante que a imagem se ajuste bem sem distorcer */
