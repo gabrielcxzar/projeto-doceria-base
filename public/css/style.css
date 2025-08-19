@@ -38,7 +38,7 @@ body {
     margin-bottom: 20px; 
     color: var(--primary-color);
     background: var(--white-color);
-    padding: 20px;
+    padding: 10px 20px;
     border-radius: var(--border-radius);
     box-shadow: var(--box-shadow);
 }
@@ -699,7 +699,7 @@ body {
 /* Estilo para a nova logo no cabeçalho */
 /* Estilo para a nova logo no cabeçalho */
 .header-logo {
-    height: 80px;        /* Tente este valor. É o principal para ajustar! */
+    height: 120px;        /* Tente este valor. É o principal para ajustar! */
     width: auto;
     max-width: 100%;     /* Medida de segurança: a logo nunca será maior que a tela */
     object-fit: contain; /* Garante que a imagem se ajuste bem sem distorcer */
