@@ -697,11 +697,11 @@ body {
 
 }
 /* Estilo para a nova logo no cabeçalho */
-/* Estilo para a nova logo no cabeçalho */
 .header-logo {
-    height: 140px;        /* Tente este valor. É o principal para ajustar! */
+    height: 120px;          /* 1. Deixamos a logo com um tamanho visual grande */
     width: auto;
-    max-width: 100%;     /* Medida de segurança: a logo nunca será maior que a tela */
-    object-fit: contain; /* Garante que a imagem se ajuste bem sem distorcer */
-    margin-bottom: 5px;
+    max-width: 100%;
+    object-fit: contain;
+    margin-top: -25px;      /* 2. Puxamos a logo 25px PARA CIMA, para fora da barra */
+    margin-bottom: -20px;   /* 3. Puxamos o texto de baixo 20px PARA CIMA, diminuindo o espaço */
 }
