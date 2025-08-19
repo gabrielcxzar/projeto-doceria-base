@@ -916,19 +916,36 @@ async function marcarTodosComoContatados() {
     });
 }
 async function marcarPendenciasComoPagas(clienteNome) {
-    showConfirm(`Deseja marcar todas as pendências de ${clienteNome} como pagas?`, async (confirmado) => {
+    showConfirm(`Deseja marcar todas as pendências de ${clienteNome} como pagas? Isso quitará as vendas e finalizará as encomendas.`, async (confirmado) => {
         if (confirmado) {
             mostrarLoading(true);
-            const pendencias = vendas.filter(v => v.pessoa === clienteNome && v.status === 'P');
-            
-            // Cria uma promessa para cada atualização no Firebase
-            const updates = pendencias.map(venda => 
-                FirebaseService.atualizar('vendas', venda.id, { status: 'A' })
+
+            // 1. Encontra e prepara a baixa das VENDAS pendentes
+            const pendenciasVendas = vendas.filter(v => v.pessoa === clienteNome && v.status === 'P');
+            const updatesVendas = pendenciasVendas.map(venda => 
+                FirebaseService.atualizar('vendas', venda.id, { status: 'A' }) // 'A' de Aprovado/Pago
             );
+
+            // 2. Encontra e prepara a baixa das ENCOMENDAS pendentes
+            const pendenciasEncomendas = encomendas.filter(e => e.clienteNome === clienteNome && e.status !== 'Finalizado');
+            const updatesEncomendas = pendenciasEncomendas.map(encomenda => 
+                FirebaseService.atualizar('encomendas', encomenda.id, { status: 'Finalizado' }) // Finalizar implica em quitação
+            );
+
+            // 3. Junta todas as atualizações e executa de uma vez
+            const todasAsAtualizacoes = [...updatesVendas, ...updatesEncomendas];
             
-            await Promise.all(updates); // Espera todas as atualizações terminarem
+            if (todasAsAtualizacoes.length === 0) {
+                mostrarAlerta(`Nenhuma pendência encontrada para ${clienteNome}.`, 'info');
+                mostrarLoading(false);
+                return;
+            }
+
+            await Promise.all(todasAsAtualizacoes);
             
-            mostrarAlerta('Pendências de ${clienteNome} marcadas como pagas!', 'success');
+            // 4. Exibe a mensagem de sucesso CORRIGIDA (usando crases ``)
+            mostrarAlerta(`Pendências de ${clienteNome} marcadas como pagas!`, 'success');
+            
             await carregarTodosDados();
             renderizarTudo();
             mostrarLoading(false);
