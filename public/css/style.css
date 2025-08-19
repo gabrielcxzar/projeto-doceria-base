@@ -257,6 +257,19 @@ body {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(106, 27, 154, 0.3);
 }
+.btn-success:hover,
+.btn-info:hover,
+.btn-warning:hover,
+.btn-danger:hover,
+.btn-secondary:hover {
+    transform: translateY(-2px); /* Efeito de levantar um pouco mais */
+    box-shadow: 0 6px 15px rgba(0,0,0,0.2); /* Sombra genérica escura */
+}
+
+.btn-success { 
+    background: var(--success-color); 
+    color: var(--white-color); 
+}
 
 .btn-danger { 
     background: var(--danger-color); 
