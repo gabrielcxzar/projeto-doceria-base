@@ -696,6 +696,6 @@ body {
 /* Estilo para a nova logo no cabeçalho */
 .header-logo {
     height: auto;  /* Você pode ajustar este valor para deixar a logo maior ou menor */
-    width: 300;   /* Mantém a proporção da imagem */
+    width: 250px;   /* Mantém a proporção da imagem */
     margin-bottom: 5px; /* Adiciona um pequeno espaço abaixo da logo */
 }
