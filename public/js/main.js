@@ -264,6 +264,13 @@ function configurarEventListeners() {
     document.getElementById('produtoCustoMaterial').addEventListener('input', calcularPrecoVenda);
     document.getElementById('produtoCustoMaoObra').addEventListener('input', calcularPrecoVenda);
     document.getElementById('produtoMargem').addEventListener('input', calcularPrecoVenda);
+
+    // Listeners para a precificação inversa
+    const checkPrecificacao = document.getElementById('definirPrecoManual');
+    if (checkPrecificacao) {
+        checkPrecificacao.addEventListener('change', alternarModoPrecificacao);
+    }
+    document.getElementById('produtoValor').addEventListener('input', calcularMargemLucro);
     
     // Filtros e buscas
     document.getElementById('searchVendas').addEventListener('input', renderizarTabelaVendas);
@@ -446,14 +453,14 @@ function renderizarTabelaClientes() {
 
 // === LÓGICA DE PRODUTOS ===
 function calcularPrecoVenda() {
-    const custoMaterial = parseFloat(document.getElementById('produtoCustoMaterial').value) || 0;
-    const custoMaoObra = parseFloat(document.getElementById('produtoCustoMaoObra').value) || 0;
-    const margem = parseFloat(document.getElementById('produtoMargem').value) || 100;
-    
-    const custoTotal = custoMaterial + custoMaoObra;
-    const precoVenda = custoTotal * (1 + margem / 100);
-    
-    document.getElementById('produtoValor').value = precoVenda.toFixed(2);
+    if (!document.getElementById('definirPrecoManual') || !document.getElementById('definirPrecoManual').checked) {
+        const custoMaterial = parseFloat(document.getElementById('produtoCustoMaterial').value) || 0;
+        const custoMaoObra = parseFloat(document.getElementById('produtoCustoMaoObra').value) || 0;
+        const margem = parseFloat(document.getElementById('produtoMargem').value) || 0;
+        const custoTotal = custoMaterial + custoMaoObra;
+        const precoVenda = custoTotal * (1 + margem / 100);
+        document.getElementById('produtoValor').value = precoVenda.toFixed(2);
+    }
 }
 
 async function adicionarOuEditarProduto(e) {
@@ -610,16 +617,11 @@ function excluirVenda(id) {
     showConfirm('Tem certeza que deseja excluir esta venda? Esta ação não pode ser desfeita.', async (confirmado) => {
         if (confirmado) {
             mostrarLoading(true);
-
-            // ANTES de excluir, vamos encontrar a venda para pegar os dados dela
             const vendaParaExcluir = vendas.find(v => v.id === id);
 
             if (vendaParaExcluir) {
-                // Exclui a venda do Firebase
                 const success = await FirebaseService.excluir('vendas', id);
-
                 if (success) {
-                    // Se a exclusão deu certo, atualiza o total gasto do cliente
                     const cliente = clientes.find(c => c.nome === vendaParaExcluir.pessoa);
                     if (cliente) {
                         const valorVenda = vendaParaExcluir.valor * vendaParaExcluir.quantidade;
@@ -631,12 +633,43 @@ function excluirVenda(id) {
             } else {
                 mostrarAlerta('Erro: Venda não encontrada para exclusão.', 'danger');
             }
-            
+
             await carregarTodosDados();
             renderizarTudo();
             mostrarLoading(false);
         }
     });
+}
+function calcularMargemLucro() {
+    const precoFinal = parseFloat(document.getElementById('produtoValor').value) || 0;
+    const custoMaterial = parseFloat(document.getElementById('produtoCustoMaterial').value) || 0;
+    const custoMaoObra = parseFloat(document.getElementById('produtoCustoMaoObra').value) || 0;
+    const custoTotal = custoMaterial + custoMaoObra;
+
+    if (custoTotal > 0 && precoFinal > custoTotal) {
+        const margem = ((precoFinal / custoTotal) - 1) * 100;
+        document.getElementById('produtoMargem').value = margem.toFixed(2);
+    } else {
+        document.getElementById('produtoMargem').value = 0;
+    }
+}
+function alternarModoPrecificacao() {
+    const modoManual = document.getElementById('definirPrecoManual').checked;
+    const campoMargem = document.getElementById('produtoMargem');
+    const campoValor = document.getElementById('produtoValor');
+
+    if (modoManual) {
+        campoValor.readOnly = false;
+        campoValor.style.background = '#fff3e0';
+        campoMargem.readOnly = true;
+        campoMargem.style.background = '#f8f9fa';
+    } else {
+        campoValor.readOnly = true;
+        campoValor.style.background = '#e8f5e8';
+        campoMargem.readOnly = false;
+        campoMargem.style.background = '#fff';
+        calcularPrecoVenda(); 
+    }
 }
 function atualizarTotalVenda() {
     const quantidade = parseInt(document.getElementById('quantidade').value) || 0;
@@ -989,19 +1022,14 @@ async function marcarPendenciasComoPagas(clienteNome) {
 // (As funções de cálculo e renderização de gráficos do seu código de exemplo podem ser coladas aqui, pois operam sobre as variáveis globais que já foram carregadas do Firebase)
 
 function atualizarDashboardPrincipal() {
-    // ... (todo o código de cálculo que já existe fica aqui no início)
     const hoje = new Date();
     const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
     const vendasMes = vendas.filter(v => (v.criadoEm?.toDate() || new Date(v.data)) >= inicioMes);
     const encomendasMes = encomendas.filter(e => (e.criadoEm?.toDate() || new Date()) >= inicioMes);
     const despesasMes = despesas.filter(d => new Date(d.data) >= inicioMes);
-    const totalVendidoVendas = vendasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
-    const totalVendidoEncomendas = encomendasMes.reduce((acc, e) => acc + e.valorTotal, 0);
-    const totalVendido = totalVendidoVendas + totalVendidoEncomendas;
+    const totalVendido = vendasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + encomendasMes.reduce((acc, e) => acc + e.valorTotal, 0);
     const vendasPagasMes = vendasMes.filter(v => v.status === 'A' || v.status === 'E');
-    const recebidoVendas = vendasPagasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
-    const recebidoEncomendas = encomendasMes.reduce((acc, e) => acc + (e.valorEntrada || 0), 0);
-    const totalRecebidoMes = recebidoVendas + recebidoEncomendas;
+    const totalRecebidoMes = vendasPagasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + encomendasMes.reduce((acc, e) => acc + (e.valorEntrada || 0), 0);
     const totalDespesas = despesasMes.reduce((acc, d) => acc + d.valor, 0);
     const lucroLiquido = totalRecebidoMes - totalDespesas;
     const margemLucro = totalRecebidoMes > 0 ? (lucroLiquido / totalRecebidoMes * 100) : 0;
@@ -1012,7 +1040,7 @@ function atualizarDashboardPrincipal() {
     const clientesComEncomendasPendentes = encomendas.filter(e => e.status !== 'Finalizado' && (e.valorTotal - (e.valorEntrada || 0)) > 0).map(e => e.clienteNome);
     const clientesComPendencia = new Set([...clientesComVendasPendentes, ...clientesComEncomendasPendentes]).size;
 
-    // Atualização do HTML do Dashboard...
+    // Atualização do HTML
     document.getElementById('dashTotalVendido').textContent = formatarMoeda(totalVendido);
     document.getElementById('vendidoChange').textContent = `${vendasMes.length + encomendasMes.length} pedidos no mês`;
     document.getElementById('dashTotalDespesas').textContent = formatarMoeda(totalDespesas);
@@ -1026,14 +1054,13 @@ function atualizarDashboardPrincipal() {
     document.getElementById('totalPendente').textContent = formatarMoeda(totalAReceber);
     document.getElementById('clientesPendentes').textContent = clientesComPendencia;
 
-    // --- NOVA LÓGICA PARA O BADGE DE NOTIFICAÇÃO ---
     const cobrancasBadge = document.getElementById('cobrancas-badge');
     if (cobrancasBadge) {
         if (clientesComPendencia > 0) {
             cobrancasBadge.textContent = clientesComPendencia;
-            cobrancasBadge.style.display = 'inline-flex'; // Mostra o badge
+            cobrancasBadge.style.display = 'inline-flex';
         } else {
-            cobrancasBadge.style.display = 'none'; // Esconde o badge
+            cobrancasBadge.style.display = 'none';
         }
     }
 
