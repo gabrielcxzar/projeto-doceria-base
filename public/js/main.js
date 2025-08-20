@@ -260,6 +260,7 @@ function configurarEventListeners() {
     
     // Campos que afetam cálculos
     document.getElementById('produto').addEventListener('change', preencherValorProduto);
+    document.getElementById('quantidade').addEventListener('input', atualizarTotalVenda);
     document.getElementById('produtoCustoMaterial').addEventListener('input', calcularPrecoVenda);
     document.getElementById('produtoCustoMaoObra').addEventListener('input', calcularPrecoVenda);
     document.getElementById('produtoMargem').addEventListener('input', calcularPrecoVenda);
@@ -563,6 +564,7 @@ function preencherValorProduto() {
     const produtoNome = document.getElementById('produto').value;
     const produto = produtos.find(p => p.nome === produtoNome);
     document.getElementById('valor').value = produto ? produto.valor.toFixed(2) : '';
+    atualizarTotalVenda(); // Adiciona a chamada para atualizar o total
 }
 
 async function adicionarVenda(e) {
@@ -577,10 +579,17 @@ async function adicionarVenda(e) {
         status: document.getElementById('status').value
     };
 
-    if (!venda.produto || !venda.pessoa || !venda.valor || !venda.quantidade) {
-        mostrarAlerta('Preencha todos os campos da venda', 'danger');
-        return;
+    // --- VALIDAÇÃO MELHORADA ---
+    if (!venda.pessoa) {
+        return mostrarAlerta('Selecione um cliente para a venda.', 'warning');
     }
+    if (!venda.produto) {
+        return mostrarAlerta('Selecione um produto para a venda.', 'warning');
+    }
+    if (isNaN(venda.valor) || venda.valor <= 0) {
+        return mostrarAlerta('O valor do produto é inválido. Verifique o cadastro do produto.', 'danger');
+    }
+    // --- FIM DA VALIDAÇÃO ---
 
     mostrarLoading(true);
     const newId = await FirebaseService.salvar('vendas', venda);
@@ -601,20 +610,39 @@ function excluirVenda(id) {
     showConfirm('Tem certeza que deseja excluir esta venda? Esta ação não pode ser desfeita.', async (confirmado) => {
         if (confirmado) {
             mostrarLoading(true);
-            const success = await FirebaseService.excluir('vendas', id);
-            
-            if (success) {
-                mostrarAlerta('Venda excluída com sucesso!', 'success');
-                // As duas linhas abaixo são a chave: forçam a recarga dos dados do Firebase
-                // e redesenham todas as tabelas e dashboards com a informação atualizada.
-                await carregarTodosDados();
-                renderizarTudo();
+
+            // ANTES de excluir, vamos encontrar a venda para pegar os dados dela
+            const vendaParaExcluir = vendas.find(v => v.id === id);
+
+            if (vendaParaExcluir) {
+                // Exclui a venda do Firebase
+                const success = await FirebaseService.excluir('vendas', id);
+
+                if (success) {
+                    // Se a exclusão deu certo, atualiza o total gasto do cliente
+                    const cliente = clientes.find(c => c.nome === vendaParaExcluir.pessoa);
+                    if (cliente) {
+                        const valorVenda = vendaParaExcluir.valor * vendaParaExcluir.quantidade;
+                        const novoTotalGasto = (cliente.totalGasto || 0) - valorVenda;
+                        await FirebaseService.atualizar('clientes', cliente.id, { totalGasto: novoTotalGasto });
+                    }
+                    mostrarAlerta('Venda excluída com sucesso!', 'success');
+                }
+            } else {
+                mostrarAlerta('Erro: Venda não encontrada para exclusão.', 'danger');
             }
-            // Se a exclusão falhar, o FirebaseService já exibe um alerta de erro.
             
+            await carregarTodosDados();
+            renderizarTudo();
             mostrarLoading(false);
         }
     });
+}
+function atualizarTotalVenda() {
+    const quantidade = parseInt(document.getElementById('quantidade').value) || 0;
+    const valorUnitario = parseFloat(document.getElementById('valor').value) || 0;
+    const total = quantidade * valorUnitario;
+    document.getElementById('vendaTotalDisplay').textContent = formatarMoeda(total);
 }
 
 function renderizarTabelaVendas() {
@@ -961,41 +989,30 @@ async function marcarPendenciasComoPagas(clienteNome) {
 // (As funções de cálculo e renderização de gráficos do seu código de exemplo podem ser coladas aqui, pois operam sobre as variáveis globais que já foram carregadas do Firebase)
 
 function atualizarDashboardPrincipal() {
+    // ... (todo o código de cálculo que já existe fica aqui no início)
     const hoje = new Date();
     const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-
-    // Filtra transações do mês
     const vendasMes = vendas.filter(v => (v.criadoEm?.toDate() || new Date(v.data)) >= inicioMes);
     const encomendasMes = encomendas.filter(e => (e.criadoEm?.toDate() || new Date()) >= inicioMes);
     const despesasMes = despesas.filter(d => new Date(d.data) >= inicioMes);
-
-    // Cálculos de Vendas e Receitas
     const totalVendidoVendas = vendasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
     const totalVendidoEncomendas = encomendasMes.reduce((acc, e) => acc + e.valorTotal, 0);
     const totalVendido = totalVendidoVendas + totalVendidoEncomendas;
-
-    // A linha que estava faltando provavelmente é esta abaixo
     const vendasPagasMes = vendasMes.filter(v => v.status === 'A' || v.status === 'E');
-    
     const recebidoVendas = vendasPagasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
     const recebidoEncomendas = encomendasMes.reduce((acc, e) => acc + (e.valorEntrada || 0), 0);
     const totalRecebidoMes = recebidoVendas + recebidoEncomendas;
-
-    // Cálculos Financeiros
     const totalDespesas = despesasMes.reduce((acc, d) => acc + d.valor, 0);
-    const lucroLiquido = totalVendido - totalDespesas;
-    const margemLucro = totalVendido > 0 ? (lucroLiquido / totalVendido * 100) : 0;
-    
-    // Cálculos de Pendências
+    const lucroLiquido = totalRecebidoMes - totalDespesas;
+    const margemLucro = totalRecebidoMes > 0 ? (lucroLiquido / totalRecebidoMes * 100) : 0;
     const aReceberVendas = vendas.filter(v => v.status === 'P').reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
     const aReceberEncomendas = encomendas.filter(e => e.status !== 'Finalizado').reduce((acc, e) => acc + (e.valorTotal - (e.valorEntrada || 0)), 0);
     const totalAReceber = aReceberVendas + aReceberEncomendas;
-
     const clientesComVendasPendentes = vendas.filter(v => v.status === 'P').map(v => v.pessoa);
     const clientesComEncomendasPendentes = encomendas.filter(e => e.status !== 'Finalizado' && (e.valorTotal - (e.valorEntrada || 0)) > 0).map(e => e.clienteNome);
     const clientesComPendencia = new Set([...clientesComVendasPendentes, ...clientesComEncomendasPendentes]).size;
 
-    // Atualização do HTML
+    // Atualização do HTML do Dashboard...
     document.getElementById('dashTotalVendido').textContent = formatarMoeda(totalVendido);
     document.getElementById('vendidoChange').textContent = `${vendasMes.length + encomendasMes.length} pedidos no mês`;
     document.getElementById('dashTotalDespesas').textContent = formatarMoeda(totalDespesas);
@@ -1008,6 +1025,19 @@ function atualizarDashboardPrincipal() {
     document.getElementById('recebidosChange').textContent = `${vendasPagasMes.length} vendas pagas + ${encomendasMes.length} entradas`;
     document.getElementById('totalPendente').textContent = formatarMoeda(totalAReceber);
     document.getElementById('clientesPendentes').textContent = clientesComPendencia;
+
+    // --- NOVA LÓGICA PARA O BADGE DE NOTIFICAÇÃO ---
+    const cobrancasBadge = document.getElementById('cobrancas-badge');
+    if (cobrancasBadge) {
+        if (clientesComPendencia > 0) {
+            cobrancasBadge.textContent = clientesComPendencia;
+            cobrancasBadge.style.display = 'inline-flex'; // Mostra o badge
+        } else {
+            cobrancasBadge.style.display = 'none'; // Esconde o badge
+        }
+    }
+
+    atualizarProgressoMeta();
 }
 function renderizarGrafico() { // Renomeada para o singular
     renderizarGraficoVendasMensais();
@@ -1263,7 +1293,7 @@ function abrirModalVendaRapida() {
         }
         
         const venda = {
-            id: Date.now(),
+            
             data: new Date().toISOString().split('T')[0],
             pessoa: document.getElementById('modalVendaCliente').value,
             produto: produtoNome,
@@ -1310,29 +1340,128 @@ function abrirModalRelatorios() {
 }
 
 function gerarRelatorio() {
+    // 1. Coleta e prepara os filtros
     const inicio = new Date(document.getElementById('relatorioInicio').value);
     const fim = new Date(document.getElementById('relatorioFim').value);
-    fim.setHours(23, 59, 59, 999);
+    const clienteFiltro = document.getElementById('relatorioCliente').value;
+    const pagamentoFiltro = document.getElementById('relatorioPagamento').value;
 
-    const vendasPeriodo = vendas.filter(v => { const d = new Date(v.data); return d >= inicio && d <= fim; });
-    const totalVendido = vendasPeriodo.reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
+    const inicioUTC = new Date(inicio.getUTCFullYear(), inicio.getUTCMonth(), inicio.getUTCDate());
+    const fimUTC = new Date(fim.getUTCFullYear(), fim.getUTCMonth(), fim.getUTCDate());
+
+    // 2. Filtra as vendas com base nos critérios
+    const vendasPeriodo = vendas.filter(v => {
+        if (!v.data || isNaN(new Date(v.data))) return false;
+        const dataVenda = new Date(v.data);
+        const dataVendaUTC = new Date(dataVenda.getUTCFullYear(), dataVenda.getUTCMonth(), dataVenda.getUTCDate());
+        
+        const dataValida = dataVendaUTC >= inicioUTC && dataVendaUTC <= fimUTC;
+        const clienteValido = (clienteFiltro === 'todos' || v.pessoa === clienteFiltro);
+        const pagamentoValido = (pagamentoFiltro === 'Todos' || v.pagamento === pagamentoFiltro);
+
+        return dataValida && clienteValido && pagamentoValido;
+    });
+
+    if (vendasPeriodo.length === 0) {
+        document.getElementById('resultadoRelatorio').innerHTML = '<div class="alert alert-info">Nenhuma venda encontrada com os filtros selecionados.</div>';
+        return;
+    }
+
+    // 3. Agrupa os dados por cliente e depois por produto
+    const relatorioAgrupado = {};
+    const contagemProdutos = {};
+    vendasPeriodo.forEach(venda => {
+        if (!relatorioAgrupado[venda.pessoa]) {
+            relatorioAgrupado[venda.pessoa] = { produtos: {}, subtotal: 0 };
+        }
+        const clienteAtual = relatorioAgrupado[venda.pessoa];
+        if (!clienteAtual.produtos[venda.produto]) {
+            clienteAtual.produtos[venda.produto] = { quantidade: 0, valorTotal: 0 };
+        }
+        clienteAtual.produtos[venda.produto].quantidade += venda.quantidade;
+        clienteAtual.produtos[venda.produto].valorTotal += venda.valor * venda.quantidade;
+        clienteAtual.subtotal += venda.valor * venda.quantidade;
+        contagemProdutos[venda.produto] = (contagemProdutos[venda.produto] || 0) + venda.quantidade;
+    });
+
+    // 4. Calcula os totais e o resumo
+    const totalItens = vendasPeriodo.reduce((acc, v) => acc + v.quantidade, 0);
+    const valorTotalVendido = vendasPeriodo.reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
+    const clientesAtendidos = Object.keys(relatorioAgrupado).length;
+    const ticketMedio = valorTotalVendido / clientesAtendidos;
+    const produtoMaisVendido = Object.entries(contagemProdutos).sort((a, b) => b[1] - a[1])[0];
+
+    // 5. Monta o HTML do relatório
+    const hoje = new Date();
+    const dataGeracao = `${hoje.toLocaleDateString()} ${hoje.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
     
-    const despesasPeriodo = despesas.filter(d => { const dt = new Date(d.data); return dt >= inicio && dt <= fim; });
-    const totalDespesas = despesasPeriodo.reduce((acc, d) => acc + d.valor, 0);
+    let relatorioHTML = `
+        <style>
+            .relatorio-container { border: 1px solid #ddd; border-radius: 8px; padding: 25px; background: #fff; }
+            .relatorio-header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 20px; }
+            .relatorio-header img { height: 80px; margin-bottom: 10px; }
+            .relatorio-info { display: flex; justify-content: space-between; font-size: 0.85rem; color: #666; margin-top: 10px; }
+            .relatorio-cliente { margin-top: 25px; }
+            .relatorio-cliente h5 { font-size: 1.1rem; color: var(--primary-color); border-bottom: 1px solid #f0f0f0; padding-bottom: 5px; }
+            .relatorio-tabela { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            .relatorio-tabela th, .relatorio-tabela td { padding: 8px; text-align: left; }
+            .relatorio-tabela thead { background-color: #f8f9fa; border-bottom: 2px solid #dee2e6; }
+            .relatorio-tabela tbody tr:nth-child(odd) { background-color: #fcfcfc; }
+            .subtotal-cliente { text-align: right; font-weight: bold; margin-top: 10px; }
+            .relatorio-resumo { border-top: 2px solid #eee; margin-top: 30px; padding-top: 15px; }
+        </style>
 
-    const lucro = totalVendido - totalDespesas;
-
-    document.getElementById('resultadoRelatorio').innerHTML = `
-        <div class="card">
-            <h4>Relatório de ${formatarData(inicio)} a ${formatarData(fim)}</h4>
-            <ul style="list-style: none; padding: 15px 0 0 0;">
-                <li><strong>Total Vendido:</strong> <span style="color:var(--success-color)">${formatarMoeda(totalVendido)}</span></li>
-                <li><strong>Total Despesas:</strong> <span style="color:var(--danger-color)">${formatarMoeda(totalDespesas)}</span></li>
-                <hr>
-                <li><strong>Lucro Líquido:</strong> <strong>${formatarMoeda(lucro)}</strong></li>
-            </ul>
-        </div>
+        <div id="relatorio-imprimivel" class="relatorio-container">
+            <div class="relatorio-header">
+                <img src="images/logo.png" alt="Logo"> <h3>LÁ DIVINO SABOR - RELATÓRIO DE VENDAS</h3>
+                <div class="relatorio-info">
+                    <span><strong>Período:</strong> ${inicio.toLocaleDateString()} a ${fim.toLocaleDateString()}</span>
+                    <span><strong>Gerado em:</strong> ${dataGeracao}</span>
+                </div>
+            </div>
     `;
+
+    for (const nomeCliente in relatorioAgrupado) {
+        const dadosCliente = relatorioAgrupado[nomeCliente];
+        relatorioHTML += `
+            <div class="relatorio-cliente">
+                <h5>Cliente: ${nomeCliente}</h5>
+                <table class="relatorio-tabela">
+                    <thead><tr><th>Produto</th><th>Qtd</th><th>Valor Total</th></tr></thead>
+                    <tbody>
+        `;
+        for (const nomeProduto in dadosCliente.produtos) {
+            const dadosProduto = dadosCliente.produtos[nomeProduto];
+            relatorioHTML += `
+                <tr>
+                    <td>${nomeProduto}</td>
+                    <td>${dadosProduto.quantidade}</td>
+                    <td>${formatarMoeda(dadosProduto.valorTotal)}</td>
+                </tr>
+            `;
+        }
+        relatorioHTML += `
+                    </tbody>
+                </table>
+                <div class="subtotal-cliente">>> Subtotal: ${formatarMoeda(dadosCliente.subtotal)}</div>
+            </div>
+        `;
+    }
+
+    relatorioHTML += `
+            <div class="relatorio-resumo">
+                <h4>Resumo do Período:</h4>
+                <p><strong>Total de Itens Vendidos:</strong> ${totalItens}</p>
+                <p><strong>Valor Total Vendido:</strong> ${formatarMoeda(valorTotalVendido)}</p>
+                <p><strong>Clientes Atendidos:</strong> ${clientesAtendidos}</p>
+                <p><strong>Ticket Médio por Cliente:</strong> ${formatarMoeda(ticketMedio)}</p>
+                <p><strong>Produto Mais Vendido:</strong> ${produtoMaisVendido[0]} (${produtoMaisVendido[1]} unid.)</p>
+            </div>
+        </div>
+        <button class="btn btn-secondary" onclick="imprimirRelatorio()" style="margin-top: 20px;">🖨️ Imprimir Relatório</button>
+    `;
+    
+    document.getElementById('resultadoRelatorio').innerHTML = relatorioHTML;
 }
 
 async function salvarMeta() {
@@ -1346,15 +1475,43 @@ async function salvarMeta() {
     
     configuracoes.metaMensal = meta;
     
-    // Atualiza a meta no Firebase
+    // Salva a meta no Firebase
     if (configuracoes.id) {
         await FirebaseService.atualizar('configuracoes', configuracoes.id, { metaMensal: meta });
         mostrarAlerta('Meta salva com sucesso!', 'success');
-        // A atualização da barra de progresso acontecerá no próximo renderizarTudo()
-        carregarTodosDados().then(() => renderizarTudo());
+        atualizarProgressoMeta(); // Atualiza a barra de progresso imediatamente
     } else {
-        mostrarAlerta('Erro: ID de configuração não encontrado.', 'danger');
+        // Se não houver config, cria uma nova
+        const newConfigId = await FirebaseService.salvar('configuracoes', { metaMensal: meta });
+        if (newConfigId) {
+            configuracoes.id = newConfigId;
+            mostrarAlerta('Meta salva com sucesso!', 'success');
+            atualizarProgressoMeta();
+        }
     }
+}
+
+// Esta função atualiza a barra de progresso da meta
+function atualizarProgressoMeta() {
+    // Pega o total vendido que já foi calculado para o dashboard
+    const totalVendidoTexto = document.getElementById('dashTotalVendido').textContent;
+    // Converte o texto "R$ 1.234,56" para o número 1234.56
+    const receitaAtual = parseFloat(totalVendidoTexto.replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
+    
+    const meta = configuracoes.metaMensal || 0;
+    document.getElementById('metaMensal').value = meta;
+
+    if (meta <= 0) {
+        document.getElementById('progressoMeta').style.width = '0%';
+        document.getElementById('statusMeta').textContent = 'Defina uma meta para acompanhar';
+        return;
+    }
+    
+    const progresso = Math.min((receitaAtual / meta) * 100, 100);
+    document.getElementById('progressoMeta').style.width = progresso + '%';
+    
+    const statusTexto = ` ${formatarMoeda(receitaAtual)} / ${formatarMoeda(meta)} (${progresso.toFixed(1)}%)`;
+    document.getElementById('statusMeta').textContent = progresso >= 100 ? `🎉 Meta alcançada! ${statusTexto}` : statusTexto;
 }
 
 function copiarMensagem() {
@@ -1470,14 +1627,13 @@ function excluirEncomenda(id) {
 async function adicionarOuEditarEncomenda(event, encomendaId = null) {
     event.preventDefault();
     const form = event.target;
-
     const dados = {
         clienteNome: form.querySelector('#modalEncomendaCliente').value,
         produtoDescricao: form.querySelector('#modalEncomendaProdutoDescricao').value,
         dataEntrega: form.querySelector('#modalEncomendaDataEntrega').value,
         valorTotal: parseFloat(form.querySelector('#modalEncomendaValorTotal').value) || 0,
         valorEntrada: parseFloat(form.querySelector('#modalEncomendaValorEntrada').value) || 0,
-        status: 'Pendente' // Status inicial padrão
+        status: 'Pendente'
     };
 
     if (!dados.clienteNome || !dados.produtoDescricao || !dados.dataEntrega || dados.valorTotal <= 0) {
@@ -1488,13 +1644,17 @@ async function adicionarOuEditarEncomenda(event, encomendaId = null) {
     mostrarLoading(true);
 
     if (encomendaId) {
-        // Lógica de ATUALIZAÇÃO (ainda não implementada)
+        // Lógica de ATUALIZAÇÃO
         await FirebaseService.atualizar('encomendas', encomendaId, dados);
         mostrarAlerta('Encomenda atualizada com sucesso!', 'success');
     } else {
         // Lógica para SALVAR uma nova encomenda
-        await FirebaseService.salvar('encomendas', dados);
-        mostrarAlerta('Encomenda agendada com sucesso!', 'success');
+        const newId = await FirebaseService.salvar('encomendas', dados);
+        if (newId) {
+            // ADICIONADO: Atualiza o cadastro do cliente com o VALOR TOTAL da encomenda
+            await atualizarDadosCliente(dados.clienteNome, dados.valorTotal);
+            mostrarAlerta('Encomenda agendada com sucesso!', 'success');
+        }
     }
 
     fecharModal('encomendaModal');
