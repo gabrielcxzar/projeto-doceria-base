@@ -1,0 +1,44 @@
+[33m73b197f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mla-divino-sabor[m[33m)[m HEAD@{0}: checkout: moving from la-divino-sabor to la-divino-sabor
+[33m73b197f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mla-divino-sabor[m[33m)[m HEAD@{1}: reset: moving to HEAD~1
+[33ma03177a[m[33m ([m[1;31morigin/la-divino-sabor[m[33m)[m HEAD@{2}: checkout: moving from main to la-divino-sabor
+[33m3bda85d[m[33m ([m[1;31morigin/main[m[33m, [m[1;32mmain[m[33m)[m HEAD@{3}: commit: Implementa cálculo inverso de precificação de produtos
+[33m46dc4c8[m HEAD@{4}: checkout: moving from main to main
+[33m46dc4c8[m HEAD@{5}: commit: Adiciona validação robusta ao formulário de vendas
+[33m98823f1[m HEAD@{6}: commit: Melhora responsividade do layout para dispositivos móveis
+[33ma03177a[m[33m ([m[1;31morigin/la-divino-sabor[m[33m)[m HEAD@{7}: checkout: moving from la-divino-sabor to main
+[33ma03177a[m[33m ([m[1;31morigin/la-divino-sabor[m[33m)[m HEAD@{8}: merge main: Fast-forward
+[33m73b197f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mla-divino-sabor[m[33m)[m HEAD@{9}: checkout: moving from main to la-divino-sabor
+[33ma03177a[m[33m ([m[1;31morigin/la-divino-sabor[m[33m)[m HEAD@{10}: commit: Implementa cálculo de total de venda e salva meta
+[33m73b197f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mla-divino-sabor[m[33m)[m HEAD@{11}: checkout: moving from la-divino-sabor to main
+[33m73b197f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mla-divino-sabor[m[33m)[m HEAD@{12}: merge main: Fast-forward
+[33ma6b0f7e[m HEAD@{13}: checkout: moving from main to la-divino-sabor
+[33m73b197f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mla-divino-sabor[m[33m)[m HEAD@{14}: commit: Corrige bugs da encomenda e bug de excluir venda
+[33m143be36[m HEAD@{15}: checkout: moving from main to main
+[33m143be36[m HEAD@{16}: commit: Limpa a branch main para servir como template
+[33ma6b0f7e[m HEAD@{17}: checkout: moving from la-divino-sabor to main
+[33ma6b0f7e[m HEAD@{18}: checkout: moving from main to la-divino-sabor
+[33ma6b0f7e[m HEAD@{19}: checkout: moving from main to main
+[33ma6b0f7e[m HEAD@{20}: commit: Corrige bug na criação de ID de Venda Rápida
+[33mb7bb06a[m HEAD@{21}: commit: Implementa relatório de vendas detalhado e com filtros
+[33m4af2a42[m HEAD@{22}: commit: Melhora relatório com agrupamento e corrige botão de imprimir
+[33m0108317[m HEAD@{23}: commit: Melhora relatório com agrupamento e corrige botão de imprimir
+[33mc635e1c[m HEAD@{24}: commit: Corrige bugs nos relatórios, cobranças e gráfico
+[33m462c8d3[m HEAD@{25}: commit: Corrige bugs nos relatórios e na tela de cobranças
+[33m0c1797b[m HEAD@{26}: commit: Corrige Relatórios e Pendencias pagas unitariamente
+[33maa94c40[m HEAD@{27}: commit: Ajusta layout da logo com margens negativas
+[33mbc49dd8[m HEAD@{28}: commit: Ajusta tamanho da logo e padding do cabeçalho
+[33m5d7c07d[m HEAD@{29}: commit: Ajusta tamanho da logo e padding do cabeçalho
+[33m64b84e7[m HEAD@{30}: commit: Ajusta layout do cabeçalho com flexbox para controlar tamanho da logo e Corrige bug ao dar baixa no pagamento de encomendas
+[33m3964542[m HEAD@{31}: commit: Aumenta tamanho da logo no cabeçalho
+[33m825f68d[m HEAD@{32}: commit: Ajusta tamanho da logo quadrada
+[33m588052d[m HEAD@{33}: commit: Ajusta tamanho da logo quadrada
+[33m59e2a39[m HEAD@{34}: commit: Corrige tamanho da logo no cabeçalho
+[33m14321fc[m HEAD@{35}: commit: Ajusta o tamanho da logo no cabeçalho
+[33m055224a[m HEAD@{36}: commit: Adiciona logo da empresa no cabeçalho e na aba
+[33m11f696b[m HEAD@{37}: commit: Adiciona efeito hover para os demais botões
+[33md57090b[m HEAD@{38}: commit: Corrige bug ao dar baixa em pendências de encomendas
+[33m479025d[m HEAD@{39}: commit: Corrige ReferenceError em vendasPagasMes
+[33m0a793f0[m HEAD@{40}: commit: Corrige cálculos do dashboard para incluir encomendas
+[33m274f2cd[m HEAD@{41}: Branch: renamed refs/heads/master to refs/heads/main
+[33m274f2cd[m HEAD@{43}: commit: Configura deploy automático com GitHub Actions
+[33m6cebea9[m HEAD@{44}: commit (initial): Primeiro commit do projeto

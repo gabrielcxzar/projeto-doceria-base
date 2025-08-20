@@ -3,7 +3,7 @@ name: Deploy to Firebase Hosting
 on:
   push:
     branches:
-      - main # Roda sempre que houver uma atualização na branch 'main'
+      - la-divino-sabor # Roda sempre que houver uma atualização na branch 'la-divino-sabor'
 
 jobs:
   build_and_deploy:
