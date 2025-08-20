@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
 :root {
     --primary-color: #6a1b9a;
     --secondary-color: #ab47bc;
@@ -17,7 +18,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-family: 'Poppins',-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     background: linear-gradient(135deg, var(--background-color) 0%, #e8eaf6 100%);
     color: var(--text-color);
     line-height: 1.6;
@@ -49,13 +50,15 @@ body {
 }
 
 .header .subtitle {
-    color: #666;
+    color: #444;
     font-size: 0.9rem;
 }
 
 .dashboard {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    /* A MÁGICA ACONTECE AQUI: auto-fit cria quantas colunas couberem,
+       com cada uma tendo no mínimo 250px e no máximo 1 fração do espaço. */
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 15px;
     margin-bottom: 20px;
 }
@@ -350,6 +353,9 @@ body {
 .table tr:last-child td {
     border-bottom: none;
 }
+.table tbody tr:nth-child(odd) {
+    background-color: #f8f9fa;
+}
 
 .actions { 
     display: flex; 
@@ -566,11 +572,7 @@ body {
 .text-center { text-align: center; }
 
 /* Responsividade Mobile-First */
-@media (max-width: 1200px) { 
-    .dashboard { 
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); 
-    } 
-}
+
 
 @media (max-width: 900px) { 
     .content-grid { 
@@ -589,8 +591,8 @@ body {
 
 @media (max-width: 600px) { 
     .container {
-        padding: 10px;
-    }
+    padding: 20px 10px; /* 20px em cima/baixo, 10px nos lados */
+}
     
     .tabs { 
         flex-direction: column; 
@@ -704,4 +706,11 @@ body {
     object-fit: contain;
     margin-top: -25px;      /* 2. Puxamos a logo 25px PARA CIMA, para fora da barra */
     margin-bottom: -20px;   /* 3. Puxamos o texto de baixo 20px PARA CIMA, diminuindo o espaço */
+}
+/* Estilo para o badge de notificação nas abas */
+.tab-button .badge {
+    margin-left: 8px;
+    font-size: 0.7rem;
+    padding: 3px 7px;
+    vertical-align: middle;
 }
