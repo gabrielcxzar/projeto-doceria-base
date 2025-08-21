@@ -1376,37 +1376,12 @@ function renderizarGraficoVendasMensais() {
     });
 }
 function extrairDataDoItem(item) {
-    let anoItem, mesItem;
-    
-    // Caso 1: Data vem do Firebase como Timestamp
-    if (item.criadoEm && typeof item.criadoEm.toDate === 'function') {
-        const dataObj = item.criadoEm.toDate();
-        anoItem = dataObj.getFullYear();
-        mesItem = dataObj.getMonth(); // 0-11
-        
-    // Caso 2: Data é string no formato 'YYYY-MM-DD'  
-    } else if (item.data || item.dataEntrega) {
-        const dataStr = item.data || item.dataEntrega;
-        
-        if (!dataStr || typeof dataStr !== 'string' || !dataStr.includes('-')) {
-            console.warn('Data inválida encontrada:', dataStr);
-            return null;
-        }
-        
-        // Converte "2025-07-31" para ano=2025, mes=6 (julho = índice 6)
-        const partesData = dataStr.split('-');
-        anoItem = parseInt(partesData[0]);
-        mesItem = parseInt(partesData[1]) - 1; // Subtrai 1 porque JS usa 0-11
-        
-        if (isNaN(anoItem) || isNaN(mesItem) || mesItem < 0 || mesItem > 11) {
-            console.warn('Data mal formatada:', dataStr, 'resultou em:', { anoItem, mesItem });
-            return null;
-        }
-    } else {
-        return null;
-    }
-    
-    return { ano: anoItem, mes: mesItem };
+    if (!item.data) return null;
+    const data = new Date(item.data);
+    return {
+        ano: data.getFullYear(),
+        mes: data.getMonth() // <-- sempre retorna 0-11
+    };
 }
 function criarFiltroData(anoDesejado, mesDesejado) {
     return function(item) {
