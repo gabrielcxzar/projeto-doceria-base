@@ -1138,34 +1138,42 @@ async function marcarPendenciasComoPagas(clienteNome) {
 // (As funções de cálculo e renderização de gráficos do seu código de exemplo podem ser coladas aqui, pois operam sobre as variáveis globais que já foram carregadas do Firebase)
 
 function atualizarDashboardPrincipal() {
-    const inicioMes = new Date(anoFiltroSelecionado, mesFiltroSelecionado, 1);
-    const fimMes = new Date(anoFiltroSelecionado, mesFiltroSelecionado + 1, 0);
-    fimMes.setHours(23, 59, 59, 999); // Garante que o fim do mês inclua o dia todo
+    // A lógica dos filtros agora será comparar o ano e o mês numericamente.
 
     const vendasMes = vendas.filter(v => {
-        // --- A CORREÇÃO ESTÁ AQUI ---
+        // --- NOVA CORREÇÃO DEFINITIVA ---
+        // Pega a data da venda (seja do Firestore ou do input)
         const dataObj = v.criadoEm?.toDate() || new Date(v.data);
-        // CORREÇÃO DO FUSO HORÁRIO: Adiciona o deslocamento de fuso para a data
-        const dataVenda = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
-        // --- FIM DA CORREÇÃO ---
-        return dataVenda >= inicioMes && dataVenda <= fimMes;
+        // Precisamos ajustar o fuso apenas para obter a string correta no nosso fuso
+        const dataVendaLocal = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
+        
+        const anoVenda = dataVendaLocal.getFullYear();
+        const mesVenda = dataVendaLocal.getMonth(); // Mês no JS é 0 (Jan) a 11 (Dez)
+
+        // Compara o ano e o mês da venda com os valores selecionados no filtro
+        return anoFiltroSelecionado === anoVenda && mesFiltroSelecionado === mesVenda;
     });
 
+    // Aplicando a mesma lógica para Encomendas
     const encomendasMes = encomendas.filter(e => {
-        // Aplicando a mesma correção para encomendas
         const dataObj = e.criadoEm?.toDate() || new Date(e.dataEntrega);
-        const dataEncomenda = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
-        return dataEncomenda >= inicioMes && dataEncomenda <= fimMes;
+        const dataEncomendaLocal = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
+        const anoEncomenda = dataEncomendaLocal.getFullYear();
+        const mesEncomenda = dataEncomendaLocal.getMonth();
+        return anoFiltroSelecionado === anoEncomenda && mesFiltroSelecionado === mesEncomenda;
     });
 
+    // E para Despesas
     const despesasMes = despesas.filter(d => {
-        // E para despesas
         const dataObj = new Date(d.data);
-        const dataDespesa = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
-        return dataDespesa >= inicioMes && dataDespesa <= fimMes;
+        const dataDespesaLocal = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
+        const anoDespesa = dataDespesaLocal.getFullYear();
+        const mesDespesa = dataDespesaLocal.getMonth();
+        return anoFiltroSelecionado === anoDespesa && mesFiltroSelecionado === mesDespesa;
     });
 
-    // O resto da função continua exatamente igual...
+    // O resto da função continua exatamente igual, calculando os totais
+    // com base nas listas filtradas (vendasMes, despesasMes, etc.)
     const totalVendido = vendasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + encomendasMes.reduce((acc, e) => acc + e.valorTotal, 0);
     const vendasPagasMes = vendasMes.filter(v => v.status === 'A' || v.status === 'E');
     const totalRecebidoMes = vendasPagasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + encomendasMes.reduce((acc, e) => acc + (e.valorEntrada || 0), 0);
