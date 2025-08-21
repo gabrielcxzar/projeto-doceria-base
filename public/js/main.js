@@ -1404,11 +1404,16 @@ function renderizarGraficoVendasMensais() {
 }
 function extrairDataDoItem(item) {
     if (!item.data) return null;
-    const data = new Date(item.data);
-    return {
-        ano: data.getFullYear(),
-        mes: data.getMonth() // <-- sempre retorna 0-11
-    };
+
+    // Garante que estamos tratando formato YYYY-MM-DD
+    const partes = item.data.split("-");
+    if (partes.length !== 3) return null;
+
+    const ano = parseInt(partes[0], 10);
+    const mes = parseInt(partes[1], 10) - 1; // ajusta para 0-11
+    const dia = parseInt(partes[2], 10);
+
+    return { ano, mes, dia };
 }
 function criarFiltroData(anoDesejado, mesDesejado) {
     return function(item) {
