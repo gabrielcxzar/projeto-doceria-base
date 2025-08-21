@@ -31,6 +31,8 @@ const db = getFirestore(app);
 
 // === ESTADO GLOBAL ===
 let vendas = [];
+let anoFiltroSelecionado;
+let mesFiltroSelecionado;
 let produtos = [];
 let clientes = [];
 let encomendas = [];
@@ -110,6 +112,7 @@ class FirebaseService {
             return [];
         }
     }
+    
 
     // Carregar um documento específico
     static async carregarPorId(colecao, id) {
@@ -125,10 +128,35 @@ class FirebaseService {
         }
     }
 }
+// main.js (nova função)
+function popularFiltrosDeData() {
+    const filtroAnoSelect = document.getElementById('filtroAno');
+    const filtroMesSelect = document.getElementById('filtroMes');
+    const hoje = new Date();
+
+    anoFiltroSelecionado = hoje.getFullYear();
+    mesFiltroSelecionado = hoje.getMonth(); // 0 = Janeiro, 11 = Dezembro
+
+    // Popula o seletor de Ano
+    filtroAnoSelect.innerHTML = '';
+    for (let ano = anoFiltroSelecionado + 1; ano >= anoFiltroSelecionado - 3; ano--) {
+        filtroAnoSelect.innerHTML += `<option value="${ano}">${ano}</option>`;
+    }
+    filtroAnoSelect.value = anoFiltroSelecionado;
+
+    // Popula o seletor de Mês
+    const nomesDosMeses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    filtroMesSelect.innerHTML = '';
+    nomesDosMeses.forEach((nome, index) => {
+        filtroMesSelect.innerHTML += `<option value="${index}">${nome.toUpperCase()}</option>`;
+    });
+    filtroMesSelect.value = mesFiltroSelecionado;
+}
 
 // === INICIALIZAÇÃO ===
 document.addEventListener('DOMContentLoaded', async () => {
     mostrarLoading(true);
+    popularFiltrosDeData();
     await inicializarSistema();
     configurarEventListeners();
     await carregarTodosDados();
@@ -291,6 +319,20 @@ function configurarEventListeners() {
     // --- Cobrança ---
     safeAddEventListener('clienteCobranca', 'change', atualizarMensagemCobranca);
     safeAddEventListener('tipoCobranca', 'change', atualizarMensagemCobranca);
+    // --- Listeners dos Filtros de Data ---
+    const filtroAno = document.getElementById('filtroAno');
+    const filtroMes = document.getElementById('filtroMes');
+
+    if (filtroAno && filtroMes) {
+        filtroAno.addEventListener('change', () => {
+            anoFiltroSelecionado = parseInt(filtroAno.value);
+            renderizarTudo(); // Re-renderiza tudo com o novo filtro
+        });
+        filtroMes.addEventListener('change', () => {
+            mesFiltroSelecionado = parseInt(filtroMes.value);
+            renderizarTudo(); // Re-renderiza tudo com o novo filtro
+        });
+    }
 }
 
 // === LÓGICA DAS ABAS ===
@@ -819,12 +861,26 @@ function renderizarTabelaEncomendas() {
 // === LÓGICA DE DESPESAS ===
 async function adicionarDespesa(e) {
     e.preventDefault();
+
+    // Lê os valores dos campos do formulário
+    const data = document.getElementById('despesaData').value;
+    const tipo = document.getElementById('despesaTipo').value;
+    const descricao = document.getElementById('despesaDescricao').value;
+    // Converte a quantidade para número, se estiver vazio, considera como 1
+    const quantidade = parseFloat(document.getElementById('despesaQuantidade').value) || 1;
+    const valorUnitario = parseFloat(document.getElementById('despesaValor').value) || 0;
+
+    // --- A LÓGICA DA CORREÇÃO ESTÁ AQUI ---
+    // Multiplica a quantidade pelo valor unitário para obter o valor total da despesa
+    const valorTotalDespesa = quantidade * valorUnitario;
+
+    // Monta o objeto da despesa com o valor total calculado
     const despesa = {
-        data: document.getElementById('despesaData').value,
-        tipo: document.getElementById('despesaTipo').value,
-        descricao: document.getElementById('despesaDescricao').value,
-        quantidade: document.getElementById('despesaQuantidade').value,
-        valor: parseFloat(document.getElementById('despesaValor').value)
+        data: data,
+        tipo: tipo,
+        descricao: descricao,
+        quantidade: quantidade, // Mantemos a quantidade para referência
+        valor: valorTotalDespesa // O valor salvo agora é o total
     };
 
     if (!despesa.data || !despesa.tipo || !despesa.descricao || isNaN(despesa.valor)) {
@@ -1082,11 +1138,26 @@ async function marcarPendenciasComoPagas(clienteNome) {
 // (As funções de cálculo e renderização de gráficos do seu código de exemplo podem ser coladas aqui, pois operam sobre as variáveis globais que já foram carregadas do Firebase)
 
 function atualizarDashboardPrincipal() {
-    const hoje = new Date();
-    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-    const vendasMes = vendas.filter(v => (v.criadoEm?.toDate() || new Date(v.data)) >= inicioMes);
-    const encomendasMes = encomendas.filter(e => (e.criadoEm?.toDate() || new Date()) >= inicioMes);
-    const despesasMes = despesas.filter(d => new Date(d.data) >= inicioMes);
+    // Usa as variáveis globais para definir o período do filtro
+    const inicioMes = new Date(anoFiltroSelecionado, mesFiltroSelecionado, 1);
+    const fimMes = new Date(anoFiltroSelecionado, mesFiltroSelecionado + 1, 0); // Pega o último dia do mês
+
+    const vendasMes = vendas.filter(v => {
+        const dataVenda = v.criadoEm?.toDate() || new Date(v.data);
+        return dataVenda >= inicioMes && dataVenda <= fimMes;
+    });
+
+    const encomendasMes = encomendas.filter(e => {
+        const dataEncomenda = e.criadoEm?.toDate() || new Date(); // Pode ajustar a data de referência da encomenda
+        return dataEncomenda >= inicioMes && dataEncomenda <= fimMes;
+    });
+
+    const despesasMes = despesas.filter(d => {
+        const dataDespesa = new Date(d.data);
+        return dataDespesa >= inicioMes && dataDespesa <= fimMes;
+    });
+
+    // O resto da função continua igual...
     const totalVendido = vendasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + encomendasMes.reduce((acc, e) => acc + e.valorTotal, 0);
     const vendasPagasMes = vendasMes.filter(v => v.status === 'A' || v.status === 'E');
     const totalRecebidoMes = vendasPagasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + encomendasMes.reduce((acc, e) => acc + (e.valorEntrada || 0), 0);
