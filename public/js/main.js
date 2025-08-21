@@ -1138,26 +1138,34 @@ async function marcarPendenciasComoPagas(clienteNome) {
 // (As funções de cálculo e renderização de gráficos do seu código de exemplo podem ser coladas aqui, pois operam sobre as variáveis globais que já foram carregadas do Firebase)
 
 function atualizarDashboardPrincipal() {
-    // Usa as variáveis globais para definir o período do filtro
     const inicioMes = new Date(anoFiltroSelecionado, mesFiltroSelecionado, 1);
-    const fimMes = new Date(anoFiltroSelecionado, mesFiltroSelecionado + 1, 0); // Pega o último dia do mês
+    const fimMes = new Date(anoFiltroSelecionado, mesFiltroSelecionado + 1, 0);
+    fimMes.setHours(23, 59, 59, 999); // Garante que o fim do mês inclua o dia todo
 
     const vendasMes = vendas.filter(v => {
-        const dataVenda = v.criadoEm?.toDate() || new Date(v.data);
+        // --- A CORREÇÃO ESTÁ AQUI ---
+        const dataObj = v.criadoEm?.toDate() || new Date(v.data);
+        // CORREÇÃO DO FUSO HORÁRIO: Adiciona o deslocamento de fuso para a data
+        const dataVenda = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
+        // --- FIM DA CORREÇÃO ---
         return dataVenda >= inicioMes && dataVenda <= fimMes;
     });
 
     const encomendasMes = encomendas.filter(e => {
-        const dataEncomenda = e.criadoEm?.toDate() || new Date(); // Pode ajustar a data de referência da encomenda
+        // Aplicando a mesma correção para encomendas
+        const dataObj = e.criadoEm?.toDate() || new Date(e.dataEntrega);
+        const dataEncomenda = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
         return dataEncomenda >= inicioMes && dataEncomenda <= fimMes;
     });
 
     const despesasMes = despesas.filter(d => {
-        const dataDespesa = new Date(d.data);
+        // E para despesas
+        const dataObj = new Date(d.data);
+        const dataDespesa = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
         return dataDespesa >= inicioMes && dataDespesa <= fimMes;
     });
 
-    // O resto da função continua igual...
+    // O resto da função continua exatamente igual...
     const totalVendido = vendasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + encomendasMes.reduce((acc, e) => acc + e.valorTotal, 0);
     const vendasPagasMes = vendasMes.filter(v => v.status === 'A' || v.status === 'E');
     const totalRecebidoMes = vendasPagasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + encomendasMes.reduce((acc, e) => acc + (e.valorEntrada || 0), 0);
@@ -1171,7 +1179,6 @@ function atualizarDashboardPrincipal() {
     const clientesComEncomendasPendentes = encomendas.filter(e => e.status !== 'Finalizado' && (e.valorTotal - (e.valorEntrada || 0)) > 0).map(e => e.clienteNome);
     const clientesComPendencia = new Set([...clientesComVendasPendentes, ...clientesComEncomendasPendentes]).size;
 
-    // Atualização do HTML
     document.getElementById('dashTotalVendido').textContent = formatarMoeda(totalVendido);
     document.getElementById('vendidoChange').textContent = `${vendasMes.length + encomendasMes.length} pedidos no mês`;
     document.getElementById('dashTotalDespesas').textContent = formatarMoeda(totalDespesas);
@@ -1194,7 +1201,6 @@ function atualizarDashboardPrincipal() {
             cobrancasBadge.style.display = 'none';
         }
     }
-
     atualizarProgressoMeta();
 }
 function renderizarGrafico() { // Renomeada para o singular
@@ -1204,19 +1210,37 @@ function renderizarGrafico() { // Renomeada para o singular
 
 function renderizarGraficoVendasMensais() {
     const ctx = document.getElementById('vendasMensaisChart').getContext('2d');
-    if (charts.vendasMensais) charts.vendasMensais.destroy();
+    if (charts.vendasMensais) {
+        charts.vendasMensais.destroy();
+    }
 
-    const labels = [...Array(7).keys()].map(i => {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        return d.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
-    }).reverse();
+    // 1. Define o período com base nos filtros
+    const inicioMes = new Date(anoFiltroSelecionado, mesFiltroSelecionado, 1);
+    const fimMes = new Date(anoFiltroSelecionado, mesFiltroSelecionado + 1, 0);
 
-    const data = labels.map(label => {
-        return vendas.filter(v => new Date(v.data).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}) === label)
-                     .reduce((sum, v) => sum + (v.valor * v.quantidade), 0);
+    // 2. Filtra as vendas apenas para o mês selecionado (com a correção de fuso)
+    const vendasDoMesFiltrado = vendas.filter(v => {
+        const dataObj = v.criadoEm?.toDate() || new Date(v.data);
+        const dataVenda = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
+        return dataVenda >= inicioMes && dataVenda <= fimMes;
     });
 
+    // 3. Prepara os dias do mês para o eixo X do gráfico
+    const diasNoMes = fimMes.getDate();
+    const labels = Array.from({ length: diasNoMes }, (_, i) => String(i + 1).padStart(2, '0'));
+
+    // 4. Calcula o total vendido para cada dia do mês
+    const data = labels.map(dia => {
+        return vendasDoMesFiltrado
+            .filter(venda => {
+                const dataObj = venda.criadoEm?.toDate() || new Date(venda.data);
+                const dataVendaCorrigida = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
+                return dataVendaCorrigida.getDate() === parseInt(dia);
+            })
+            .reduce((total, v) => total + (v.valor * v.quantidade), 0);
+    });
+
+    // 5. Cria o novo gráfico com os dados corretos
     charts.vendasMensais = new Chart(ctx, {
         type: 'line',
         data: {
@@ -1230,7 +1254,18 @@ function renderizarGraficoVendasMensais() {
                 tension: 0.3
             }]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }}}
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { 
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
     });
 }
 
