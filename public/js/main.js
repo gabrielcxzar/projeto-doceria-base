@@ -861,32 +861,65 @@ function atualizarTotalVenda() {
     document.getElementById('vendaTotalDisplay').textContent = formatarMoeda(total);
 }
 
-function renderizarTabelaVendas() {
-    const tbody = document.getElementById('vendasTableBody');
-    const search = document.getElementById('searchVendas').value.toLowerCase();
-    
-    let vendasFiltradas = vendas.filter(v => 
-        v.pessoa?.toLowerCase().includes(search) || 
-        v.produto?.toLowerCase().includes(search)
-    );
-    
-    vendasFiltradas.sort((a, b) => new Date(b.data) - new Date(a.data));
-    
-    tbody.innerHTML = vendasFiltradas.map(v => `
-        <tr>
-            <td>${formatarData(v.data)}</td>
-            <td>${v.pessoa}</td>
-            <td>${v.produto}</td>
-            <td>${v.quantidade}</td>
-            <td><strong>${formatarMoeda(v.valor * v.quantidade)}</strong></td>
-            <td>${getStatusBadge(v.status)}</td>
-            <td class="actions">
-                <button class="btn btn-primary btn-sm" onclick="editarStatusVenda('${v.id}')" title="Alterar Status">🔄</button>
-                <button class="btn btn-danger btn-sm" onclick="excluirVenda('${v.id}')" title="Excluir">🗑️</button>
-            </td>
-        </tr>
-    `).join('');
+function renderizarTabelaPendencias() {
+    const tbody = document.getElementById('pendenciasTableBody');
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0); // Zera a hora para comparações de data
+
+    // Usa a função que pega TODAS as pendências
+    const pendenciasGerais = [];
+
+    // Pega pendências de Vendas (todas em aberto)
+    vendas.filter(v => v.status === 'P').forEach(v => {
+        pendenciasGerais.push({
+            nome: v.pessoa,
+            valor: v.valor * v.quantidade,
+            dataVencimento: new Date(v.data)
+        });
+    });
+
+    // Pega pendências de Encomendas (todas em aberto)
+    encomendas
+        .filter(e => e.status !== 'Finalizado' && (e.valorTotal - (e.valorEntrada || 0)) > 0)
+        .forEach(e => {
+            pendenciasGerais.push({
+                nome: e.clienteNome,
+                valor: e.valorTotal - (e.valorEntrada || 0),
+                dataVencimento: new Date(e.dataEntrega) // Usa data de entrega como vencimento
+            });
+        });
+
+    // Renderiza a tabela
+    tbody.innerHTML = pendenciasGerais.map(item => {
+        const dataVencimento = new Date(item.dataVencimento);
+        dataVencimento.setHours(0,0,0,0);
+        const diasEmAtraso = Math.floor((hoje - dataVencimento) / (1000 * 60 * 60 * 24));
+        
+        let statusAtraso = '';
+        if (diasEmAtraso > 0) {
+            statusAtraso = `<span class="badge badge-danger">${diasEmAtraso} dias atrasado</span>`;
+        } else {
+            statusAtraso = `<span class="badge badge-info">Vence em ${-diasEmAtraso} dias</span>`;
+        }
+        if (diasEmAtraso === 0) {
+            statusAtraso = `<span class="badge badge-warning">Vence Hoje</span>`;
+        }
+
+        return `
+            <tr>
+                <td><strong>${item.nome}</strong></td>
+                <td><strong style="color: var(--danger-color);">${formatarMoeda(item.valor)}</strong></td>
+                <td>${statusAtraso}</td>
+                <td>-</td>
+                <td>-</td>
+                <td class="actions">
+                    <button class="btn btn-success btn-sm" onclick="marcarPendenciasComoPagas('${item.nome}')" title="Marcar como Pago">✅ Paga</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
+
 async function editarStatusVenda(id) {
     const venda = vendas.find(v => v.id === id);
     if (!venda) return;
@@ -1289,11 +1322,12 @@ function atualizarDashboardPrincipal() {
     document.getElementById('totalPendente').textContent = formatarMoeda(totalAReceber);
     document.getElementById('clientesPendentes').textContent = clientesComPendencia;
     
-    // Atualiza badge de cobranças
+    // Atualiza badge de cobranças (🔔) usando pendências GERAIS
     const cobrancasBadge = document.getElementById('cobrancas-badge');
     if (cobrancasBadge) {
-        if (clientesComPendencia > 0) {
-            cobrancasBadge.textContent = clientesComPendencia;
+        const pendenciasGerais = calcularPendenciasGerais();
+        if (pendenciasGerais.clientesPendentes > 0) {
+            cobrancasBadge.textContent = pendenciasGerais.clientesPendentes;
             cobrancasBadge.style.display = 'inline-flex';
         } else {
             cobrancasBadge.style.display = 'none';
@@ -1308,6 +1342,25 @@ function atualizarDashboardPrincipal() {
 function renderizarGrafico() { // Renomeada para o singular
     renderizarGraficoVendasMensais();
     renderizarGraficoEvolucaoVendas();
+}
+function calcularPendenciasGerais() {
+    const aReceberVendas = vendas
+        .filter(v => v.status === 'P')
+        .reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
+
+    const aReceberEncomendas = encomendas
+        .filter(e => e.status !== 'Finalizado')
+        .reduce((acc, e) => acc + ((e.valorTotal || 0) - (e.valorEntrada || 0)), 0);
+
+    const clientesPendentes = new Set([
+        ...vendas.filter(v => v.status === 'P').map(v => v.pessoa),
+        ...encomendas.filter(e => e.status !== 'Finalizado' && ((e.valorTotal || 0) - (e.valorEntrada || 0)) > 0).map(e => e.clienteNome)
+    ]).size;
+
+    return {
+        totalAReceber: aReceberVendas + aReceberEncomendas,
+        clientesPendentes
+    };
 }
 
 function renderizarGraficoVendasMensais() {
