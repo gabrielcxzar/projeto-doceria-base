@@ -920,6 +920,7 @@ function renderizarTabelaPendencias() {
     }).join('');
 }
 
+
 async function editarStatusVenda(id) {
     const venda = vendas.find(v => v.id === id);
     if (!venda) return;
@@ -1111,61 +1112,7 @@ function calcularPendenciasCliente(clienteNome) {
     return { valor: valorVendas };
 }
 
-function renderizarTabelaPendencias() {
-    const tbody = document.getElementById('pendenciasTableBody');
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0); // Zera a hora para comparações de data
 
-    // Pega pendências de Vendas
-    const pendenciasVendas = vendas
-        .filter(v => v.status === 'P')
-        .map(v => ({
-            nome: v.pessoa,
-            valor: v.valor * v.quantidade,
-            dataVencimento: new Date(v.data)
-        }));
-
-    // Pega pendências de Encomendas
-    const pendenciasEncomendas = encomendas
-        .filter(e => e.status !== 'Finalizado' && (e.valorTotal - (e.valorEntrada || 0)) > 0)
-        .map(e => ({
-            nome: e.clienteNome,
-            valor: e.valorTotal - (e.valorEntrada || 0),
-            dataVencimento: new Date(e.dataEntrega) // A data de vencimento é a data da entrega
-        }));
-
-    // Junta as duas listas
-    const listaPendencias = [...pendenciasVendas, ...pendenciasEncomendas];
-
-    tbody.innerHTML = listaPendencias.map(item => {
-        const dataVencimento = new Date(item.dataVencimento);
-        dataVencimento.setHours(0,0,0,0);
-        const diasEmAtraso = Math.floor((hoje - dataVencimento) / (1000 * 60 * 60 * 24));
-        
-        let statusAtraso = '';
-        if (diasEmAtraso > 0) {
-            statusAtraso = `<span class="badge badge-danger">${diasEmAtraso} dias atrasado</span>`;
-        } else {
-            statusAtraso = `<span class="badge badge-info">Vence em ${-diasEmAtraso} dias</span>`;
-        }
-        if (diasEmAtraso === 0) {
-            statusAtraso = `<span class="badge badge-warning">Vence Hoje</span>`;
-        }
-
-        return `
-            <tr>
-                <td><strong>${item.nome}</strong></td>
-                <td><strong style="color: var(--danger-color);">${formatarMoeda(item.valor)}</strong></td>
-                <td>${statusAtraso}</td>
-                <td>-</td>
-                <td>-</td>
-                <td class="actions">
-                    <button class="btn btn-success btn-sm" onclick="marcarPendenciasComoPagas('${item.nome}')" title="Marcar como Pago">✅ Paga</button>
-                </td>
-            </tr>
-        `;
-    }).join('');
-}
 async function marcarTodosComoContatados() {
     showConfirm('Deseja registrar um contato de cobrança para TODOS os clientes com pendências?', async (confirmado) => {
         if (confirmado) {
