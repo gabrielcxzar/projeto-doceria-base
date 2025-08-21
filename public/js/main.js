@@ -247,39 +247,50 @@ function mostrarLoading(show) {
     }
 }
 
+// main.js
+
+// SUBSTITUA SUA FUNÇÃO ANTIGA POR ESTA VERSÃO COMPLETA E CORRIGIDA
 function configurarEventListeners() {
-    // Formulários
-    document.getElementById('vendaForm').addEventListener('submit', adicionarVenda);
-    document.getElementById('produtoForm').addEventListener('submit', adicionarOuEditarProduto);
-    document.getElementById('clienteForm').addEventListener('submit', adicionarOuEditarCliente);
-    document.getElementById('despesaForm').addEventListener('submit', adicionarDespesa);
-    document.getElementById('cobrancaForm').addEventListener('submit', (e) => {
-        e.preventDefault(); // Impede o envio do formulário, a lógica está nos botões
+    // Função auxiliar para evitar repetição
+    const safeAddEventListener = (id, event, handler) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener(event, handler);
+        } else {
+            console.warn(`Elemento com id '${id}' não foi encontrado.`);
+        }
+    };
+
+    // --- Formulários ---
+    safeAddEventListener('vendaForm', 'submit', adicionarVenda);
+    safeAddEventListener('produtoForm', 'submit', adicionarOuEditarProduto);
+    safeAddEventListener('clienteForm', 'submit', adicionarOuEditarCliente);
+    safeAddEventListener('despesaForm', 'submit', adicionarDespesa);
+    safeAddEventListener('cobrancaForm', 'submit', (e) => {
+        e.preventDefault();
         atualizarMensagemCobranca();
     });
     
-    // Campos que afetam cálculos
-    document.getElementById('produto').addEventListener('change', preencherValorProduto);
-    document.getElementById('quantidade').addEventListener('input', atualizarTotalVenda);
-    document.getElementById('produtoCustoMaterial').addEventListener('input', calcularPrecoVenda);
-    document.getElementById('produtoCustoMaoObra').addEventListener('input', calcularPrecoVenda);
-    document.getElementById('produtoMargem').addEventListener('input', calcularPrecoVenda);
+    // --- Campos que afetam cálculos ---
+    safeAddEventListener('produto', 'change', preencherValorProduto);
+    safeAddEventListener('quantidade', 'input', atualizarTotalVenda);
+    safeAddEventListener('produtoCustoMaterial', 'input', calcularPrecoVenda);
+    safeAddEventListener('produtoCustoMaoObra', 'input', calcularPrecoVenda);
+    safeAddEventListener('produtoMargem', 'input', calcularPrecoVenda);
+    safeAddEventListener('produtoValor', 'input', calcularMargemLucro);
 
-    // Listeners para a precificação inversa
-    document.getElementById('definirPrecoManual').addEventListener('change', alternarModoPrecificacao);
-    document.getElementById('produtoValor').addEventListener('input', calcularMargemLucro);
-    document.getElementById('produtoValor').addEventListener('input', calcularMargemLucro);
+    // --- Checkbox de Precificação ---
+    safeAddEventListener('definirPrecoManual', 'change', alternarModoPrecificacao);
     
-    // Filtros e buscas
-    document.getElementById('searchVendas').addEventListener('input', renderizarTabelaVendas);
-    document.getElementById('searchDespesas').addEventListener('input', renderizarTabelaDespesas);
-    document.getElementById('filtroDespesas').addEventListener('change', renderizarTabelaDespesas);
-    document.getElementById('filtroVencimento').addEventListener('change', renderizarTabelaPendencias);
+    // --- Filtros e buscas ---
+    safeAddEventListener('searchVendas', 'input', renderizarTabelaVendas);
+    safeAddEventListener('searchDespesas', 'input', renderizarTabelaDespesas);
+    safeAddEventListener('filtroDespesas', 'change', renderizarTabelaDespesas);
+    safeAddEventListener('filtroVencimento', 'change', renderizarTabelaPendencias);
     
-    // Cobrança
-    document.getElementById('clienteCobranca').addEventListener('change', atualizarMensagemCobranca);
-    document.getElementById('tipoCobranca').addEventListener('change', atualizarMensagemCobranca);
-    
+    // --- Cobrança ---
+    safeAddEventListener('clienteCobranca', 'change', atualizarMensagemCobranca);
+    safeAddEventListener('tipoCobranca', 'change', atualizarMensagemCobranca);
 }
 
 // === LÓGICA DAS ABAS ===
