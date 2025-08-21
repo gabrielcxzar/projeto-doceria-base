@@ -128,7 +128,6 @@ class FirebaseService {
         }
     }
 }
-// main.js (nova função)
 function popularFiltrosDeData() {
     const filtroAnoSelect = document.getElementById('filtroAno');
     const filtroMesSelect = document.getElementById('filtroMes');
@@ -149,16 +148,23 @@ function popularFiltrosDeData() {
         filtroAnoSelect.innerHTML += `<option value="${ano}" ${selected}>${ano}</option>`;
     }
 
+    // --- INÍCIO DA ALTERAÇÃO ---
     // Popula os meses
     const nomesDosMeses = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", 
                           "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"];
-    filtroMesSelect.innerHTML = '';
+    
+    // 1. Adicionamos a opção "TODOS" com um valor especial -1
+    filtroMesSelect.innerHTML = '<option value="-1">TODOS OS MESES</option>';
+    
+    // 2. Adicionamos os outros meses, mantendo o mês atual selecionado por padrão
     nomesDosMeses.forEach((nome, index) => {
         const selected = index === mesAtual ? 'selected' : '';
-        filtroMesSelect.innerHTML += `<option value="${index}" ${selected}>${nome}</option>`;
+        // Note o `+=` para adicionar ao invés de substituir
+        filtroMesSelect.innerHTML += `<option value="${index}" ${selected}>${nome}</option>`; 
     });
+    // --- FIM DA ALTERAÇÃO ---
 
-    // CORREÇÃO CRÍTICA: Sincroniza as variáveis com os valores selecionados
+    // Sincroniza as variáveis com os valores selecionados ao carregar
     anoFiltroSelecionado = parseInt(filtroAnoSelect.value);
     mesFiltroSelecionado = parseInt(filtroMesSelect.value);
 
@@ -387,6 +393,7 @@ function configurarEventListeners() {
     
     // --- Filtros e buscas ---
     safeAddEventListener('searchVendas', 'input', renderizarTabelaVendas);
+    safeAddEventListener('filtroVendasStatus', 'change', renderizarTabelaVendas);
     safeAddEventListener('searchDespesas', 'input', renderizarTabelaDespesas);
     safeAddEventListener('filtroDespesas', 'change', renderizarTabelaDespesas);
     safeAddEventListener('filtroVencimento', 'change', renderizarTabelaPendencias);
@@ -435,14 +442,27 @@ function openTab(evt, tabName) {
 function renderizarTabelaVendas() {
     const tbody = document.getElementById('vendasTableBody');
     const search = document.getElementById('searchVendas').value.toLowerCase();
-    
-    let vendasFiltradas = vendas.filter(v => 
-        v.pessoa?.toLowerCase().includes(search) || 
-        v.produto?.toLowerCase().includes(search)
-    );
-    
+    // --- INÍCIO DA ALTERAÇÃO ---
+    // 1. Pega o valor do novo filtro de status
+    const statusFiltro = document.getElementById('filtroVendasStatus').value; 
+
+    // 2. Filtra a lista de vendas com base em AMBOS os critérios
+    let vendasFiltradas = vendas.filter(v => {
+        // Condição para o texto de busca (como já existia)
+        const matchSearch = v.pessoa?.toLowerCase().includes(search) || 
+                          v.produto?.toLowerCase().includes(search);
+
+        // Condição para o status
+        // Se o filtro for "" (Todos), a condição é sempre verdadeira.
+        // Caso contrário, verifica se o status da venda é igual ao do filtro.
+        const matchStatus = statusFiltro === '' || v.status === statusFiltro;
+
+        return matchSearch && matchStatus; // A venda só aparece se atender às duas condições
+    });
+    // --- FIM DA ALTERAÇÃO ---
+
     vendasFiltradas.sort((a, b) => new Date(b.data) - new Date(a.data));
-    
+
     tbody.innerHTML = vendasFiltradas.map(v => `
         <tr>
             <td>${formatarData(v.data)}</td>
@@ -1415,6 +1435,8 @@ function extrairDataDoItem(item) {
 
     return { ano, mes, dia };
 }
+// main.js
+
 function criarFiltroData(anoDesejado, mesDesejado) {
     return function(item) {
         const dataExtraida = extrairDataDoItem(item);
@@ -1423,19 +1445,19 @@ function criarFiltroData(anoDesejado, mesDesejado) {
             return false; // Ignora itens sem data válida
         }
         
-        const resultado = dataExtraida.ano === anoDesejado && dataExtraida.mes === mesDesejado;
-        
-        // Debug apenas para os primeiros itens
-        if (Math.random() < 0.1) { // 10% chance de debug
-            console.log('Debug filtro:', {
-                item: item.data || item.dataEntrega,
-                extraido: dataExtraida,
-                desejado: { ano: anoDesejado, mes: mesDesejado },
-                resultado: resultado
-            });
+        // --- INÍCIO DA ALTERAÇÃO ---
+        const anoCorresponde = dataExtraida.ano === anoDesejado;
+
+        // Se o mês selecionado for -1 (TODOS), retornamos verdadeiro se o ano corresponder.
+        if (mesDesejado === -1) {
+            return anoCorresponde;
+        } 
+        // Caso contrário, fazemos a verificação completa (ano e mês).
+        else {
+            const mesCorresponde = dataExtraida.mes === mesDesejado;
+            return anoCorresponde && mesCorresponde;
         }
-        
-        return resultado;
+        // --- FIM DA ALTERAÇÃO ---
     };
 }
 
