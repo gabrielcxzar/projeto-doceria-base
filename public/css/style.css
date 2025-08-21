@@ -698,3 +698,8 @@ body {
 #produtoForm h4 {
     cursor: default;
 }
+/* Garante que o cursor seja a 'mãozinha' no checkbox de preço manual e no seu texto */
+#definirPrecoManual,
+label[for="definirPrecoManual"] {
+    cursor: pointer;
+}
