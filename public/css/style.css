@@ -58,7 +58,7 @@ body {
     display: grid;
     /* A MÁGICA ACONTECE AQUI: auto-fit cria quantas colunas couberem,
        com cada uma tendo no mínimo 250px e no máximo 1 fração do espaço. */
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 15px;
     margin-bottom: 20px;
 }
@@ -589,66 +589,47 @@ body {
     }
 }
 
-@media (max-width: 600px) { 
+@media (max-width: 600px) {
+    body {
+        /* Adiciona um pouco mais de "respiro" nas laterais do corpo da página */
+        padding: 0 5px;
+    }
+
     .container {
-    padding: 20px 10px; /* 20px em cima/baixo, 10px nos lados */
-}
-    
-    .tabs { 
-        flex-direction: column; 
-        gap: 2px;
+        padding: 10px 10px; /* Reduz o padding vertical e ajusta o horizontal */
     }
-    
-    .tab-button {
-        min-width: auto;
-        flex: none;
-    }
-    
-    .form-grid { 
-        grid-template-columns: 1fr; 
-    }
-    
+
+    /* ... (outras regras existentes) ... */
+
     .dashboard {
+        /* Garante que o dashboard use uma única coluna em telas muito pequenas */
         grid-template-columns: 1fr;
     }
-    
-    .modal {
-        padding: 10px;
-    }
-    
-    .modal-content {
-        padding: 20px;
-        max-height: 95vh;
-    }
-    
+
     .actions {
-        justify-content: center;
-    }
-    
-    .btn {
-        min-width: 120px;
+        /* Centraliza os botões de ação nas tabelas */
         justify-content: center;
     }
 }
 
 @media (max-width: 480px) {
     .header h1 {
-        font-size: 1.5rem;
+        font-size: 1.6rem; /* Aumenta um pouco para melhor leitura */
     }
-    
+
     .card {
         padding: 15px;
     }
-    
+
     .form-section, .table-section {
-        padding: 20px;
+        padding: 15px; /* Reduz o padding interno das seções */
     }
-    
+
     .btn {
         padding: 10px 16px;
         font-size: 0.9rem;
     }
-    
+
     .floating-btn {
         width: 50px;
         height: 50px;

@@ -266,10 +266,8 @@ function configurarEventListeners() {
     document.getElementById('produtoMargem').addEventListener('input', calcularPrecoVenda);
 
     // Listeners para a precificação inversa
-    const checkPrecificacao = document.getElementById('definirPrecoManual');
-    if (checkPrecificacao) {
-        checkPrecificacao.addEventListener('change', alternarModoPrecificacao);
-    }
+    document.getElementById('definirPrecoManual').addEventListener('change', alternarModoPrecificacao);
+    document.getElementById('produtoValor').addEventListener('input', calcularMargemLucro);
     document.getElementById('produtoValor').addEventListener('input', calcularMargemLucro);
     
     // Filtros e buscas
@@ -281,6 +279,7 @@ function configurarEventListeners() {
     // Cobrança
     document.getElementById('clienteCobranca').addEventListener('change', atualizarMensagemCobranca);
     document.getElementById('tipoCobranca').addEventListener('change', atualizarMensagemCobranca);
+    
 }
 
 // === LÓGICA DAS ABAS ===
@@ -453,14 +452,23 @@ function renderizarTabelaClientes() {
 
 // === LÓGICA DE PRODUTOS ===
 function calcularPrecoVenda() {
-    if (!document.getElementById('definirPrecoManual') || !document.getElementById('definirPrecoManual').checked) {
-        const custoMaterial = parseFloat(document.getElementById('produtoCustoMaterial').value) || 0;
-        const custoMaoObra = parseFloat(document.getElementById('produtoCustoMaoObra').value) || 0;
-        const margem = parseFloat(document.getElementById('produtoMargem').value) || 0;
-        const custoTotal = custoMaterial + custoMaoObra;
-        const precoVenda = custoTotal * (1 + margem / 100);
-        document.getElementById('produtoValor').value = precoVenda.toFixed(2);
+    // Esta verificação é para a nova funcionalidade que vamos implementar depois.
+    // Por enquanto, ela garante que o cálculo automático sempre funcione.
+    if (document.getElementById('definirPrecoManual') && document.getElementById('definirPrecoManual').checked) {
+        return; // Se o modo manual estiver ativo, não faz nada
     }
+
+    const custoMaterial = parseFloat(document.getElementById('produtoCustoMaterial').value) || 0;
+    const custoMaoObra = parseFloat(document.getElementById('produtoCustoMaoObra').value) || 0;
+    const margem = parseFloat(document.getElementById('produtoMargem').value) || 0;
+
+    const custoTotal = custoMaterial + custoMaoObra;
+
+    // A fórmula correta:
+    const precoVenda = custoTotal * (1 + margem / 100);
+
+    // Atualiza o campo do preço final, formatando com 2 casas decimais.
+    document.getElementById('produtoValor').value = precoVenda.toFixed(2);
 }
 
 async function adicionarOuEditarProduto(e) {
@@ -613,19 +621,31 @@ async function adicionarVenda(e) {
     mostrarLoading(false);
 }
 
+// main.js
+
 function excluirVenda(id) {
     showConfirm('Tem certeza que deseja excluir esta venda? Esta ação não pode ser desfeita.', async (confirmado) => {
         if (confirmado) {
             mostrarLoading(true);
+            // Primeiro, precisamos pegar os dados da venda ANTES de excluir
             const vendaParaExcluir = vendas.find(v => v.id === id);
 
             if (vendaParaExcluir) {
+                // Agora excluímos a venda
                 const success = await FirebaseService.excluir('vendas', id);
+
+                // Se a exclusão no banco de dados funcionou...
                 if (success) {
+                    // ...procuramos o cliente pelo nome que estava na venda
                     const cliente = clientes.find(c => c.nome === vendaParaExcluir.pessoa);
+
                     if (cliente) {
+                        // Calculamos o valor total da venda que foi excluída
                         const valorVenda = vendaParaExcluir.valor * vendaParaExcluir.quantidade;
+                        // Subtraímos esse valor do totalGasto do cliente
                         const novoTotalGasto = (cliente.totalGasto || 0) - valorVenda;
+
+                        // Atualizamos o cliente no banco de dados com o novo total
                         await FirebaseService.atualizar('clientes', cliente.id, { totalGasto: novoTotalGasto });
                     }
                     mostrarAlerta('Venda excluída com sucesso!', 'success');
@@ -634,6 +654,7 @@ function excluirVenda(id) {
                 mostrarAlerta('Erro: Venda não encontrada para exclusão.', 'danger');
             }
 
+            // Recarregamos todos os dados para a tela refletir a mudança
             await carregarTodosDados();
             renderizarTudo();
             mostrarLoading(false);
@@ -660,15 +681,15 @@ function alternarModoPrecificacao() {
 
     if (modoManual) {
         campoValor.readOnly = false;
-        campoValor.style.background = '#fff3e0';
+        campoValor.style.background = '#fff3e0'; // Cor de alerta/atenção
         campoMargem.readOnly = true;
-        campoMargem.style.background = '#f8f9fa';
+        campoMargem.style.background = '#f8f9fa'; // Cor de desabilitado
     } else {
         campoValor.readOnly = true;
-        campoValor.style.background = '#e8f5e8';
+        campoValor.style.background = '#e8f5e8'; // Cor de sucesso/automático
         campoMargem.readOnly = false;
-        campoMargem.style.background = '#fff';
-        calcularPrecoVenda(); 
+        campoMargem.style.background = '#fff'; // Cor padrão
+        calcularPrecoVenda(); // Recalcula o preço com base na margem
     }
 }
 function atualizarTotalVenda() {
