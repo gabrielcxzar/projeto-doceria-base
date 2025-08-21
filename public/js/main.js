@@ -1140,11 +1140,28 @@ async function marcarPendenciasComoPagas(clienteNome) {
 function atualizarDashboardPrincipal() {
     // --- LÓGICA DE FILTRAGEM CORRIGIDA ---
     const filtro = (item) => {
-        // Usa a data de criação do Firebase se existir, senão usa a data do input
-        const dataStr = (item.criadoEm?.toDate() || new Date(item.data || item.dataEntrega)).toISOString().split('T')[0];
-        const [ano, mes] = dataStr.split('-').map(Number);
-        // Compara o ano e o mês numéricamente. O mês do JS é 0-11, por isso +1.
-        return anoFiltroSelecionado === ano && (mesFiltroSelecionado + 1) === mes;
+        let dataParaComparar;
+        
+        // Primeiro, tenta pegar a data do Firebase (criadoEm)
+        if (item.criadoEm && typeof item.criadoEm.toDate === 'function') {
+            dataParaComparar = item.criadoEm.toDate();
+        }
+        // Se não tem criadoEm, usa a data do campo 'data' ou 'dataEntrega'
+        else if (item.data) {
+            dataParaComparar = new Date(item.data + 'T00:00:00'); // Adiciona horário para evitar problemas de fuso
+        }
+        else if (item.dataEntrega) {
+            dataParaComparar = new Date(item.dataEntrega + 'T00:00:00');
+        }
+        else {
+            return false; // Se não tem data, não inclui no filtro
+        }
+        
+        const ano = dataParaComparar.getFullYear();
+        const mes = dataParaComparar.getMonth(); // JavaScript: 0 = Janeiro, 11 = Dezembro
+        
+        // Compara com os filtros selecionados
+        return anoFiltroSelecionado === ano && mesFiltroSelecionado === mes;
     };
 
     const vendasMes = vendas.filter(filtro);
@@ -1154,11 +1171,13 @@ function atualizarDashboardPrincipal() {
     // --- CÁLCULOS DO DASHBOARD ---
     // Agora todos os cálculos usam as listas JÁ FILTRADAS (vendasMes, etc.)
 
-    const totalVendido = vendasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + encomendasMes.reduce((acc, e) => acc + (e.valorTotal || 0), 0);
+    const totalVendido = vendasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + 
+                        encomendasMes.reduce((acc, e) => acc + (e.valorTotal || 0), 0);
     
     const vendasPagasMes = vendasMes.filter(v => v.status === 'A' || v.status === 'E');
     
-    const totalRecebidoMes = vendasPagasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + encomendasMes.reduce((acc, e) => acc + (e.valorEntrada || 0), 0);
+    const totalRecebidoMes = vendasPagasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + 
+                            encomendasMes.reduce((acc, e) => acc + (e.valorEntrada || 0), 0);
     
     const totalDespesas = despesasMes.reduce((acc, d) => acc + d.valor, 0);
 
@@ -1166,17 +1185,17 @@ function atualizarDashboardPrincipal() {
     
     const margemLucro = totalRecebidoMes > 0 ? (lucroLiquido / totalRecebidoMes * 100) : 0;
     
-    // --- CORREÇÃO DO "A RECEBER" ---
-    // Agora ele filtra a partir das vendas e encomendas DO MÊS SELECIONADO
+    // --- A RECEBER (corrigido para usar dados filtrados) ---
     const aReceberVendas = vendasMes.filter(v => v.status === 'P').reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
     const aReceberEncomendas = encomendasMes.filter(e => e.status !== 'Finalizado').reduce((acc, e) => acc + ((e.valorTotal || 0) - (e.valorEntrada || 0)), 0);
     const totalAReceber = aReceberVendas + aReceberEncomendas;
 
-    // O restante da função para exibir os dados continua igual
+    // Contagem de clientes com pendências
     const clientesComVendasPendentes = vendasMes.filter(v => v.status === 'P').map(v => v.pessoa);
     const clientesComEncomendasPendentes = encomendasMes.filter(e => e.status !== 'Finalizado' && ((e.valorTotal || 0) - (e.valorEntrada || 0)) > 0).map(e => e.clienteNome);
     const clientesComPendencia = new Set([...clientesComVendasPendentes, ...clientesComEncomendasPendentes]).size;
 
+    // Atualização dos elementos HTML
     document.getElementById('dashTotalVendido').textContent = formatarMoeda(totalVendido);
     document.getElementById('vendidoChange').textContent = `${vendasMes.length + encomendasMes.length} pedidos no mês`;
     document.getElementById('dashTotalDespesas').textContent = formatarMoeda(totalDespesas);
@@ -1216,24 +1235,42 @@ function renderizarGraficoVendasMensais() {
     const inicioMes = new Date(anoFiltroSelecionado, mesFiltroSelecionado, 1);
     const fimMes = new Date(anoFiltroSelecionado, mesFiltroSelecionado + 1, 0);
 
-    // 2. Filtra as vendas apenas para o mês selecionado (com a correção de fuso)
+    // 2. Filtra as vendas apenas para o mês selecionado (CORREÇÃO AQUI)
     const vendasDoMesFiltrado = vendas.filter(v => {
-        const dataObj = v.criadoEm?.toDate() || new Date(v.data);
-        const dataVenda = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
-        return dataVenda >= inicioMes && dataVenda <= fimMes;
+        let dataVenda;
+        
+        // Prioriza a data do Firebase se disponível
+        if (v.criadoEm && typeof v.criadoEm.toDate === 'function') {
+            dataVenda = v.criadoEm.toDate();
+        } else if (v.data) {
+            // Cria a data sem problemas de fuso horário
+            dataVenda = new Date(v.data + 'T00:00:00');
+        } else {
+            return false;
+        }
+        
+        // Compara ano e mês
+        return dataVenda.getFullYear() === anoFiltroSelecionado && 
+               dataVenda.getMonth() === mesFiltroSelecionado;
     });
 
     // 3. Prepara os dias do mês para o eixo X do gráfico
     const diasNoMes = fimMes.getDate();
     const labels = Array.from({ length: diasNoMes }, (_, i) => String(i + 1).padStart(2, '0'));
 
-    // 4. Calcula o total vendido para cada dia do mês
+    // 4. Calcula o total vendido para cada dia do mês (CORREÇÃO AQUI TAMBÉM)
     const data = labels.map(dia => {
         return vendasDoMesFiltrado
             .filter(venda => {
-                const dataObj = venda.criadoEm?.toDate() || new Date(venda.data);
-                const dataVendaCorrigida = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
-                return dataVendaCorrigida.getDate() === parseInt(dia);
+                let dataVenda;
+                if (venda.criadoEm && typeof venda.criadoEm.toDate === 'function') {
+                    dataVenda = venda.criadoEm.toDate();
+                } else if (venda.data) {
+                    dataVenda = new Date(venda.data + 'T00:00:00');
+                } else {
+                    return false;
+                }
+                return dataVenda.getDate() === parseInt(dia);
             })
             .reduce((total, v) => total + (v.valor * v.quantidade), 0);
     });
@@ -1260,7 +1297,12 @@ function renderizarGraficoVendasMensais() {
             },
             scales: {
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return 'R$ ' + value.toLocaleString('pt-BR');
+                        }
+                    }
                 }
             }
         }
