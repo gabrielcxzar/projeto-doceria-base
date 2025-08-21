@@ -1331,7 +1331,7 @@ function renderizarGraficoVendasMensais() {
             }
         }
     });
-}}
+}
 
 function renderizarGraficoEvolucaoVendas() {
     const ctx = document.getElementById('evolucaoVendasChart');
