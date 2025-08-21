@@ -1801,7 +1801,7 @@ function gerarRelatorio() {
 
         <div id="relatorio-imprimivel" class="relatorio-container">
             <div class="relatorio-header">
-                <img src="images/logo.jpg" alt="Logo">
+                <img src="images/logo.png" alt="Logo">
                 <h3>LÁ DIVINO SABOR - RELATÓRIO DE VENDAS</h3>
                 <div class="relatorio-info">
                     <span><strong>Período:</strong> ${inicio.toLocaleDateString()} a ${fim.toLocaleDateString()}</span>
