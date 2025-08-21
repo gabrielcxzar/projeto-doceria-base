@@ -211,11 +211,19 @@
                 </div>
                 
                 <div class="table-section">
-                    <div class="section-header">
-                        <h3>📋 Histórico de Vendas</h3>
+                <div class="section-header">
+                    <h3>📋 Histórico de Vendas</h3>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <select id="filtroVendasStatus" style="padding: 10px; border: 2px solid #e1e5e9; border-radius: 8px;">
+                            <option value="">Todos os Status</option>
+                            <option value="P">Pendente</option>
+                            <option value="A">Pago</option>
+                            <option value="E">Entregue</option>
+                        </select>
                         <input type="text" id="searchVendas" placeholder="🔍 Buscar vendas..." 
-                               style="padding: 10px; border: 2px solid #e1e5e9; border-radius: 8px; width: 250px;">
+                            style="padding: 10px; border: 2px solid #e1e5e9; border-radius: 8px; width: 250px;">
                     </div>
+                </div>>
                     <div class="table-wrapper">
                         <table class="table">
                             <thead>
