@@ -144,10 +144,11 @@ function popularFiltrosDeData() {
     }
     filtroAnoSelect.value = anoFiltroSelecionado;
 
-    // Popula o seletor de Mês
+    // CORREÇÃO: Popula o seletor de Mês com valores corretos
     const nomesDosMeses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     filtroMesSelect.innerHTML = '';
     nomesDosMeses.forEach((nome, index) => {
+        // MUDANÇA AQUI: o value agora é o index (0-11), não o nome em maiúsculo
         filtroMesSelect.innerHTML += `<option value="${index}">${nome.toUpperCase()}</option>`;
     });
     filtroMesSelect.value = mesFiltroSelecionado;
@@ -319,20 +320,23 @@ function configurarEventListeners() {
     // --- Cobrança ---
     safeAddEventListener('clienteCobranca', 'change', atualizarMensagemCobranca);
     safeAddEventListener('tipoCobranca', 'change', atualizarMensagemCobranca);
-    // --- Listeners dos Filtros de Data ---
-    const filtroAno = document.getElementById('filtroAno');
-    const filtroMes = document.getElementById('filtroMes');
+    // --- Listeners dos Filtros de Data (CORREÇÃO AQUI) ---
+const filtroAno = document.getElementById('filtroAno');
+const filtroMes = document.getElementById('filtroMes');
 
-    if (filtroAno && filtroMes) {
-        filtroAno.addEventListener('change', () => {
-            anoFiltroSelecionado = parseInt(filtroAno.value);
-            renderizarTudo(); // Re-renderiza tudo com o novo filtro
-        });
-        filtroMes.addEventListener('change', () => {
-            mesFiltroSelecionado = parseInt(filtroMes.value);
-            renderizarTudo(); // Re-renderiza tudo com o novo filtro
-        });
-    }
+if (filtroAno && filtroMes) {
+    filtroAno.addEventListener('change', () => {
+        anoFiltroSelecionado = parseInt(filtroAno.value);
+        console.log('Filtro ano alterado para:', anoFiltroSelecionado); // Debug
+        renderizarTudo(); 
+    });
+    
+    filtroMes.addEventListener('change', () => {
+        mesFiltroSelecionado = parseInt(filtroMes.value);
+        console.log('Filtro mês alterado para:', mesFiltroSelecionado, '(Julho = 6)'); // Debug
+        renderizarTudo(); 
+    });
+}
 }
 
 // === LÓGICA DAS ABAS ===
