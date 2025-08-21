@@ -139,13 +139,13 @@ function popularFiltrosDeData() {
     }
 
     const hoje = new Date();
-    anoFiltroSelecionado = hoje.getFullYear();
-    mesFiltroSelecionado = hoje.getMonth();
+    const anoAtual = hoje.getFullYear();
+    const mesAtual = hoje.getMonth(); // 0-11
 
-    // Popula os anos (ano atual + 1 até ano atual - 3)
+    // Popula os anos
     filtroAnoSelect.innerHTML = '';
-    for (let ano = anoFiltroSelecionado + 1; ano >= anoFiltroSelecionado - 3; ano--) {
-        const selected = ano === anoFiltroSelecionado ? 'selected' : '';
+    for (let ano = anoAtual + 1; ano >= anoAtual - 3; ano--) {
+        const selected = ano === anoAtual ? 'selected' : '';
         filtroAnoSelect.innerHTML += `<option value="${ano}" ${selected}>${ano}</option>`;
     }
 
@@ -154,9 +154,13 @@ function popularFiltrosDeData() {
                           "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"];
     filtroMesSelect.innerHTML = '';
     nomesDosMeses.forEach((nome, index) => {
-        const selected = index === mesFiltroSelecionado ? 'selected' : '';
+        const selected = index === mesAtual ? 'selected' : '';
         filtroMesSelect.innerHTML += `<option value="${index}" ${selected}>${nome}</option>`;
     });
+
+    // CORREÇÃO CRÍTICA: Sincroniza as variáveis com os valores selecionados
+    anoFiltroSelecionado = parseInt(filtroAnoSelect.value);
+    mesFiltroSelecionado = parseInt(filtroMesSelect.value);
 
     console.log('Filtros inicializados - Ano:', anoFiltroSelecionado, 'Mês:', mesFiltroSelecionado);
 }
