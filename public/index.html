@@ -401,20 +401,30 @@
                         </div>
                         
                         <h4 style="margin: 20px 0 10px 0; color: var(--primary-color);">💰 Precificação Inteligente</h4>
-                        <div class="form-group full-width" style="flex-direction: row; align-items: center; gap: 10px; margin-bottom: 15px;">
-                            <input type="checkbox" id="definirPrecoManual" style="width: auto;">
-                            <label for="definirPrecoManual" style="margin-bottom: 0;">Definir preço final manualmente?</label>
-                        </div>
-                        <div class="form-grid">
-    ```
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label for="produtoCustoMaterial">Custo Material (R$)</label>
-                                <input type="number" id="produtoCustoMaterial" step="0.01" min="0" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="produtoCustoMaoObra">Custo Mão de Obra (R$)</label>
-                                <input type="number" id="produtoCustoMaoObra" step="0.01" min="0" value="0">
+
+                            <div class="form-grid">
+                                <div class="form-group full-width" style="flex-direction: row; align-items: center; gap: 10px;">
+                                    <input type="checkbox" id="definirPrecoManual" style="width: auto;">
+                                    <label for="definirPrecoManual" style="margin-bottom: 0;">Definir preço final manualmente?</label>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="produtoCustoMaterial">Custo Material (R$)</label>
+                                    <input type="number" id="produtoCustoMaterial" step="0.01" min="0" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="produtoCustoMaoObra">Custo Mão de Obra (R$)</label>
+                                    <input type="number" id="produtoCustoMaoObra" step="0.01" min="0" value="0">
+                                </div>
+                                <div class="form-group">
+                                    <label for="produtoMargem">Margem Lucro (%)</label>
+                                    <input type="number" id="produtoMargem" min="0" max="500" value="100" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="produtoValor">Preço Final (R$)</label>
+                                    <input type="number" id="produtoValor" step="0.01" min="0" readonly 
+                                        style="background: #e8f5e8; font-weight: bold;">
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label for="produtoMargem">Margem Lucro (%)</label>

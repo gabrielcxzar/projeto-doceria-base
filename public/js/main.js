@@ -311,6 +311,7 @@ function renderizarTudo() {
     renderizarTimeline();
     atualizarDashboardPrincipal();
     renderizarGrafico();
+    atualizarResumoFinanceiro(); 
 }
 
 function preencherSelects() {
@@ -621,7 +622,34 @@ async function adicionarVenda(e) {
     mostrarLoading(false);
 }
 
-// main.js
+// ADICIONE ESTA FUNÇÃO COMPLETA NO SEU CÓDIGO
+function atualizarResumoFinanceiro() {
+    // 1. Calcular Receita Bruta (Total de todas as vendas, independente do status)
+    const receitaBruta = vendas.reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
+
+    // 2. Calcular Custo de Produção (Custo dos produtos que foram vendidos)
+    const custoProducao = vendas.reduce((acc, venda) => {
+        const produtoVendido = produtos.find(p => p.nome === venda.produto);
+        if (produtoVendido) {
+            const custoTotalProduto = (produtoVendido.custoMaterial || 0) + (produtoVendido.custoMaoObra || 0);
+            return acc + (custoTotalProduto * venda.quantidade);
+        }
+        return acc;
+    }, 0);
+
+    // 3. Calcular Despesas Operacionais (Total de todas as despesas cadastradas)
+    const despesasOperacionais = despesas.reduce((acc, d) => acc + d.valor, 0);
+
+    // 4. Calcular Lucro Bruto e Margem de Lucro
+    const lucroBruto = receitaBruta - custoProducao - despesasOperacionais;
+    const margemLucro = receitaBruta > 0 ? (lucroBruto / receitaBruta * 100) : 0;
+
+    // 5. Atualizar o HTML com os valores calculados
+    document.getElementById('receitaBruta').textContent = formatarMoeda(receitaBruta);
+    document.getElementById('custoProducao').textContent = formatarMoeda(custoProducao);
+    document.getElementById('despesasOperacionais').textContent = formatarMoeda(despesasOperacionais);
+    document.getElementById('margemLucro').textContent = `${margemLucro.toFixed(1)}%`;
+}
 
 function excluirVenda(id) {
     showConfirm('Tem certeza que deseja excluir esta venda? Esta ação não pode ser desfeita.', async (confirmado) => {
