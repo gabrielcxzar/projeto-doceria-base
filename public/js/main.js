@@ -1234,7 +1234,7 @@ function atualizarDashboardPrincipal() {
     // Cria o filtro uma vez e reutiliza
     const filtro = criarFiltroData(anoFiltroSelecionado, mesFiltroSelecionado);
     
-    // Aplica o filtro
+    // Aplica o filtro para obter os dados do MÊS SELECIONADO
     const vendasMes = vendas.filter(filtro);
     const encomendasMes = encomendas.filter(filtro);
     const despesasMes = despesas.filter(filtro);
@@ -1258,9 +1258,9 @@ function atualizarDashboardPrincipal() {
         });
     }
     
-    // Cálculos financeiros
+    // --- Cálculos financeiros DO MÊS (Corretamente usam o filtro) ---
     const totalVendido = vendasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + 
-                        encomendasMes.reduce((acc, e) => acc + (e.valorTotal || 0), 0);
+                       encomendasMes.reduce((acc, e) => acc + (e.valorTotal || 0), 0);
     
     const vendasPagasMes = vendasMes.filter(v => v.status === 'A' || v.status === 'E');
     const totalRecebidoMes = vendasPagasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + 
@@ -1270,16 +1270,18 @@ function atualizarDashboardPrincipal() {
     const lucroLiquido = totalRecebidoMes - totalDespesas;
     const margemLucro = totalRecebidoMes > 0 ? (lucroLiquido / totalRecebidoMes * 100) : 0;
     
-    // Valores a receber
-    const aReceberVendas = vendasMes.filter(v => v.status === 'P').reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
-    const aReceberEncomendas = encomendasMes.filter(e => e.status !== 'Finalizado').reduce((acc, e) => acc + ((e.valorTotal || 0) - (e.valorEntrada || 0)), 0);
+    // --- INÍCIO DA CORREÇÃO ---
+    // Valores a receber (CÁLCULO GLOBAL, usa a lista completa `vendas` e `encomendas`)
+    const aReceberVendas = vendas.filter(v => v.status === 'P').reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
+    const aReceberEncomendas = encomendas.filter(e => e.status !== 'Finalizado').reduce((acc, e) => acc + ((e.valorTotal || 0) - (e.valorEntrada || 0)), 0);
     const totalAReceber = aReceberVendas + aReceberEncomendas;
     
-    // Contagem de clientes com pendências
-    const clientesComVendasPendentes = vendasMes.filter(v => v.status === 'P').map(v => v.pessoa);
-    const clientesComEncomendasPendentes = encomendasMes.filter(e => e.status !== 'Finalizado' && ((e.valorTotal || 0) - (e.valorEntrada || 0)) > 0).map(e => e.clienteNome);
+    // Contagem de clientes com pendências (CÁLCULO GLOBAL, usa a lista completa `vendas` e `encomendas`)
+    const clientesComVendasPendentes = vendas.filter(v => v.status === 'P').map(v => v.pessoa);
+    const clientesComEncomendasPendentes = encomendas.filter(e => e.status !== 'Finalizado' && ((e.valorTotal || 0) - (e.valorEntrada || 0)) > 0).map(e => e.clienteNome);
     const clientesComPendencia = new Set([...clientesComVendasPendentes, ...clientesComEncomendasPendentes]).size;
-    
+    // --- FIM DA CORREÇÃO ---
+
     // Atualiza a interface
     document.getElementById('dashTotalVendido').textContent = formatarMoeda(totalVendido);
     document.getElementById('vendidoChange').textContent = `${vendasMes.length + encomendasMes.length} pedidos no mês`;
@@ -1674,21 +1676,40 @@ function abrirModalVendaRapida() {
     });
 }
 
+// main.js
+
 function abrirModalRelatorios() {
     const modal = document.getElementById('relatoriosModal');
+    const clienteOptions = '<option value="todos">Todos os clientes</option>' + clientes.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+    const pagamentoOptions = ['Todos', 'PIX', 'Dinheiro', 'Cartão', 'Transferência'].map(p => `<option value="${p}">${p}</option>`).join('');
+
     modal.innerHTML = `
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 800px;">
             <div class="modal-header">
-                <h3>📊 Gerador de Relatórios</h3>
+                <h3>📊 Gerador de Relatórios Detalhados</h3>
                 <button class="close-btn" onclick="fecharModal('relatoriosModal')">&times;</button>
             </div>
-            <p>Selecione o período para gerar o relatório.</p>
-            <div class="form-grid" style="margin-top: 20px;">
-                <div class="form-group"><label for="relatorioInicio">Data Início</label><input type="date" id="relatorioInicio" required></div>
-                <div class="form-group"><label for="relatorioFim">Data Fim</label><input type="date" id="relatorioFim" required></div>
+            <p>Selecione os filtros para gerar o relatório de Vendas.</p>
+            <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top: 20px;">
+                <div class="form-group">
+                    <label for="relatorioInicio">Data Início</label>
+                    <input type="date" id="relatorioInicio" required>
+                </div>
+                <div class="form-group">
+                    <label for="relatorioFim">Data Fim</label>
+                    <input type="date" id="relatorioFim" required>
+                </div>
+                <div class="form-group">
+                    <label for="relatorioCliente">Cliente Específico</label>
+                    <select id="relatorioCliente">${clienteOptions}</select>
+                </div>
+                <div class="form-group">
+                    <label for="relatorioPagamento">Forma de Pagamento</label>
+                    <select id="relatorioPagamento">${pagamentoOptions}</select>
+                </div>
             </div>
             <button class="btn btn-primary" onclick="gerarRelatorio()" style="margin-top: 20px;">Gerar Relatório</button>
-            <div id="resultadoRelatorio" style="margin-top: 20px;"></div>
+            <div id="resultadoRelatorio" style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;"></div>
         </div>
     `;
     
@@ -1732,16 +1753,22 @@ function gerarRelatorio() {
     const relatorioAgrupado = {};
     const contagemProdutos = {};
     vendasPeriodo.forEach(venda => {
+        // Agrupa por Cliente
         if (!relatorioAgrupado[venda.pessoa]) {
             relatorioAgrupado[venda.pessoa] = { produtos: {}, subtotal: 0 };
         }
+        
+        // Agrupa por Produto dentro do cliente
         const clienteAtual = relatorioAgrupado[venda.pessoa];
         if (!clienteAtual.produtos[venda.produto]) {
             clienteAtual.produtos[venda.produto] = { quantidade: 0, valorTotal: 0 };
         }
+
         clienteAtual.produtos[venda.produto].quantidade += venda.quantidade;
         clienteAtual.produtos[venda.produto].valorTotal += venda.valor * venda.quantidade;
         clienteAtual.subtotal += venda.valor * venda.quantidade;
+
+        // Contagem geral de produtos
         contagemProdutos[venda.produto] = (contagemProdutos[venda.produto] || 0) + venda.quantidade;
     });
 
@@ -1774,7 +1801,8 @@ function gerarRelatorio() {
 
         <div id="relatorio-imprimivel" class="relatorio-container">
             <div class="relatorio-header">
-                <img src="images/logo.png" alt="Logo"> <h3>LÁ DIVINO SABOR - RELATÓRIO DE VENDAS</h3>
+                <img src="images/logo.jpg" alt="Logo">
+                <h3>LÁ DIVINO SABOR - RELATÓRIO DE VENDAS</h3>
                 <div class="relatorio-info">
                     <span><strong>Período:</strong> ${inicio.toLocaleDateString()} a ${fim.toLocaleDateString()}</span>
                     <span><strong>Gerado em:</strong> ${dataGeracao}</span>
@@ -1782,6 +1810,7 @@ function gerarRelatorio() {
             </div>
     `;
 
+    // Loop por cada cliente
     for (const nomeCliente in relatorioAgrupado) {
         const dadosCliente = relatorioAgrupado[nomeCliente];
         relatorioHTML += `
@@ -1791,6 +1820,7 @@ function gerarRelatorio() {
                     <thead><tr><th>Produto</th><th>Qtd</th><th>Valor Total</th></tr></thead>
                     <tbody>
         `;
+        // Loop pelos produtos de cada cliente
         for (const nomeProduto in dadosCliente.produtos) {
             const dadosProduto = dadosCliente.produtos[nomeProduto];
             relatorioHTML += `
@@ -1824,7 +1854,6 @@ function gerarRelatorio() {
     
     document.getElementById('resultadoRelatorio').innerHTML = relatorioHTML;
 }
-
 async function salvarMeta() {
     const metaInput = document.getElementById('metaMensal');
     const meta = parseFloat(metaInput.value);
@@ -2138,6 +2167,7 @@ window.fecharModal = fecharModal;
 // Dashboard
 window.salvarMeta = salvarMeta;
 window.gerarRelatorio = gerarRelatorio;
+window.imprimirRelatorio = imprimirRelatorio;
 
 // Tabelas de Cadastros
 window.editarCliente = editarCliente;
