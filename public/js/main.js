@@ -1138,53 +1138,43 @@ async function marcarPendenciasComoPagas(clienteNome) {
 // (As funções de cálculo e renderização de gráficos do seu código de exemplo podem ser coladas aqui, pois operam sobre as variáveis globais que já foram carregadas do Firebase)
 
 function atualizarDashboardPrincipal() {
-    // A lógica dos filtros agora será comparar o ano e o mês numericamente.
+    // --- LÓGICA DE FILTRAGEM CORRIGIDA ---
+    const filtro = (item) => {
+        // Usa a data de criação do Firebase se existir, senão usa a data do input
+        const dataStr = (item.criadoEm?.toDate() || new Date(item.data || item.dataEntrega)).toISOString().split('T')[0];
+        const [ano, mes] = dataStr.split('-').map(Number);
+        // Compara o ano e o mês numéricamente. O mês do JS é 0-11, por isso +1.
+        return anoFiltroSelecionado === ano && (mesFiltroSelecionado + 1) === mes;
+    };
 
-    const vendasMes = vendas.filter(v => {
-        // --- NOVA CORREÇÃO DEFINITIVA ---
-        // Pega a data da venda (seja do Firestore ou do input)
-        const dataObj = v.criadoEm?.toDate() || new Date(v.data);
-        // Precisamos ajustar o fuso apenas para obter a string correta no nosso fuso
-        const dataVendaLocal = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
-        
-        const anoVenda = dataVendaLocal.getFullYear();
-        const mesVenda = dataVendaLocal.getMonth(); // Mês no JS é 0 (Jan) a 11 (Dez)
+    const vendasMes = vendas.filter(filtro);
+    const encomendasMes = encomendas.filter(filtro);
+    const despesasMes = despesas.filter(filtro);
 
-        // Compara o ano e o mês da venda com os valores selecionados no filtro
-        return anoFiltroSelecionado === anoVenda && mesFiltroSelecionado === mesVenda;
-    });
+    // --- CÁLCULOS DO DASHBOARD ---
+    // Agora todos os cálculos usam as listas JÁ FILTRADAS (vendasMes, etc.)
 
-    // Aplicando a mesma lógica para Encomendas
-    const encomendasMes = encomendas.filter(e => {
-        const dataObj = e.criadoEm?.toDate() || new Date(e.dataEntrega);
-        const dataEncomendaLocal = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
-        const anoEncomenda = dataEncomendaLocal.getFullYear();
-        const mesEncomenda = dataEncomendaLocal.getMonth();
-        return anoFiltroSelecionado === anoEncomenda && mesFiltroSelecionado === mesEncomenda;
-    });
-
-    // E para Despesas
-    const despesasMes = despesas.filter(d => {
-        const dataObj = new Date(d.data);
-        const dataDespesaLocal = new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000);
-        const anoDespesa = dataDespesaLocal.getFullYear();
-        const mesDespesa = dataDespesaLocal.getMonth();
-        return anoFiltroSelecionado === anoDespesa && mesFiltroSelecionado === mesDespesa;
-    });
-
-    // O resto da função continua exatamente igual, calculando os totais
-    // com base nas listas filtradas (vendasMes, despesasMes, etc.)
-    const totalVendido = vendasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + encomendasMes.reduce((acc, e) => acc + e.valorTotal, 0);
+    const totalVendido = vendasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + encomendasMes.reduce((acc, e) => acc + (e.valorTotal || 0), 0);
+    
     const vendasPagasMes = vendasMes.filter(v => v.status === 'A' || v.status === 'E');
+    
     const totalRecebidoMes = vendasPagasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + encomendasMes.reduce((acc, e) => acc + (e.valorEntrada || 0), 0);
+    
     const totalDespesas = despesasMes.reduce((acc, d) => acc + d.valor, 0);
+
     const lucroLiquido = totalRecebidoMes - totalDespesas;
+    
     const margemLucro = totalRecebidoMes > 0 ? (lucroLiquido / totalRecebidoMes * 100) : 0;
-    const aReceberVendas = vendas.filter(v => v.status === 'P').reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
-    const aReceberEncomendas = encomendas.filter(e => e.status !== 'Finalizado').reduce((acc, e) => acc + (e.valorTotal - (e.valorEntrada || 0)), 0);
+    
+    // --- CORREÇÃO DO "A RECEBER" ---
+    // Agora ele filtra a partir das vendas e encomendas DO MÊS SELECIONADO
+    const aReceberVendas = vendasMes.filter(v => v.status === 'P').reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
+    const aReceberEncomendas = encomendasMes.filter(e => e.status !== 'Finalizado').reduce((acc, e) => acc + ((e.valorTotal || 0) - (e.valorEntrada || 0)), 0);
     const totalAReceber = aReceberVendas + aReceberEncomendas;
-    const clientesComVendasPendentes = vendas.filter(v => v.status === 'P').map(v => v.pessoa);
-    const clientesComEncomendasPendentes = encomendas.filter(e => e.status !== 'Finalizado' && (e.valorTotal - (e.valorEntrada || 0)) > 0).map(e => e.clienteNome);
+
+    // O restante da função para exibir os dados continua igual
+    const clientesComVendasPendentes = vendasMes.filter(v => v.status === 'P').map(v => v.pessoa);
+    const clientesComEncomendasPendentes = encomendasMes.filter(e => e.status !== 'Finalizado' && ((e.valorTotal || 0) - (e.valorEntrada || 0)) > 0).map(e => e.clienteNome);
     const clientesComPendencia = new Set([...clientesComVendasPendentes, ...clientesComEncomendasPendentes]).size;
 
     document.getElementById('dashTotalVendido').textContent = formatarMoeda(totalVendido);
