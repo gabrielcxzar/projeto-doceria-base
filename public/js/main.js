@@ -432,6 +432,47 @@ function openTab(evt, tabName) {
         }
     }, 100);
 }
+function renderizarTabelaVendas() {
+    const tbody = document.getElementById('vendasTableBody');
+    const search = document.getElementById('searchVendas').value.toLowerCase();
+    
+    let vendasFiltradas = vendas.filter(v => 
+        v.pessoa?.toLowerCase().includes(search) || 
+        v.produto?.toLowerCase().includes(search)
+    );
+    
+    vendasFiltradas.sort((a, b) => new Date(b.data) - new Date(a.data));
+    
+    tbody.innerHTML = vendasFiltradas.map(v => `
+        <tr>
+            <td>${formatarData(v.data)}</td>
+            <td>${v.pessoa}</td>
+            <td>${v.produto}</td>
+            <td>${v.quantidade}</td>
+            <td><strong>${formatarMoeda(v.valor * v.quantidade)}</strong></td>
+            <td>${getStatusBadge(v.status)}</td>
+            <td class="actions">
+                <button class="btn btn-primary btn-sm" onclick="editarStatusVenda('${v.id}')" title="Alterar Status">🔄</button>
+                <button class="btn btn-danger btn-sm" onclick="excluirVenda('${v.id}')" title="Excluir">🗑️</button>
+            </td>
+        </tr>
+    `).join('');
+}
+async function editarStatusVenda(id) {
+    const venda = vendas.find(v => v.id === id);
+    if (!venda) return;
+    
+    const novoStatus = prompt(`Status atual: ${venda.status}\n\nDigite o novo status:\nP - Pendente\nA - Pago\nE - Entregue`, venda.status);
+    
+    if (novoStatus && ['P', 'A', 'E'].includes(novoStatus.toUpperCase())) {
+        mostrarLoading(true);
+        await FirebaseService.atualizar('vendas', id, { status: novoStatus.toUpperCase() });
+        mostrarAlerta('Status da venda atualizado!', 'success');
+        await carregarTodosDados();
+        renderizarTudo();
+        mostrarLoading(false);
+    }
+}
 
 // === RENDERIZAÇÃO GERAL ===
 function renderizarTudo() {
