@@ -31,8 +31,8 @@ const db = getFirestore(app);
 
 // === ESTADO GLOBAL ===
 let vendas = [];
-let anoFiltroSelecionado;
-let mesFiltroSelecionado;
+let anoFiltroSelecionado = new Date().getFullYear(); // Inicializa com ano atual
+let mesFiltroSelecionado = new Date().getMonth(); // Inicializa com mês atual
 let produtos = [];
 let clientes = [];
 let encomendas = [];
@@ -40,7 +40,7 @@ let despesas = [];
 let cobrancas = [];
 let atividades = [];
 let configuracoes = {
-    id: null, // Adicionado para rastrear o documento de configuração no Firestore
+    id: null,
     metaMensal: 0,
     ultimoBackup: null
 };
@@ -132,26 +132,67 @@ class FirebaseService {
 function popularFiltrosDeData() {
     const filtroAnoSelect = document.getElementById('filtroAno');
     const filtroMesSelect = document.getElementById('filtroMes');
+    
+    if (!filtroAnoSelect || !filtroMesSelect) {
+        console.warn('Elementos de filtro não encontrados!');
+        return;
+    }
+
     const hoje = new Date();
-
     anoFiltroSelecionado = hoje.getFullYear();
-    mesFiltroSelecionado = hoje.getMonth(); // 0 = Janeiro, 11 = Dezembro
+    mesFiltroSelecionado = hoje.getMonth();
 
-    // Popula o seletor de Ano
+    // Popula os anos (ano atual + 1 até ano atual - 3)
     filtroAnoSelect.innerHTML = '';
     for (let ano = anoFiltroSelecionado + 1; ano >= anoFiltroSelecionado - 3; ano--) {
-        filtroAnoSelect.innerHTML += `<option value="${ano}">${ano}</option>`;
+        const selected = ano === anoFiltroSelecionado ? 'selected' : '';
+        filtroAnoSelect.innerHTML += `<option value="${ano}" ${selected}>${ano}</option>`;
     }
-    filtroAnoSelect.value = anoFiltroSelecionado;
 
-    // CORREÇÃO: Popula o seletor de Mês com valores corretos
-    const nomesDosMeses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    // Popula os meses
+    const nomesDosMeses = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", 
+                          "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"];
     filtroMesSelect.innerHTML = '';
     nomesDosMeses.forEach((nome, index) => {
-        // MUDANÇA AQUI: o value agora é o index (0-11), não o nome em maiúsculo
-        filtroMesSelect.innerHTML += `<option value="${index}">${nome.toUpperCase()}</option>`;
+        const selected = index === mesFiltroSelecionado ? 'selected' : '';
+        filtroMesSelect.innerHTML += `<option value="${index}" ${selected}>${nome}</option>`;
     });
-    filtroMesSelect.value = mesFiltroSelecionado;
+
+    console.log('Filtros inicializados - Ano:', anoFiltroSelecionado, 'Mês:', mesFiltroSelecionado);
+}
+function debugFiltros() {
+    console.log('=== DEBUG FILTROS ===');
+    console.log('Ano selecionado:', anoFiltroSelecionado);
+    console.log('Mês selecionado:', mesFiltroSelecionado, '(0=Jan, 6=Jul, 11=Dez)');
+    console.log('Total de vendas:', vendas.length);
+    
+    // Mostra algumas vendas de exemplo com suas datas
+    vendas.slice(0, 3).forEach((venda, i) => {
+        let dataVenda;
+        if (venda.criadoEm && typeof venda.criadoEm.toDate === 'function') {
+            dataVenda = venda.criadoEm.toDate();
+        } else if (venda.data) {
+            dataVenda = new Date(venda.data + 'T00:00:00');
+        }
+        console.log(`Venda ${i+1}:`, venda.data, '→', dataVenda ? `${dataVenda.getFullYear()}-${dataVenda.getMonth()}` : 'sem data');
+    });
+    
+    // Testa o filtro atual
+    const vendasFiltradas = vendas.filter(v => {
+        let dataVenda;
+        if (v.criadoEm && typeof v.criadoEm.toDate === 'function') {
+            dataVenda = v.criadoEm.toDate();
+        } else if (v.data) {
+            dataVenda = new Date(v.data + 'T00:00:00');
+        } else {
+            return false;
+        }
+        return dataVenda.getFullYear() === anoFiltroSelecionado && 
+               dataVenda.getMonth() === mesFiltroSelecionado;
+    });
+    
+    console.log('Vendas filtradas:', vendasFiltradas.length);
+    console.log('===================');
 }
 
 // === INICIALIZAÇÃO ===
@@ -322,21 +363,24 @@ function configurarEventListeners() {
     safeAddEventListener('tipoCobranca', 'change', atualizarMensagemCobranca);
     // --- Listeners dos Filtros de Data (CORREÇÃO AQUI) ---
 const filtroAno = document.getElementById('filtroAno');
-const filtroMes = document.getElementById('filtroMes');
+    const filtroMes = document.getElementById('filtroMes');
 
-if (filtroAno && filtroMes) {
-    filtroAno.addEventListener('change', () => {
-        anoFiltroSelecionado = parseInt(filtroAno.value);
-        console.log('Filtro ano alterado para:', anoFiltroSelecionado); // Debug
-        renderizarTudo(); 
-    });
-    
-    filtroMes.addEventListener('change', () => {
-        mesFiltroSelecionado = parseInt(filtroMes.value);
-        console.log('Filtro mês alterado para:', mesFiltroSelecionado, '(Julho = 6)'); // Debug
-        renderizarTudo(); 
-    });
-}
+    if (filtroAno) {
+        filtroAno.addEventListener('change', (e) => {
+            anoFiltroSelecionado = parseInt(e.target.value);
+            console.log('Ano alterado para:', anoFiltroSelecionado);
+            renderizarTudo();
+        });
+    }
+
+    if (filtroMes) {
+        filtroMes.addEventListener('change', (e) => {
+            mesFiltroSelecionado = parseInt(e.target.value);
+            console.log('Mês alterado para:', mesFiltroSelecionado, 
+                       `(${["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"][mesFiltroSelecionado]})`);
+            renderizarTudo();
+        });
+    }
 }
 
 // === LÓGICA DAS ABAS ===
@@ -1167,7 +1211,8 @@ function atualizarDashboardPrincipal() {
         // Compara com os filtros selecionados
         return anoFiltroSelecionado === ano && mesFiltroSelecionado === mes;
     };
-
+    console.log('Testando filtros - Ano:', anoFiltroSelecionado, 'Mês:', mesFiltroSelecionado);
+    console.log('Vendas encontradas para o período:', vendas.filter(filtro));
     const vendasMes = vendas.filter(filtro);
     const encomendasMes = encomendas.filter(filtro);
     const despesasMes = despesas.filter(filtro);
@@ -2035,3 +2080,4 @@ window.copiarMensagem = copiarMensagem;
 window.abrirWhatsApp = abrirWhatsApp;
 window.marcarPendenciasComoPagas = marcarPendenciasComoPagas;
 window.marcarTodosComoContatados = marcarTodosComoContatados;
+window.debugFiltros = debugFiltros;
