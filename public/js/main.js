@@ -891,12 +891,11 @@ function atualizarTotalVenda() {
 function renderizarTabelaPendencias() {
     const tbody = document.getElementById('pendenciasTableBody');
     const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0); // Zera a hora para comparações de data
+    hoje.setHours(0, 0, 0, 0); // Zera hora para evitar bugs de comparação
 
-    // Usa a função que pega TODAS as pendências
     const pendenciasGerais = [];
 
-    // Pega pendências de Vendas (todas em aberto)
+    // Pega todas as vendas pendentes (sem filtro de mês)
     vendas.filter(v => v.status === 'P').forEach(v => {
         pendenciasGerais.push({
             nome: v.pessoa,
@@ -905,31 +904,30 @@ function renderizarTabelaPendencias() {
         });
     });
 
-    // Pega pendências de Encomendas (todas em aberto)
+    // Pega todas as encomendas pendentes (sem filtro de mês)
     encomendas
         .filter(e => e.status !== 'Finalizado' && (e.valorTotal - (e.valorEntrada || 0)) > 0)
         .forEach(e => {
             pendenciasGerais.push({
                 nome: e.clienteNome,
                 valor: e.valorTotal - (e.valorEntrada || 0),
-                dataVencimento: new Date(e.dataEntrega) // Usa data de entrega como vencimento
+                dataVencimento: new Date(e.dataEntrega)
             });
         });
 
-    // Renderiza a tabela
+    // Monta tabela
     tbody.innerHTML = pendenciasGerais.map(item => {
-        const dataVencimento = new Date(item.dataVencimento);
-        dataVencimento.setHours(0,0,0,0);
-        const diasEmAtraso = Math.floor((hoje - dataVencimento) / (1000 * 60 * 60 * 24));
-        
+        const dataVenc = new Date(item.dataVencimento);
+        dataVenc.setHours(0,0,0,0);
+        const diasEmAtraso = Math.floor((hoje - dataVenc) / (1000 * 60 * 60 * 24));
+
         let statusAtraso = '';
         if (diasEmAtraso > 0) {
             statusAtraso = `<span class="badge badge-danger">${diasEmAtraso} dias atrasado</span>`;
+        } else if (diasEmAtraso === 0) {
+            statusAtraso = `<span class="badge badge-warning">Vence Hoje</span>`;
         } else {
             statusAtraso = `<span class="badge badge-info">Vence em ${-diasEmAtraso} dias</span>`;
-        }
-        if (diasEmAtraso === 0) {
-            statusAtraso = `<span class="badge badge-warning">Vence Hoje</span>`;
         }
 
         return `
