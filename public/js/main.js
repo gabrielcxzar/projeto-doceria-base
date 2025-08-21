@@ -458,21 +458,7 @@ function renderizarTabelaVendas() {
         </tr>
     `).join('');
 }
-async function editarStatusVenda(id) {
-    const venda = vendas.find(v => v.id === id);
-    if (!venda) return;
-    
-    const novoStatus = prompt(`Status atual: ${venda.status}\n\nDigite o novo status:\nP - Pendente\nA - Pago\nE - Entregue`, venda.status);
-    
-    if (novoStatus && ['P', 'A', 'E'].includes(novoStatus.toUpperCase())) {
-        mostrarLoading(true);
-        await FirebaseService.atualizar('vendas', id, { status: novoStatus.toUpperCase() });
-        mostrarAlerta('Status da venda atualizado!', 'success');
-        await carregarTodosDados();
-        renderizarTudo();
-        mostrarLoading(false);
-    }
-}
+
 
 // === RENDERIZAÇÃO GERAL ===
 function renderizarTudo() {
