@@ -695,3 +695,6 @@ body {
     padding: 3px 7px;
     vertical-align: middle;
 }
+#produtoForm h4 {
+    cursor: default;
+}
