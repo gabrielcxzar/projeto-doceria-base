@@ -690,6 +690,7 @@ function excluirCliente(id) {
             mostrarLoading(true);
             const success = await FirebaseService.excluir('clientes', id);
             if (success) {
+                await FirebaseService.salvar('atividades', { tipo: 'exclusao', descricao: `Cliente excluído: ${cliente.nome}` });
                 mostrarAlerta('Cliente excluído com sucesso', 'success');
                 await carregarTodosDados();
                 renderizarTudo();
@@ -699,14 +700,33 @@ function excluirCliente(id) {
     });
 }
 
-async function atualizarDadosCliente(nomeCliente, valorCompra) {
-    const cliente = clientes.find(c => c.nome === nomeCliente);
-    if (cliente) {
-        const novosDados = {
-            ultimaCompra: new Date().toISOString().split('T')[0],
-            totalGasto: (cliente.totalGasto || 0) + valorCompra
-        };
-        await FirebaseService.atualizar('clientes', cliente.id, novosDados);
+async function atualizarDadosCliente(nomeCliente, valorCompra, subtrair = false) {
+    const clienteIndex = clientes.findIndex(c => c.nome === nomeCliente);
+    if (clienteIndex === -1) return; // Se não encontrar o cliente, não faz nada
+
+    const cliente = clientes[clienteIndex];
+
+    // Calcula o novo total gasto
+    const novoTotalGasto = subtrair 
+        ? (cliente.totalGasto || 0) - valorCompra
+        : (cliente.totalGasto || 0) + valorCompra;
+
+    // Prepara os dados para atualizar no Firestore
+    const novosDados = {
+        totalGasto: novoTotalGasto
+    };
+
+    // Apenas atualiza a 'ultimaCompra' se for uma adição (não uma subtração)
+    if (!subtrair) {
+        novosDados.ultimaCompra = new Date().toISOString().split('T')[0];
+    }
+    
+    // 1. Atualiza o banco de dados
+    const success = await FirebaseService.atualizar('clientes', cliente.id, novosDados);
+
+    // 2. Se a atualização no banco deu certo, atualiza também os dados em memória
+    if (success) {
+        clientes[clienteIndex] = { ...cliente, ...novosDados };
     }
 }
 
@@ -821,6 +841,7 @@ function excluirProduto(id) {
             mostrarLoading(true);
             const success = await FirebaseService.excluir('produtos', id);
             if (success) {
+                await FirebaseService.salvar('atividades', { tipo: 'exclusao', descricao: `Produto excluído: ${produto.nome}` });
                 mostrarAlerta('Produto excluído com sucesso!', 'success');
                 await carregarTodosDados();
                 renderizarTudo();
@@ -933,38 +954,56 @@ function atualizarResumoFinanceiro() {
     document.getElementById('margemLucro').textContent = `${margemLucro.toFixed(1)}%`;
 }
 
-function excluirVenda(id) {
+async function excluirVenda(id) {
     showConfirm('Tem certeza que deseja excluir esta venda? Esta ação não pode ser desfeita.', async (confirmado) => {
         if (confirmado) {
             mostrarLoading(true);
-            // Primeiro, precisamos pegar os dados da venda ANTES de excluir
             const vendaParaExcluir = vendas.find(v => v.id === id);
 
             if (vendaParaExcluir) {
-                // Agora excluímos a venda
                 const success = await FirebaseService.excluir('vendas', id);
 
-                // Se a exclusão no banco de dados funcionou...
                 if (success) {
-                    // ...procuramos o cliente pelo nome que estava na venda
+                    // --- INÍCIO DA NOVA LÓGICA DE ATUALIZAÇÃO ---
                     const cliente = clientes.find(c => c.nome === vendaParaExcluir.pessoa);
 
                     if (cliente) {
-                        // Calculamos o valor total da venda que foi excluída
+                        // 1. Primeiro, subtraímos o valor da venda excluída.
                         const valorVenda = vendaParaExcluir.valor * vendaParaExcluir.quantidade;
-                        // Subtraímos esse valor do totalGasto do cliente
                         const novoTotalGasto = (cliente.totalGasto || 0) - valorVenda;
 
-                        // Atualizamos o cliente no banco de dados com o novo total
-                        await FirebaseService.atualizar('clientes', cliente.id, { totalGasto: novoTotalGasto });
+                        // 2. Agora, recalculamos a última data de compra.
+                        // Filtramos as vendas restantes para encontrar a mais recente.
+                        const vendasRestantes = vendas.filter(v => v.pessoa === cliente.nome && v.id !== id);
+                        
+                        let novaUltimaCompra = null;
+                        if (vendasRestantes.length > 0) {
+                            // Ordena para garantir que a primeira é a mais recente
+                            vendasRestantes.sort((a, b) => new Date(b.data) - new Date(a.data));
+                            novaUltimaCompra = vendasRestantes[0].data;
+                        }
+
+                        // 3. Montamos o objeto de atualização e salvamos no Firestore.
+                        const dadosAtualizadosCliente = {
+                            totalGasto: novoTotalGasto,
+                            ultimaCompra: novaUltimaCompra
+                        };
+                        await FirebaseService.atualizar('clientes', cliente.id, dadosAtualizadosCliente);
                     }
+                    
+                    // Log da atividade (Correção do Bug #3)
+                    await FirebaseService.salvar('atividades', { 
+                        tipo: 'exclusao', 
+                        descricao: `Venda excluída: ${vendaParaExcluir.quantidade}x ${vendaParaExcluir.produto} de ${vendaParaExcluir.pessoa}` 
+                    });
+
                     mostrarAlerta('Venda excluída com sucesso!', 'success');
+                    // --- FIM DA NOVA LÓGICA ---
                 }
             } else {
                 mostrarAlerta('Erro: Venda não encontrada para exclusão.', 'danger');
             }
 
-            // Recarregamos todos os dados para a tela refletir a mudança
             await carregarTodosDados();
             renderizarTudo();
             mostrarLoading(false);
@@ -1180,6 +1219,8 @@ function excluirDespesa(id) {
             mostrarLoading(true);
             const success = await FirebaseService.excluir('despesas', id);
             if (success) {
+                const despesaExcluida = despesas.find(d => d.id === id);
+await FirebaseService.salvar('atividades', { tipo: 'exclusao', descricao: `Despesa de ${formatarMoeda(despesaExcluida.valor)} excluída.` });
                 mostrarAlerta('Despesa excluída!', 'success');
                 await carregarTodosDados();
                 renderizarTudo();
@@ -2203,6 +2244,8 @@ function excluirEncomenda(id) {
             mostrarLoading(true);
             const success = await FirebaseService.excluir('encomendas', id);
             if (success) {
+                const encomendaExcluida = encomendas.find(e => e.id === id);
+                await FirebaseService.salvar('atividades', { tipo: 'exclusao', descricao: `Encomenda de ${encomendaExcluida.clienteNome} excluída.` });
                 mostrarAlerta('Encomenda excluída com sucesso!', 'success');
                 await carregarTodosDados();
                 renderizarTudo();
