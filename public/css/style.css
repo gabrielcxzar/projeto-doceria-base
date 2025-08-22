@@ -58,7 +58,7 @@ body {
 
 .dashboard {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Change from 200px to 250px */
     gap: 15px;
     margin-bottom: 20px;
 }
@@ -71,7 +71,13 @@ body {
     transition: var(--transition);
     position: relative;
     overflow: hidden;
+    min-height: 180px; /* Forces a minimum height */
+    aspect-ratio: 1.2/1; /* Makes cards more proportional */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
+
 
 .card:hover {
     transform: translateY(-2px);
@@ -93,6 +99,7 @@ body {
     margin-bottom: 15px; 
     font-size: 0.95rem;
     font-weight: 600;
+    flex-shrink: 0;
 }
 
 .stat-value { 
@@ -100,7 +107,11 @@ body {
     font-weight: bold; 
     color: var(--text-color); 
     margin: 10px 0;
+    flex-grow: 1; /* Takes available space */
+    display: flex;
+    align-items: center;
 }
+
 
 .stat-change {
     font-size: 0.8rem;
@@ -574,7 +585,8 @@ body {
 /* Responsividade Mobile-First */
 @media (min-width: 1400px) {
     .dashboard {
-        grid-template-columns: repeat(6, 1fr); /* Força 6 colunas */
+        grid-template-columns: repeat(6, 1fr); /* Forces exactly 6 columns */
+        max-width: 1400px; /* Prevents cards from getting too wide */
     }
 }
 
