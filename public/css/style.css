@@ -60,7 +60,7 @@ body {
     display: grid;
     /* A MÁGICA ACONTECE AQUI: auto-fit cria quantas colunas couberem,
        com cada uma tendo no mínimo 210px e no máximo 1 fração do espaço. */
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(225px, 1fr));
     gap: 15px;
     margin-bottom: 20px;
 }
@@ -574,6 +574,14 @@ body {
 .text-center { text-align: center; }
 
 /* Responsividade Mobile-First */
+@media (min-width: 1400px) {
+    .dashboard {
+        grid-template-columns: repeat(6, 1fr);
+    }
+}
+
+/* O resto das suas regras @media continua abaixo... */
+@media (max-width: 1200px) { ... }
 
 
 @media (max-width: 900px) { 
