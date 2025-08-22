@@ -1355,63 +1355,38 @@ async function marcarPendenciaComoPaga(tipo, id) {
 // 3. FUNÇÃO DE DASHBOARD CORRIGIDA
 function atualizarDashboardPrincipal() {
     console.log('=== ATUALIZANDO DASHBOARD ===');
-    console.log('Filtros ativos:', { ano: anoFiltroSelecionado, mes: mesFiltroSelecionado });
-    console.log('Total de vendas carregadas:', vendas.length);
-    console.log('Total de encomendas carregadas:', encomendas.length);
-    console.log('Total de despesas carregadas:', despesas.length);
-    
-    // Cria o filtro uma vez e reutiliza
     const filtro = criarFiltroData(anoFiltroSelecionado, mesFiltroSelecionado);
-    
-    // Aplica o filtro para obter os dados do MÊS SELECIONADO
+
     const vendasMes = vendas.filter(filtro);
     const encomendasMes = encomendas.filter(filtro);
     const despesasMes = despesas.filter(filtro);
-    
-    console.log('Após filtro:', {
-        vendasMes: vendasMes.length,
-        encomendasMes: encomendasMes.length,
-        despesasMes: despesasMes.length
-    });
-    
-    // Se não encontrou nada, exibe algumas vendas de exemplo para debug
-    if (vendasMes.length === 0 && vendas.length > 0) {
-        console.log('⚠️ NENHUMA VENDA FILTRADA - Exemplos das vendas disponíveis:');
-        vendas.slice(0, 3).forEach((v, i) => {
-            const dataExtraida = extrairDataDoItem(v);
-            console.log(`Venda ${i+1}:`, {
-                dataOriginal: v.data,
-                dataExtraida: dataExtraida,
-                produto: v.produto
-            });
-        });
-    }
-    
-    // --- Cálculos financeiros DO MÊS (Corretamente usam o filtro) ---
+
+    // --- Cálculos financeiros DO MÊS ---
     const totalVendido = vendasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + 
                        encomendasMes.reduce((acc, e) => acc + (e.valorTotal || 0), 0);
     
     const vendasPagasMes = vendasMes.filter(v => v.status === 'A' || v.status === 'E');
+
+    // --- INÍCIO DA CORREÇÃO ---
+    // A lógica foi ajustada para somar as vendas pagas + TODAS as entradas de encomendas do mês.
     const totalRecebidoMes = vendasPagasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + 
                             encomendasMes.reduce((acc, e) => acc + (e.valorEntrada || 0), 0);
-    
+    // --- FIM DA CORREÇÃO ---
+
     const totalDespesas = despesasMes.reduce((acc, d) => acc + d.valor, 0);
     const lucroLiquido = totalRecebidoMes - totalDespesas;
     const margemLucro = totalRecebidoMes > 0 ? (lucroLiquido / totalRecebidoMes * 100) : 0;
     
-    // --- INÍCIO DA CORREÇÃO ---
-    // Valores a receber (CÁLCULO GLOBAL, usa a lista completa `vendas` e `encomendas`)
+    // --- Valores a receber (CÁLCULO GLOBAL) ---
     const aReceberVendas = vendas.filter(v => v.status === 'P').reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
     const aReceberEncomendas = encomendas.filter(e => e.status !== 'Finalizado').reduce((acc, e) => acc + ((e.valorTotal || 0) - (e.valorEntrada || 0)), 0);
     const totalAReceber = aReceberVendas + aReceberEncomendas;
     
-    // Contagem de clientes com pendências (CÁLCULO GLOBAL, usa a lista completa `vendas` e `encomendas`)
     const clientesComVendasPendentes = vendas.filter(v => v.status === 'P').map(v => v.pessoa);
     const clientesComEncomendasPendentes = encomendas.filter(e => e.status !== 'Finalizado' && ((e.valorTotal || 0) - (e.valorEntrada || 0)) > 0).map(e => e.clienteNome);
     const clientesComPendencia = new Set([...clientesComVendasPendentes, ...clientesComEncomendasPendentes]).size;
-    // --- FIM DA CORREÇÃO ---
 
-    // Atualiza a interface
+    // --- Atualiza a interface ---
     document.getElementById('dashTotalVendido').textContent = formatarMoeda(totalVendido);
     document.getElementById('vendidoChange').textContent = `${vendasMes.length + encomendasMes.length} pedidos no mês`;
     document.getElementById('dashTotalDespesas').textContent = formatarMoeda(totalDespesas);
@@ -1421,11 +1396,16 @@ function atualizarDashboardPrincipal() {
     document.getElementById('dashAReceber').textContent = formatarMoeda(totalAReceber);
     document.getElementById('receberCount').textContent = `${clientesComPendencia} cliente(s) pendente(s)`;
     document.getElementById('dashValoresRecebidos').textContent = formatarMoeda(totalRecebidoMes);
-    document.getElementById('recebidosChange').textContent = `${vendasPagasMes.length} vendas pagas + ${encomendasMes.length} entradas`;
+
+    // --- INÍCIO DA CORREÇÃO NO TEXTO ---
+    // Garante que o número de entradas exibido seja o correto
+    const numeroDeEntradas = encomendasMes.filter(e => (e.valorEntrada || 0) > 0).length;
+    document.getElementById('recebidosChange').textContent = `${vendasPagasMes.length} vendas pagas + ${numeroDeEntradas} entradas`;
+    // --- FIM DA CORREÇÃO NO TEXTO ---
+
     document.getElementById('totalPendente').textContent = formatarMoeda(totalAReceber);
     document.getElementById('clientesPendentes').textContent = clientesComPendencia;
     
-    // Atualiza badge de cobranças (🔔) usando pendências GERAIS
     const cobrancasBadge = document.getElementById('cobrancas-badge');
     if (cobrancasBadge) {
         const pendenciasGerais = calcularPendenciasGerais();
@@ -1438,7 +1418,6 @@ function atualizarDashboardPrincipal() {
     }
     
     atualizarProgressoMeta();
-    
     console.log('=== DASHBOARD ATUALIZADO ===');
 }
 
