@@ -2333,7 +2333,6 @@ window.excluirDespesa = excluirDespesa;
 // Aba de Cobranças
 window.copiarMensagem = copiarMensagem;
 window.abrirWhatsApp = abrirWhatsApp;
-window.marcarPendenciasComoPagas = marcarPendenciasComoPagas;
 window.marcarPendenciaComoPaga = marcarPendenciaComoPaga;
 window.marcarTodosComoContatados = marcarTodosComoContatados;
 window.debugFiltros = debugFiltros;
