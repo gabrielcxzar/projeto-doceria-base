@@ -1466,6 +1466,68 @@ function calcularPendenciasGerais() {
     };
 }
 
+function abrirModalQuitarCliente() {
+    // 1. Encontra todos os clientes que têm pelo menos uma pendência.
+    const clientesComPendencia = [...new Set(
+        vendas.filter(v => v.status === 'P').map(v => v.pessoa)
+        .concat(
+            encomendas.filter(e => e.status !== 'Finalizado' && (e.valorTotal - (e.valorEntrada || 0)) > 0)
+                      .map(e => e.clienteNome)
+        )
+    )].sort();
+
+    if (clientesComPendencia.length === 0) {
+        return mostrarAlerta('Nenhum cliente com pendências encontrado.', 'info');
+    }
+
+    const clienteOptions = clientesComPendencia.map(nome => `<option value="${nome}">${nome}</option>`).join('');
+
+    // 2. Cria e exibe um modal para o usuário escolher o cliente.
+    const modal = document.getElementById('vendaRapidaModal'); // Reutilizando um modal
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>💰 Quitar Dívidas de Cliente</h3>
+                <button class="close-btn" onclick="fecharModal('vendaRapidaModal')">&times;</button>
+            </div>
+            <div class="form-group" style="margin-top: 20px;">
+                <label for="clienteParaQuitar">Selecione o cliente:</label>
+                <select id="clienteParaQuitar">${clienteOptions}</select>
+            </div>
+            <button class="btn btn-success requires-admin" onclick="quitarTodasPendenciasCliente()" style="width: 100%; margin-top: 20px;">
+                Confirmar Quitação
+            </button>
+        </div>
+    `;
+    modal.style.display = 'flex';
+}
+
+async function quitarTodasPendenciasCliente() {
+    const clienteNome = document.getElementById('clienteParaQuitar')?.value;
+    if (!clienteNome) return;
+
+    // Esta lógica é a mesma da nossa função antiga de pagamento em massa.
+    showConfirm(`Deseja marcar TODAS as pendências de ${clienteNome} como pagas?`, async (confirmado) => {
+        if (confirmado) {
+            mostrarLoading(true);
+            const pendenciasVendas = vendas.filter(v => v.pessoa === clienteNome && v.status === 'P');
+            const updatesVendas = pendenciasVendas.map(v => FirebaseService.atualizar('vendas', v.id, { status: 'A' }));
+
+            const pendenciasEncomendas = encomendas.filter(e => e.clienteNome === clienteNome && e.status !== 'Finalizado');
+            const updatesEncomendas = pendenciasEncomendas.map(e => FirebaseService.atualizar('encomendas', e.id, { status: 'Finalizado', valorEntrada: e.valorTotal }));
+
+            await Promise.all([...updatesVendas, ...updatesEncomendas]);
+            
+            mostrarAlerta(`Todas as pendências de ${clienteNome} foram quitadas!`, 'success');
+            
+            fecharModal('vendaRapidaModal');
+            await carregarTodosDados();
+            renderizarTudo();
+            mostrarLoading(false);
+        }
+    });
+}
+
 function renderizarGraficoVendasMensais() {
     const ctx = document.getElementById('vendasMensaisChart');
     if (!ctx) return;
@@ -2335,6 +2397,8 @@ window.copiarMensagem = copiarMensagem;
 window.abrirWhatsApp = abrirWhatsApp;
 window.marcarPendenciaComoPaga = marcarPendenciaComoPaga;
 window.marcarTodosComoContatados = marcarTodosComoContatados;
+window.abrirModalQuitarCliente = abrirModalQuitarCliente; 
+window.quitarTodasPendenciasCliente = quitarTodasPendenciasCliente;
 window.debugFiltros = debugFiltros;
 window.extrairDataDoItem = extrairDataDoItem;
 window.criarFiltroData = criarFiltroData;

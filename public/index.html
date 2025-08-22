@@ -545,14 +545,14 @@
                 <div class="section-header">
                     <h3>📋 Lista de Pendências</h3>
                     <div style="display: flex; gap: 10px;">
-                        <select id="filtroVencimento" style="padding: 8px; border: 2px solid #e1e5e9; border-radius: 6px;">
-                            <option value="">Todos</option>
-                            <option value="vencido">Vencidos</option>
-                            <option value="hoje">Vence Hoje</option>
-                            <option value="semana">Próximos 7 dias</option>
-                        </select>
+                        <select id="filtroVencimento" ...>...</select>
+                        
                         <button class="btn btn-warning btn-sm requires-admin" onclick="marcarTodosComoContatados()">
                             ✅ Marcar Todos Contatados
+                        </button>
+
+                        <button class="btn btn-info btn-sm requires-admin" onclick="abrirModalQuitarCliente()">
+                            💰 Quitar Cliente
                         </button>
                     </div>
                 </div>
