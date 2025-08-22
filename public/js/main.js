@@ -275,6 +275,10 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
+function fazerLogout() {
+    signOut(auth).catch((error) => console.error('Erro ao fazer logout:', error));
+}
+
 // Esta função agora contém todo o código de inicialização que estava no DOMContentLoaded
 async function iniciarAplicacao() {
     mostrarLoading(true);
@@ -2234,6 +2238,7 @@ function configurarBackupAutomatico() {
 }
 // === EXPOR FUNÇÕES PARA O HTML ===
 window.openTab = openTab;
+window.fazerLogout = fazerLogout;
 
 // Ações Rápidas e Modais
 window.abrirModalVendaRapida = abrirModalVendaRapida;
