@@ -58,7 +58,7 @@ body {
     display: grid;
     /* A MÁGICA ACONTECE AQUI: auto-fit cria quantas colunas couberem,
        com cada uma tendo no mínimo 250px e no máximo 1 fração do espaço. */
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(225px, 1fr));
     gap: 15px;
     margin-bottom: 20px;
 }
@@ -726,4 +726,17 @@ label[for="definirPrecoManual"] {
     border-radius: 8px;
     font-weight: 600;
     background-color: #f5f7fa;
+}
+.user-info-bar {
+    display: flex;
+    justify-content: flex-end; /* Alinha os itens à direita */
+    align-items: center;
+    gap: 15px; /* Espaço entre o nome e o botão */
+    padding: 0 10px 15px 10px; /* Espaçamento */
+}
+
+#userInfoDisplay {
+    font-size: 0.9rem;
+    color: #333;
+    font-weight: 600;
 }

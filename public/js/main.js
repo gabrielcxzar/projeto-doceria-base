@@ -281,7 +281,12 @@ function fazerLogout() {
 
 // Esta função agora contém todo o código de inicialização que estava no DOMContentLoaded
 async function iniciarAplicacao() {
+    // 1. Mostra a saudação e o log IMEDIATAMENTE.
+    console.log(`Usuário ${usuarioAtual.nome} (${usuarioAtual.role}) logado.`);
+    document.getElementById('userInfoDisplay').textContent = `Olá, ${usuarioAtual.nome}!`;
+
     mostrarLoading(true);
+    
     popularFiltrosDeData();
     await inicializarSistema();
     configurarEventListeners();
@@ -289,6 +294,7 @@ async function iniciarAplicacao() {
     await carregarTodosDados();
     renderizarTudo();
     configurarBackupAutomatico();
+    
     mostrarLoading(false);
 }
 

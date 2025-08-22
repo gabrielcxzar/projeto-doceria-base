@@ -17,7 +17,10 @@
         <img src="images/logo.png" alt="Logo da Lá Divino Sabor" class="header-logo">
         <div class="subtitle">Lá Divino Sabor</div>
 </header>
-
+    <div class="user-info-bar">
+        <span id="userInfoDisplay"></span>
+        <button class="btn btn-danger btn-sm" onclick="fazerLogout()">Sair</button>
+    </div>
     <div class="filtros-container card">
         <div class="filtro-item">
             <label for="filtroAno">ANO</label>
@@ -75,7 +78,6 @@
             <button class="btn btn-success" onclick="abrirModalEncomenda()">📅 Nova Encomenda</button>
             <button class="btn btn-info" onclick="abrirModalRelatorios()">📊 Relatórios</button>
             <button class="btn btn-warning" onclick="exportarDados()">💾 Backup</button>
-            <button class="btn btn-danger" onclick="fazerLogout()" style="margin-left: auto;">Sair</button>
         </div>
 
         <!-- Tabs de Navegação -->
