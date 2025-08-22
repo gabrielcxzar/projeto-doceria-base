@@ -581,7 +581,11 @@ body {
 }
 
 /* O resto das suas regras @media continua abaixo... */
-@media (max-width: 1200px) { ... }
+@media (max-width: 1200px) {
+    .content-grid {
+        grid-template-columns: 1fr 1fr; /* Mantém 2 colunas */
+    }
+}
 
 
 @media (max-width: 900px) { 
