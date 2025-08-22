@@ -290,12 +290,30 @@ async function iniciarAplicacao() {
     popularFiltrosDeData();
     await inicializarSistema();
     configurarEventListeners();
-    // aplicarControlesDeAcesso(); // Deixei comentado por enquanto, será o próximo passo
+    aplicarControlesDeAcesso();
     await carregarTodosDados();
     renderizarTudo();
     configurarBackupAutomatico();
     
     mostrarLoading(false);
+}
+function aplicarControlesDeAcesso() {
+    // Se a função do usuário logado for 'viewer'...
+    if (usuarioAtual.role === 'viewer') {
+        
+        // 1. Esconde todos os elementos que requerem permissão de admin
+        const elementosAdmin = document.querySelectorAll('.requires-admin');
+        elementosAdmin.forEach(el => {
+            el.style.display = 'none';
+        });
+
+        // 2. Desabilita todos os campos de formulário para que não possam ser editados
+        const formInputs = document.querySelectorAll('form input, form select, form textarea, form button[type="submit"]');
+        formInputs.forEach(input => {
+            input.disabled = true;
+        });
+    }
+    // Se for 'admin', não fazemos nada, pois ele pode ver e usar tudo por padrão.
 }
 
 async function inicializarSistema() {
@@ -675,8 +693,8 @@ function renderizarTabelaClientes() {
                 <td>${ultimaCompra}</td>
                 <td><strong>${formatarMoeda(totalGasto)}</strong></td>
                 <td class="actions">
-                    <button class="btn btn-primary btn-sm" onclick="editarCliente('${c.id}')" title="Editar">✏️</button>
-                    <button class="btn btn-danger btn-sm" onclick="excluirCliente('${c.id}')" title="Excluir">🗑️</button>
+                    <button class="btn btn-primary btn-sm requires-admin" onclick="editarCliente('${c.id}')" title="Editar">✏️</button>
+                    <button class="btn btn-danger btn-sm requires-admin" onclick="excluirCliente('${c.id}')" title="Excluir">🗑️</button>
                 </td>
             </tr>
         `;
@@ -799,8 +817,8 @@ function renderizarTabelaProdutos() {
                     </span>
                 </td>
                 <td class="actions">
-                    <button class="btn btn-primary btn-sm" onclick="editarProduto('${p.id}')">✏️</button>
-                    <button class="btn btn-danger btn-sm" onclick="excluirProduto('${p.id}')">🗑️</button>
+                    <button class="btn btn-primary btn-sm requires-admin" onclick="editarProduto('${p.id}')">✏️</button>
+                    <button class="btn btn-danger btn-sm requires-admin" onclick="excluirProduto('${p.id}')">🗑️</button>
                 </td>
             </tr>
         `;
@@ -1010,7 +1028,7 @@ function renderizarTabelaPendencias() {
                 <td>-</td>
                 <td>-</td>
                 <td class="actions">
-                    <button class="btn btn-success btn-sm" onclick="marcarPendenciasComoPagas('${item.nome}')" title="Marcar como Pago">✅ Paga</button>
+                    <button class="btn btn-success btn-sm requires-admin" onclick="marcarPendenciasComoPagas('${item.nome}')" title="Marcar como Pago">✅ Paga</button>
                 </td>
             </tr>
         `;
@@ -1060,9 +1078,9 @@ function renderizarTabelaEncomendas() {
                 <td>${formatarMoeda(valorEntrada)}</td>
                 <td><strong>${formatarMoeda(valorRestante)}</strong></td>
                 <td>${statusBadge}</td>
-                <td class="actions">
-                    <button class="btn btn-primary btn-sm" onclick="editarEncomenda('${enc.id}')" title="Editar">✏️</button>
-                    <button class="btn btn-danger btn-sm" onclick="excluirEncomenda('${enc.id}')" title="Excluir">🗑️</button>
+                 <td class="actions">
+                    <button class="btn btn-primary btn-sm requires-admin" onclick="editarEncomenda('${enc.id}')" title="Editar">✏️</button>
+                    <button class="btn btn-danger btn-sm requires-admin" onclick="excluirEncomenda('${enc.id}')" title="Excluir">🗑️</button>
                 </td>
             </tr>
         `;
@@ -1149,7 +1167,7 @@ function renderizarTabelaDespesas() {
             <td>${d.quantidade || '-'}</td>
             <td><strong>${formatarMoeda(d.valor)}</strong></td>
             <td class="actions">
-                <button class="btn btn-danger btn-sm" onclick="excluirDespesa('${d.id}')">🗑️</button>
+                <button class="btn btn-danger btn-sm requires-admin" onclick="excluirDespesa('${d.id}')">🗑️</button>
             </td>
         </tr>
     `).join('');

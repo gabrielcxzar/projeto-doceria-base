@@ -74,8 +74,8 @@
         </div>
         <!-- Ações Rápidas -->
         <div class="quick-actions">
-            <button class="btn btn-primary" onclick="abrirModalVendaRapida()">⚡ Venda Rápida</button>
-            <button class="btn btn-success" onclick="abrirModalEncomenda()">📅 Nova Encomenda</button>
+            <button class="btn btn-primary requires-admin" onclick="abrirModalVendaRapida()">⚡ Venda Rápida</button>
+            <button class="btn btn-success requires-admin" onclick="abrirModalEncomenda()">📅 Nova Encomenda</button>
             <button class="btn btn-info" onclick="abrirModalRelatorios()">📊 Relatórios</button>
             <button class="btn btn-warning" onclick="exportarDados()">💾 Backup</button>
         </div>
@@ -106,7 +106,7 @@
                     <h3>🎯 Meta do Mês</h3>
                     <div class="form-group" style="margin-bottom: 15px;">
                         <input type="number" id="metaMensal" placeholder="Digite a meta mensal" step="0.01">
-                        <button class="btn btn-primary btn-sm" onclick="salvarMeta()" style="margin-top: 10px;">Salvar Meta</button>
+                        <button class="btn btn-primary btn-sm requires-admin" onclick="salvarMeta()" style="margin-top: 10px;">Salvar Meta</button>
                     </div>
                     <div class="progress-bar" style="margin-bottom: 10px;">
                         <div class="progress-fill" id="progressoMeta" style="width: 0%"></div>
@@ -133,7 +133,7 @@
             <div class="table-section">
                 <div class="section-header">
                     <h3>📅 Agenda de Encomendas</h3>
-                    <button class="btn btn-primary" onclick="abrirModalEncomenda()">➕ Nova Encomenda</button>
+                    <button class="btn btn-primary requires-admin" onclick="abrirModalEncomenda()">➕ Nova Encomenda</button>
                 </div>
                 <div class="table-wrapper">
                     <table class="table">
@@ -204,7 +204,7 @@
                                 <option value="E">Entregue</option>
                             </select>
                         </div>
-                        <button type="submit" class="btn btn-primary" style="margin-top: 15px; width: 100%;">
+                        <button type="submit" class="btn btn-primary requires-admin" style="margin-top: 15px; width: 100%;">
                             💾 Registrar Venda
                         </button>
                         <div style="text-align: right; margin-top: 15px; font-size: 1.2rem;">
@@ -307,7 +307,7 @@
                             <input type="number" id="despesaValor" step="0.01" min="0" required>
                         </div>
                         </div>
-                        <button type="submit" class="btn btn-primary" style="margin-top: 15px; width: 100%;">
+                        <button type="submit" class="btn btn-primary requires-admin" style="margin-top: 15px; width: 100%;">
                             💾 Registrar Despesa
                         </button>
                     </form>
@@ -377,7 +377,7 @@
                                 <textarea id="clienteObservacoes" rows="2" placeholder="Preferências, restrições, etc."></textarea>
                             </div>
                         </div>
-                        <button type="submit" class="btn btn-primary" style="margin-top: 15px; width: 100%;">
+                        <button type="submit" class="btn btn-primary requires-admin" style="margin-top: 15px; width: 100%;">
                             ➕ Salvar Cliente
                         </button>
                     </form>
@@ -453,7 +453,7 @@
     <strong>💡 Cálculo:</strong> Preço = (Custo Material + Mão de Obra) × (1 + Margem/100)
 </div>
 
-<button type="submit" class="btn btn-primary" style="width: 100%;">
+<button type="submit" class="btn btn-primary requires-admin" style="width: 100%;">
     ➕ Salvar Produto
 </button>
 </form>
@@ -543,7 +543,7 @@
                             <option value="hoje">Vence Hoje</option>
                             <option value="semana">Próximos 7 dias</option>
                         </select>
-                        <button class="btn btn-warning btn-sm" onclick="marcarTodosComoContatados()">
+                        <button class="btn btn-warning btn-sm requires-admin" onclick="marcarTodosComoContatados()">
                             ✅ Marcar Todos Contatados
                         </button>
                     </div>
@@ -583,7 +583,7 @@
     </div>
 
     <!-- Floating Action Button -->
-    <button class="floating-btn" onclick="abrirModalVendaRapida()" title="Venda Rápida">⚡</button>
+    <button class="floating-btn requires-admin" onclick="abrirModalVendaRapida()" title="Venda Rápida">⚡</button>
 
     <script src="js/main.js" type="module"></script>
 </body>
