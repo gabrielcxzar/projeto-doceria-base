@@ -467,7 +467,7 @@ function configurarEventListeners() {
     safeAddEventListener('filtroVendasStatus', 'change', renderizarTabelaVendas);
     safeAddEventListener('searchDespesas', 'input', renderizarTabelaDespesas);
     safeAddEventListener('filtroDespesas', 'change', renderizarTabelaDespesas);
-    safeAddEventListener('filtroVencimento', 'change', renderizarTabelaPendencias);
+    
     
     // --- Cobrança ---
     safeAddEventListener('clienteCobranca', 'change', atualizarMensagemCobranca);
@@ -1638,31 +1638,34 @@ function renderizarGraficoEvolucaoVendas() {
     if (charts.evolucaoVendas) {
         charts.evolucaoVendas.destroy();
     }
-    
+
     const labels = [];
     const dados = [];
-    
+
     // Pega os últimos 7 dias
     for (let i = 6; i >= 0; i--) {
         const dia = new Date();
-        dia.setHours(0, 0, 0, 0); // Zera a hora para comparar apenas a data
         dia.setDate(dia.getDate() - i);
-        
+
         labels.push(dia.toLocaleDateString('pt-BR', { weekday: 'short' }));
-        
-        // Filtra vendas para o dia específico
-        const vendasDoDia = vendas.filter(venda => {
-            const dataVenda = new Date(venda.data);
-            dataVenda.setHours(0,0,0,0); // Zera a hora para comparar
-            // Adiciona a correção de fuso horário
-            const dataVendaCorrigida = new Date(dataVenda.getTime() + dataVenda.getTimezoneOffset() * 60000);
-            return dataVendaCorrigida.getTime() === dia.getTime();
-        });
-        
+
+        // --- INÍCIO DA CORREÇÃO ---
+
+        // 1. Formatamos a data do dia para o formato 'AAAA-MM-DD' para uma comparação exata.
+        const ano = dia.getFullYear();
+        const mes = String(dia.getMonth() + 1).padStart(2, '0'); // Mês é 0-11, então +1
+        const diaDoMes = String(dia.getDate()).padStart(2, '0');
+        const diaFormatado = `${ano}-${mes}-${diaDoMes}`;
+
+        // 2. Filtra as vendas comparando texto com texto (venda.data), ignorando o fuso horário.
+        const vendasDoDia = vendas.filter(venda => venda.data === diaFormatado);
+
+        // --- FIM DA CORREÇÃO ---
+
         const totalDoDia = vendasDoDia.reduce((total, v) => total + (v.valor * v.quantidade), 0);
         dados.push(totalDoDia);
     }
-    
+
     charts.evolucaoVendas = new Chart(ctx, {
         type: 'bar',
         data: {
