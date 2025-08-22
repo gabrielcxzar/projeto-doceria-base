@@ -485,6 +485,7 @@
 
         <!-- Cobranças Tab -->
         <div id="cobrancas" class="tab-content">
+    
             <div class="content-grid">
                 <div class="card">
                     <h3>🔔 Resumo de Cobranças</h3>
@@ -498,7 +499,6 @@
                             <div style="font-size: 0.9rem; color: #666;">Clientes com Pendência</div>
                         </div>
                     </div>
-                    
                     <div class="progress-bar" style="margin: 20px 0 10px 0;">
                         <div class="progress-fill" id="progressoRecebimento" style="width: 0%; background: var(--success-color);"></div>
                     </div>
@@ -520,17 +520,18 @@
                                 <option value="amigavel">Amigável</option>
                                 <option value="lembrete">Lembrete</option>
                                 <option value="urgente">Urgente</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label for="mensagemCobranca">Mensagem</label>
                             <textarea id="mensagemCobranca" rows="4" readonly 
-                                      style="background: #f8f9fa; font-size: 0.9rem;"></textarea>
+                                    style="background: #f8f9fa; font-size: 0.9rem;"></textarea>
                         </div>
                         <div style="display: flex; gap: 10px; margin-top: 15px;">
-                            <button type="button" class="btn btn-success" onclick="copiarMensagem()">
+                            <button type="button" class="btn btn-success requires-admin" onclick="copiarMensagem()">
                                 📋 Copiar Mensagem
                             </button>
-                            <button type="button" class="btn btn-info" onclick="abrirWhatsApp()">
+                            <button type="button" class="btn btn-info requires-admin" onclick="abrirWhatsApp()">
                                 📱 Abrir WhatsApp
                             </button>
                         </div>
@@ -542,34 +543,32 @@
                 <div class="section-header">
                     <h3>📋 Lista de Pendências</h3>
                     <div style="display: flex; gap: 10px;">
-                        <select id="filtroVencimento" ...>...</select>
-                        
                         <button class="btn btn-warning btn-sm requires-admin" onclick="marcarTodosComoContatados()">
                             ✅ Marcar Todos Contatados
                         </button>
-
                         <button class="btn btn-info btn-sm requires-admin" onclick="abrirModalQuitarCliente()">
                             💰 Quitar Cliente
                         </button>
                     </div>
                 </div>
                 <div class="table-wrapper">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Cliente</th>
-                                <th>Descrição do Item</th>
-                                <th>Data</th>
-                                <th>Valor Devido</th>
-                                <th>Status</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="pendenciasTableBody"></tbody>
-                    </table>
-                </div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                        <th>Cliente</th>
+                        <th>Descrição do Item</th>
+                        <th>Data</th>
+                        <th>Valor Devido</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                         </tr>
+                     </thead>
+                    <tbody id="pendenciasTableBody"></tbody>
+                </table>
             </div>
         </div>
+
+</div>
     </div>
         </div>
     <!-- Modais -->
