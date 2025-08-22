@@ -29,6 +29,7 @@ body {
     max-width: 1600px; 
     margin: 0 auto; 
     padding: 10px 15px;
+    position: relative;
 }
 
 .header {
@@ -728,11 +729,15 @@ label[for="definirPrecoManual"] {
     background-color: #f5f7fa;
 }
 .user-info-bar {
+    position: absolute;   /* Tira o elemento do fluxo normal */
+    top: 15px;            /* Distância do topo */
+    right: 25px;          /* Distância da direita */
+    z-index: 10;          /* Garante que fique por cima de outros elementos */
+
+    /* Mantemos o flex para alinhar o texto e o botão internamente */
     display: flex;
-    justify-content: flex-end; /* Alinha os itens à direita */
     align-items: center;
-    gap: 15px; /* Espaço entre o nome e o botão */
-    padding: 0 10px 15px 10px; /* Espaçamento */
+    gap: 15px;
 }
 
 #userInfoDisplay {
