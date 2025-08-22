@@ -58,7 +58,7 @@ body {
 
 .dashboard {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Change from 200px to 250px */
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 15px;
     margin-bottom: 20px;
 }
@@ -71,13 +71,7 @@ body {
     transition: var(--transition);
     position: relative;
     overflow: hidden;
-    min-height: 180px; /* Forces a minimum height */
-    aspect-ratio: 1.2/1; /* Makes cards more proportional */
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
 }
-
 
 .card:hover {
     transform: translateY(-2px);
@@ -99,7 +93,6 @@ body {
     margin-bottom: 15px; 
     font-size: 0.95rem;
     font-weight: 600;
-    flex-shrink: 0;
 }
 
 .stat-value { 
@@ -107,11 +100,7 @@ body {
     font-weight: bold; 
     color: var(--text-color); 
     margin: 10px 0;
-    flex-grow: 1; /* Takes available space */
-    display: flex;
-    align-items: center;
 }
-
 
 .stat-change {
     font-size: 0.8rem;
@@ -280,7 +269,7 @@ body {
 .btn-danger:hover,
 .btn-secondary:hover {
     transform: translateY(-2px); /* Efeito de levantar um pouco mais */
-    box-shadow: 0 6px 15px rgba(0,0,0,0.2); /* Sombra genérica escura */
+    box-shadow: 0 6px 15px rgba(0,0,0,0.2); /* Sombra genÃ©rica escura */
 }
 
 .btn-success { 
@@ -585,15 +574,14 @@ body {
 /* Responsividade Mobile-First */
 @media (min-width: 1400px) {
     .dashboard {
-        grid-template-columns: repeat(6, 1fr); /* Forces exactly 6 columns */
-        max-width: 1400px; /* Prevents cards from getting too wide */
+        grid-template-columns: repeat(6, 1fr); /* ForÃ§a 6 colunas */
     }
 }
 
 /* O resto das suas regras @media continua abaixo... */
 @media (max-width: 1200px) {
     .content-grid {
-        grid-template-columns: 1fr 1fr; /* Mantém 2 colunas */
+        grid-template-columns: 1fr 1fr; /* MantÃ©m 2 colunas */
     }
 }
 
@@ -615,7 +603,7 @@ body {
 
 @media (max-width: 600px) {
     body {
-        /* Adiciona um pouco mais de "respiro" nas laterais do corpo da página */
+        /* Adiciona um pouco mais de "respiro" nas laterais do corpo da pÃ¡gina */
         padding: 0 5px;
     }
 
@@ -626,12 +614,12 @@ body {
     /* ... (outras regras existentes) ... */
 
     .dashboard {
-        /* Garante que o dashboard use uma única coluna em telas muito pequenas */
+        /* Garante que o dashboard use uma Ãºnica coluna em telas muito pequenas */
         grid-template-columns: 1fr;
     }
 
     .actions {
-        /* Centraliza os botões de ação nas tabelas */
+        /* Centraliza os botÃµes de aÃ§Ã£o nas tabelas */
         justify-content: center;
     }
 }
@@ -646,7 +634,7 @@ body {
     }
 
     .form-section, .table-section {
-        padding: 15px; /* Reduz o padding interno das seções */
+        padding: 15px; /* Reduz o padding interno das seÃ§Ãµes */
     }
 
     .btn {
@@ -663,7 +651,7 @@ body {
     }
 }
 
-/* Animações e transições suaves */
+/* AnimaÃ§Ãµes e transiÃ§Ãµes suaves */
 .fade-in {
     animation: fadeIn 0.6s ease;
 }
@@ -703,16 +691,16 @@ body {
     100% { transform: translate(-50%, -50%) rotate(360deg); }
 
 }
-/* Estilo para a nova logo no cabeçalho */
+/* Estilo para a nova logo no cabeÃ§alho */
 .header-logo {
     height: 120px;          /* 1. Deixamos a logo com um tamanho visual grande */
     width: auto;
     max-width: 100%;
     object-fit: contain;
     margin-top: -25px;      /* 2. Puxamos a logo 25px PARA CIMA, para fora da barra */
-    margin-bottom: -20px;   /* 3. Puxamos o texto de baixo 20px PARA CIMA, diminuindo o espaço */
+    margin-bottom: -20px;   /* 3. Puxamos o texto de baixo 20px PARA CIMA, diminuindo o espaÃ§o */
 }
-/* Estilo para o badge de notificação nas abas */
+/* Estilo para o badge de notificaÃ§Ã£o nas abas */
 .tab-button .badge {
     margin-left: 8px;
     font-size: 0.7rem;
@@ -722,7 +710,7 @@ body {
 #produtoForm h4 {
     cursor: default;
 }
-/* Garante que o cursor seja a 'mãozinha' no checkbox de preço manual e no seu texto */
+/* Garante que o cursor seja a 'mÃ£ozinha' no checkbox de preÃ§o manual e no seu texto */
 #definirPrecoManual,
 label[for="definirPrecoManual"] {
     cursor: pointer;
@@ -753,11 +741,11 @@ label[for="definirPrecoManual"] {
 }
 .user-info-bar {
     position: absolute;   /* Tira o elemento do fluxo normal */
-    top: 15px;            /* Distância do topo */
-    right: 25px;          /* Distância da direita */
+    top: 15px;            /* DistÃ¢ncia do topo */
+    right: 25px;          /* DistÃ¢ncia da direita */
     z-index: 10;          /* Garante que fique por cima de outros elementos */
 
-    /* Mantemos o flex para alinhar o texto e o botão internamente */
+    /* Mantemos o flex para alinhar o texto e o botÃ£o internamente */
     display: flex;
     align-items: center;
     gap: 15px;
@@ -847,7 +835,7 @@ input:checked + .slider:before {
 }
 @media (max-width: 1200px) {
     .content-grid {
-        grid-template-columns: 1fr 1fr; /* Mantém 2 colunas */
+        grid-template-columns: 1fr 1fr; /* MantÃ©m 2 colunas */
     }
 }
 
@@ -883,19 +871,19 @@ input:checked + .slider:before {
     }
 
     .dashboard {
-        grid-template-columns: 1fr; /* Força o dashboard principal a ter 1 coluna */
+        grid-template-columns: 1fr; /* ForÃ§a o dashboard principal a ter 1 coluna */
     }
 
     .card, .form-section, .table-section {
-        padding: 15px; /* Diminui o espaçamento interno */
+        padding: 15px; /* Diminui o espaÃ§amento interno */
     }
     
     .form-grid {
-        grid-template-columns: 1fr; /* Todos os formulários em 1 coluna */
+        grid-template-columns: 1fr; /* Todos os formulÃ¡rios em 1 coluna */
     }
 
     .quick-actions, .actions {
-        justify-content: center; /* Centraliza botões */
+        justify-content: center; /* Centraliza botÃµes */
         flex-direction: column;
         align-items: stretch;
     }
