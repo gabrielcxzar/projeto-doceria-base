@@ -407,62 +407,62 @@
                 <!-- Produtos -->
                 <div class="form-section">
                     <h3>🍰 Gerenciar Produtos</h3>
-                    <form id="produtoForm"></form>
-<div class="form-grid">
-    <div class="form-group full-width">
-        <label for="produtoNome">Nome do Produto</label>
-        <input type="text" id="produtoNome" required>
-    </div>
-    <div class="form-group">
-        <label for="produtoCategoria">Categoria</label>
-        <select id="produtoCategoria">
-            <option value="Bolos">Bolos</option>
-            <option value="Doces">Doces</option>
-            <option value="Salgados">Salgados</option>
-            <option value="Bebidas">Bebidas</option>
-            <option value="Outros">Outros</option>
-        </select>
-    </div>
-    <div class="form-group">
-        <label for="produtoTempoPreparo">Tempo Preparo (min)</label>
-        <input type="number" id="produtoTempoPreparo" min="0" placeholder="60">
-    </div>
-</div>
+                    <form id="produtoForm">
+                        <div class="form-grid">
+                            <div class="form-group full-width">
+                                <label for="produtoNome">Nome do Produto</label>
+                                <input type="text" id="produtoNome" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="produtoCategoria">Categoria</label>
+                                <select id="produtoCategoria">
+                                    <option value="Bolos">Bolos</option>
+                                    <option value="Doces">Doces</option>
+                                    <option value="Salgados">Salgados</option>
+                                    <option value="Bebidas">Bebidas</option>
+                                    <option value="Outros">Outros</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="produtoTempoPreparo">Tempo Preparo (min)</label>
+                                <input type="number" id="produtoTempoPreparo" min="0" placeholder="60">
+                            </div>
+                        </div>
 
-<h4 style="margin: 20px 0 10px 0; color: var(--primary-color);">💰 Precificação Inteligente</h4>
-<div class="form-grid">
-    <div class="form-group full-width" style="flex-direction: row; align-items: center; gap: 10px;">
-        <input type="checkbox" id="definirPrecoManual" style="width: auto;">
-        <label for="definirPrecoManual" style="margin-bottom: 0;">Definir preço final manualmente?</label>
-    </div>
+                        <h4 style="margin: 20px 0 10px 0; color: var(--primary-color);">💰 Precificação Inteligente</h4>
+                        <div class="form-grid">
+                            <div class="form-group full-width" style="flex-direction: row; align-items: center; gap: 10px;">
+                                <input type="checkbox" id="definirPrecoManual" style="width: auto;">
+                                <label for="definirPrecoManual" style="margin-bottom: 0;">Definir preço final manualmente?</label>
+                            </div>
 
-    <div class="form-group">
-        <label for="produtoCustoMaterial">Custo Material (R$)</label>
-        <input type="number" id="produtoCustoMaterial" step="0.01" min="0" required>
-    </div>
-    <div class="form-group">
-        <label for="produtoCustoMaoObra">Custo Mão de Obra (R$)</label>
-        <input type="number" id="produtoCustoMaoObra" step="0.01" min="0" value="0">
-    </div>
-    <div class="form-group">
-        <label for="produtoMargem">Margem Lucro (%)</label>
-        <input type="number" id="produtoMargem" min="0" max="500" value="100" required>
-    </div>
-    <div class="form-group">
-        <label for="produtoValor">Preço Final (R$)</label>
-        <input type="number" id="produtoValor" step="0.01" min="0" readonly 
-               style="background: #e8f5e8; font-weight: bold;">
-    </div>
-</div>
+                            <div class="form-group">
+                                <label for="produtoCustoMaterial">Custo Material (R$)</label>
+                                <input type="number" id="produtoCustoMaterial" step="0.01" min="0" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="produtoCustoMaoObra">Custo Mão de Obra (R$)</label>
+                                <input type="number" id="produtoCustoMaoObra" step="0.01" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="produtoMargem">Margem Lucro (%)</label>
+                                <input type="number" id="produtoMargem" min="0" max="500" value="100" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="produtoValor">Preço Final (R$)</label>
+                                <input type="number" id="produtoValor" step="0.01" min="0" readonly 
+                                    style="background: #e8f5e8; font-weight: bold;">
+                            </div>
+                        </div>
 
-<div class="alert alert-info" style="margin: 15px 0;">
-    <strong>💡 Cálculo:</strong> Preço = (Custo Material + Mão de Obra) × (1 + Margem/100)
-</div>
+                        <div class="alert alert-info" style="margin: 15px 0;">
+                            <strong>💡 Cálculo:</strong> Preço = (Custo Material + Mão de Obra) × (1 + Margem/100)
+                        </div>
 
-<button type="submit" class="btn btn-primary requires-admin" style="width: 100%;">
-    ➕ Salvar Produto
-</button>
-</form>
+                        <button type="submit" class="btn btn-primary requires-admin" style="width: 100%;">
+                            ➕ Salvar Produto
+                        </button>
+                    </form> ```
                     
                     <div class="table-wrapper" style="margin-top: 20px;">
                         <table class="table">
