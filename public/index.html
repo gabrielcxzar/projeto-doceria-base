@@ -312,10 +312,10 @@
                                 <label for="despesaQuantidade">Qtd/Unidade</label>
                                 <input type="text" id="despesaQuantidade" placeholder="Ex: 5kg, 10un">
                             </div>
-                        <div class="form-group">
-                            <label for="despesaValor">Valor Unitário (R$)</label>
-                            <input type="number" id="despesaValor" step="0.01" min="0" required>
-                        </div>
+                            <div class="form-group">
+                                <label for="despesaValor">Valor Unitário (R$)</label>
+                                <input type="number" id="despesaValor" step="0.01" min="0" required>
+                            </div>
                         </div>
                         <button type="submit" class="btn btn-primary requires-admin" style="margin-top: 15px; width: 100%;">
                             💾 Registrar Despesa
@@ -337,7 +337,7 @@
                             <option value="Outros">Outros</option>
                         </select>
                         <input type="text" id="searchDespesas" placeholder="🔍 Buscar despesas..." 
-                               style="padding: 8px; border: 2px solid #e1e5e9; border-radius: 6px; width: 200px;">
+                            style="padding: 8px; border: 2px solid #e1e5e9; border-radius: 6px; width: 200px;">
                     </div>
                 </div>
                 <div class="table-wrapper">
@@ -361,7 +361,6 @@
         <!-- Cadastros Tab -->
         <div id="cadastros" class="tab-content">
             <div class="content-grid">
-                <!-- Clientes -->
                 <div class="form-section">
                     <h3>👥 Gerenciar Clientes</h3>
                     <form id="clienteForm">
@@ -408,7 +407,6 @@
                     </div>
                 </div>
 
-                <!-- Produtos -->
                 <div class="form-section">
                     <h3>🍰 Gerenciar Produtos</h3>
                     <form id="produtoForm">
@@ -466,7 +464,7 @@
                         <button type="submit" class="btn btn-primary requires-admin" style="width: 100%;">
                             ➕ Salvar Produto
                         </button>
-                    </form> ```
+                    </form>
                     
                     <div class="table-wrapper" style="margin-top: 20px;">
                         <table class="table">
@@ -489,7 +487,6 @@
 
         <!-- Cobranças Tab -->
         <div id="cobrancas" class="tab-content">
-    
             <div class="content-grid">
                 <div class="card">
                     <h3>🔔 Resumo de Cobranças</h3>
@@ -556,23 +553,22 @@
                     </div>
                 </div>
                 <div class="table-wrapper">
-                <table class="table">
-                    <thead>
-                        <tr>
-                        <th>Cliente</th>
-                        <th>Descrição do Item</th>
-                        <th>Data</th>
-                        <th>Valor Devido</th>
-                        <th>Status</th>
-                        <th>Ações</th>
-                         </tr>
-                     </thead>
-                    <tbody id="pendenciasTableBody"></tbody>
-                </table>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th>Descrição do Item</th>
+                                <th>Data</th>
+                                <th>Valor Devido</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pendenciasTableBody"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
-
-</div>
     </div>
         </div>
     <!-- Modais -->
