@@ -543,28 +543,23 @@ function openTab(evt, tabName) {
 function renderizarTabelaVendas() {
     const tbody = document.getElementById('vendasTableBody');
     const search = document.getElementById('searchVendas').value.toLowerCase();
-    // --- INÍCIO DA ALTERAÇÃO ---
-    // 1. Pega o valor do novo filtro de status
     const statusFiltro = document.getElementById('filtroVendasStatus').value; 
 
-    // 2. Filtra a lista de vendas com base em AMBOS os critérios
     let vendasFiltradas = vendas.filter(v => {
-        // Condição para o texto de busca (como já existia)
-        const matchSearch = v.pessoa?.toLowerCase().includes(search) || 
-                          v.produto?.toLowerCase().includes(search);
-
-        // Condição para o status
-        // Se o filtro for "" (Todos), a condição é sempre verdadeira.
-        // Caso contrário, verifica se o status da venda é igual ao do filtro.
+        const matchSearch = v.pessoa?.toLowerCase().includes(search) || v.produto?.toLowerCase().includes(search);
         const matchStatus = statusFiltro === '' || v.status === statusFiltro;
-
-        return matchSearch && matchStatus; // A venda só aparece se atender às duas condições
+        return matchSearch && matchStatus;
     });
-    // --- FIM DA ALTERAÇÃO ---
 
     vendasFiltradas.sort((a, b) => new Date(b.data) - new Date(a.data));
 
-    tbody.innerHTML = vendasFiltradas.map(v => `
+    // --- INÍCIO DA LÓGICA DE PAGINAÇÃO ---
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    const endIndex = startIndex + rowsPerPage;
+    const vendasPaginadas = vendasFiltradas.slice(startIndex, endIndex);
+    // --- FIM DA LÓGICA DE PAGINAÇÃO ---
+
+    tbody.innerHTML = vendasPaginadas.map(v => `
         <tr>
             <td>${formatarData(v.data)}</td>
             <td>${v.pessoa}</td>
@@ -573,11 +568,14 @@ function renderizarTabelaVendas() {
             <td><strong>${formatarMoeda(v.valor * v.quantidade)}</strong></td>
             <td>${getStatusBadge(v.status)}</td>
             <td class="actions">
-                <button class="btn btn-primary btn-sm" onclick="editarStatusVenda('${v.id}')" title="Alterar Status">🔄</button>
-                <button class="btn btn-danger btn-sm" onclick="excluirVenda('${v.id}')" title="Excluir">🗑️</button>
+                <button class="btn btn-primary btn-sm requires-admin" onclick="editarStatusVenda('${v.id}')" title="Alterar Status">🔄</button>
+                <button class="btn btn-danger btn-sm requires-admin" onclick="excluirVenda('${v.id}')" title="Excluir">🗑️</button>
             </td>
         </tr>
     `).join('');
+
+    // Renderiza os botões de controle da paginação
+    renderizarControlesPaginacao(vendasFiltradas, 'paginacaoVendas', renderizarTabelaVendas);
 }
 
 
@@ -1228,6 +1226,54 @@ await FirebaseService.salvar('atividades', { tipo: 'exclusao', descricao: `Despe
             mostrarLoading(false);
         }
     });
+}
+
+function renderizarControlesPaginacao(items, containerId, renderFunction) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const totalPages = Math.ceil(items.length / rowsPerPage);
+    container.innerHTML = '';
+
+    if (totalPages <= 1) return; // Não mostra os controles se só tem 1 página
+
+    // Botão "Anterior"
+    const prevButton = document.createElement('button');
+    prevButton.innerHTML = '&laquo;';
+    prevButton.disabled = currentPage === 1;
+    prevButton.onclick = () => {
+        if (currentPage > 1) {
+            currentPage--;
+            renderFunction();
+        }
+    };
+    container.appendChild(prevButton);
+
+    // Botões de Página (simplificado por enquanto)
+    for (let i = 1; i <= totalPages; i++) {
+        const pageButton = document.createElement('button');
+        pageButton.textContent = i;
+        if (i === currentPage) {
+            pageButton.classList.add('active');
+        }
+        pageButton.onclick = () => {
+            currentPage = i;
+            renderFunction();
+        };
+        container.appendChild(pageButton);
+    }
+
+    // Botão "Próxima"
+    const nextButton = document.createElement('button');
+    nextButton.innerHTML = '&raquo;';
+    nextButton.disabled = currentPage === totalPages;
+    nextButton.onclick = () => {
+        if (currentPage < totalPages) {
+            currentPage++;
+            renderFunction();
+        }
+    };
+    container.appendChild(nextButton);
 }
 
 function renderizarTabelaDespesas() {
