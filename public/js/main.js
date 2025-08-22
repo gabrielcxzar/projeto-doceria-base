@@ -1573,19 +1573,29 @@ function renderizarGraficoVendasMensais() {
     });
 }
 function extrairDataDoItem(item) {
-    if (!item.data) return null;
+    // CORREÇÃO: Procura em item.data (para vendas) OU em item.dataEntrega (para encomendas)
+    const dataString = item.data || item.dataEntrega;
+    
+    if (!dataString) {
+        // Se não encontrar data em nenhum dos dois campos, retorna nulo.
+        return null;
+    }
 
-    // Garante que estamos tratando formato YYYY-MM-DD
-    const partes = item.data.split("-");
+    // O resto da função continua igual, mas usando a dataString que encontramos.
+    const partes = dataString.split("-");
     if (partes.length !== 3) return null;
 
     const ano = parseInt(partes[0], 10);
     const mes = parseInt(partes[1], 10) - 1; // ajusta para 0-11
     const dia = parseInt(partes[2], 10);
 
+    // Garante que os valores são números válidos antes de retornar
+    if (isNaN(ano) || isNaN(mes) || isNaN(dia)) {
+        return null;
+    }
+
     return { ano, mes, dia };
 }
-// main.js
 
 function criarFiltroData(anoDesejado, mesDesejado) {
     return function(item) {
