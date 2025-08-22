@@ -430,6 +430,7 @@ function mostrarLoading(show) {
 
 // SUBSTITUA SUA FUNÇÃO ANTIGA POR ESTA VERSÃO COMPLETA E CORRIGIDA
 function configurarEventListeners() {
+    configurarThemeToggle();
     // Função auxiliar para evitar repetição
     const safeAddEventListener = (id, event, handler) => {
         const element = document.getElementById(id);
@@ -491,6 +492,36 @@ const filtroAno = document.getElementById('filtroAno');
             renderizarTudo();
         });
     }
+}
+function configurarThemeToggle() {
+    const toggle = document.getElementById('theme-toggle');
+    const body = document.body;
+
+    // Função para aplicar o tema salvo
+    const aplicarTemaSalvo = () => {
+        const temaSalvo = localStorage.getItem('theme');
+        if (temaSalvo === 'dark') {
+            body.classList.add('dark-mode');
+            toggle.checked = true;
+        } else {
+            body.classList.remove('dark-mode');
+            toggle.checked = false;
+        }
+    };
+
+    // Aplica o tema salvo assim que a página carrega
+    aplicarTemaSalvo();
+
+    // Adiciona o listener para a troca de tema
+    toggle.addEventListener('change', () => {
+        if (toggle.checked) {
+            body.classList.add('dark-mode');
+            localStorage.setItem('theme', 'dark');
+        } else {
+            body.classList.remove('dark-mode');
+            localStorage.setItem('theme', 'light');
+        }
+    });
 }
 
 // === LÓGICA DAS ABAS ===
@@ -981,54 +1012,66 @@ function atualizarTotalVenda() {
 function renderizarTabelaPendencias() {
     const tbody = document.getElementById('pendenciasTableBody');
     const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0); // Zera hora para evitar bugs de comparação
+    hoje.setHours(0, 0, 0, 0);
 
     const pendenciasGerais = [];
 
-    // Pega todas as vendas pendentes (sem filtro de mês)
+    // 1. Coleta vendas pendentes com mais detalhes
     vendas.filter(v => v.status === 'P').forEach(v => {
         pendenciasGerais.push({
-            nome: v.pessoa,
-            valor: v.valor * v.quantidade,
-            dataVencimento: new Date(v.data)
+            id: v.id,
+            tipo: 'venda', // Identifica a origem da dívida
+            clienteNome: v.pessoa,
+            descricao: v.produto,
+            data: v.data,
+            valorPendente: v.valor * v.quantidade,
         });
     });
 
-    // Pega todas as encomendas pendentes (sem filtro de mês)
+    // 2. Coleta encomendas pendentes com mais detalhes
     encomendas
         .filter(e => e.status !== 'Finalizado' && (e.valorTotal - (e.valorEntrada || 0)) > 0)
         .forEach(e => {
             pendenciasGerais.push({
-                nome: e.clienteNome,
-                valor: e.valorTotal - (e.valorEntrada || 0),
-                dataVencimento: new Date(e.dataEntrega)
+                id: e.id,
+                tipo: 'encomenda', // Identifica a origem da dívida
+                clienteNome: e.clienteNome,
+                descricao: e.produtoDescricao,
+                data: e.dataEntrega,
+                valorPendente: e.valorTotal - (e.valorEntrada || 0),
             });
         });
+    
+    // Ordena as pendências pela data, da mais antiga para a mais nova
+    pendenciasGerais.sort((a,b) => new Date(a.data) - new Date(b.data));
 
-    // Monta tabela
+    // 3. Monta a nova tabela com as informações detalhadas
     tbody.innerHTML = pendenciasGerais.map(item => {
-        const dataVenc = new Date(item.dataVencimento);
-        dataVenc.setHours(0,0,0,0);
-        const diasEmAtraso = Math.floor((hoje - dataVenc) / (1000 * 60 * 60 * 24));
+        const dataVenc = new Date(item.data);
+        const diasEmAtraso = Math.floor((hoje.getTime() - dataVenc.getTime()) / (1000 * 60 * 60 * 24));
 
         let statusAtraso = '';
         if (diasEmAtraso > 0) {
-            statusAtraso = `<span class="badge badge-danger">${diasEmAtraso} dias atrasado</span>`;
+            statusAtraso = `<span class="badge badge-danger">${diasEmAtraso} dias de atraso</span>`;
         } else if (diasEmAtraso === 0) {
             statusAtraso = `<span class="badge badge-warning">Vence Hoje</span>`;
         } else {
-            statusAtraso = `<span class="badge badge-info">Vence em ${-diasEmAtraso} dias</span>`;
+            statusAtraso = `<span class="badge badge-info">A vencer</span>`;
         }
 
         return `
             <tr>
-                <td><strong>${item.nome}</strong></td>
-                <td><strong style="color: var(--danger-color);">${formatarMoeda(item.valor)}</strong></td>
+                <td><strong>${item.clienteNome}</strong></td>
+                <td>${item.descricao}</td>
+                <td>${formatarData(item.data)}</td>
+                <td><strong style="color: var(--danger-color);">${formatarMoeda(item.valorPendente)}</strong></td>
                 <td>${statusAtraso}</td>
-                <td>-</td>
-                <td>-</td>
                 <td class="actions">
-                    <button class="btn btn-success btn-sm requires-admin" onclick="marcarPendenciasComoPagas('${item.nome}')" title="Marcar como Pago">✅ Paga</button>
+                    <button class="btn btn-success btn-sm requires-admin" 
+                            onclick="marcarPendenciaComoPaga('${item.tipo}', '${item.id}')" 
+                            title="Marcar como Pago">
+                        ✅ Paga
+                    </button>
                 </td>
             </tr>
         `;
@@ -1268,43 +1311,39 @@ async function marcarTodosComoContatados() {
         }
     });
 }
-async function marcarPendenciasComoPagas(clienteNome) {
-    showConfirm(`Deseja marcar todas as pendências de ${clienteNome} como pagas? Isso quitará as vendas e finalizará as encomendas.`, async (confirmado) => {
+async function marcarPendenciaComoPaga(tipo, id) {
+    let item, confirmText;
+
+    if (tipo === 'venda') {
+        item = vendas.find(v => v.id === id);
+        confirmText = `Deseja marcar a venda do produto "${item.produto}" para ${item.pessoa} como paga?`;
+    } else { // tipo === 'encomenda'
+        item = encomendas.find(e => e.id === id);
+        confirmText = `Deseja finalizar a encomenda de "${item.produtoDescricao}" para ${item.clienteNome}?`;
+    }
+
+    if (!item) {
+        return mostrarAlerta('Erro: Item pendente não encontrado.', 'danger');
+    }
+
+    showConfirm(confirmText, async (confirmado) => {
         if (confirmado) {
             mostrarLoading(true);
-
-            // 1. Encontra e prepara a baixa das VENDAS pendentes (esta parte já estava correta)
-            const pendenciasVendas = vendas.filter(v => v.pessoa === clienteNome && v.status === 'P');
-            const updatesVendas = pendenciasVendas.map(venda => 
-                FirebaseService.atualizar('vendas', venda.id, { status: 'A' })
-            );
-
-            // 2. Encontra e prepara a baixa das ENCOMENDAS pendentes (A CORREÇÃO ESTÁ AQUI)
-            const pendenciasEncomendas = encomendas.filter(e => e.clienteNome === clienteNome && e.status !== 'Finalizado');
-            const updatesEncomendas = pendenciasEncomendas.map(encomenda => 
-                // Além de finalizar, agora também atualizamos o valor de entrada para o valor total.
-                FirebaseService.atualizar('encomendas', encomenda.id, { 
+            let success = false;
+            if (tipo === 'venda') {
+                success = await FirebaseService.atualizar('vendas', id, { status: 'A' });
+            } else { // tipo === 'encomenda'
+                success = await FirebaseService.atualizar('encomendas', id, { 
                     status: 'Finalizado',
-                    valorEntrada: encomenda.valorTotal // <-- ESTA É A LINHA DA CORREÇÃO
-                })
-            );
-
-            // 3. Junta todas as atualizações e executa de uma vez
-            const todasAsAtualizacoes = [...updatesVendas, ...updatesEncomendas];
-            
-            if (todasAsAtualizacoes.length === 0) {
-                mostrarAlerta(`Nenhuma pendência encontrada para ${clienteNome}.`, 'info');
-                mostrarLoading(false);
-                return;
+                    valorEntrada: item.valorTotal 
+                });
             }
 
-            await Promise.all(todasAsAtualizacoes);
-            
-            // Mensagem de sucesso corrigida (usando crases)
-            mostrarAlerta(`Pendências de ${clienteNome} marcadas como pagas!`, 'success');
-            
-            await carregarTodosDados();
-            renderizarTudo();
+            if (success) {
+                mostrarAlerta('Pendência baixada com sucesso!', 'success');
+                await carregarTodosDados();
+                renderizarTudo();
+            }
             mostrarLoading(false);
         }
     });
@@ -2295,6 +2334,7 @@ window.excluirDespesa = excluirDespesa;
 window.copiarMensagem = copiarMensagem;
 window.abrirWhatsApp = abrirWhatsApp;
 window.marcarPendenciasComoPagas = marcarPendenciasComoPagas;
+window.marcarPendenciaComoPaga = marcarPendenciaComoPaga;
 window.marcarTodosComoContatados = marcarTodosComoContatados;
 window.debugFiltros = debugFiltros;
 window.extrairDataDoItem = extrairDataDoItem;

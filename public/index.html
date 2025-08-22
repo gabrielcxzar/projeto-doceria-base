@@ -19,6 +19,14 @@
 </header>
     <div class="user-info-bar">
         <span id="userInfoDisplay"></span>
+        <div class="theme-switch-wrapper">
+                <label class="theme-switch" for="theme-toggle">
+                    <input type="checkbox" id="theme-toggle" />
+                    <div class="slider round"></div>
+                </label>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="fazerLogout()">Sair</button>
+        </div>
         <button class="btn btn-danger btn-sm" onclick="fazerLogout()">Sair</button>
     </div>
     <div class="filtros-container card">
@@ -553,9 +561,9 @@
                         <thead>
                             <tr>
                                 <th>Cliente</th>
+                                <th>Descrição do Item</th>
+                                <th>Data</th>
                                 <th>Valor Devido</th>
-                                <th>Dias em Atraso</th>
-                                <th>Último Contato</th>
                                 <th>Status</th>
                                 <th>Ações</th>
                             </tr>
