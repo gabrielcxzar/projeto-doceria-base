@@ -14,6 +14,11 @@
     --box-shadow: 0 6px 20px rgba(0,0,0,0.1);
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
+html {
+    /* O padrão do navegador é 16px. Reduzindo para 14.5px, 
+       simulamos um "zoom out" de aproximadamente 90% (14.5 / 16 = 0.906) */
+    font-size: 14.5px;
+}
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -26,7 +31,7 @@ body {
 }
 
 .container { 
-    max-width: 1600px; 
+    max-width: 1200px; 
     margin: 0 auto; 
     padding: 10px 15px;
     position: relative;
