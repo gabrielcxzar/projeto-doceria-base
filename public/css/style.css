@@ -36,6 +36,7 @@ body {
     display: flex;             /* ADICIONE ESTA LINHA */
     flex-direction: column;    /* ADICIONE ESTA LINHA */
     align-items: center;       /* ADICIONE ESTA LINHA */
+    width: 100%;
     text-align: center; 
     margin-bottom: 20px; 
     color: var(--primary-color);
