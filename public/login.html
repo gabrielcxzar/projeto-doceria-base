@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Lá Divino Sabor</title>
+    <link rel="icon" type="image/png" href="images/logo.png">
+    <link rel="stylesheet" href="css/style.css"> <style>
+        /* Estilos simples para centralizar o card de login */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e8eaf6 100%);
+        }
+        .login-card {
+            max-width: 450px;
+            width: 100%;
+            padding: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card login-card">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <img src="images/logo.png" alt="Logo Lá Divino Sabor" style="height: 100px;">
+            <h3>Controle Total</h3>
+        </div>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">E-mail</label>
+                <input type="email" id="email" class="form-control" required>
+            </div>
+            <div class="form-group" style="margin-top: 15px;">
+                <label for="password">Senha</label>
+                <input type="password" id="password" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 25px;">Entrar</button>
+            <p id="login-error" style="color: var(--danger-color); text-align: center; margin-top: 15px; display: none;"></p>
+        </form>
+    </div>
+
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js"></script>
+    <script type="module" src="js/login.js"></script>
+</body>
+</html>

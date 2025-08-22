@@ -1,5 +1,10 @@
 // === CONFIGURAÇÃO FIREBASE ===
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+
+// Importa as funções de Autenticação que vamos usar
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
+
+// Importa TODAS as funções do Firestore que você já usava
 import { 
     getFirestore, 
     collection, 
@@ -28,8 +33,10 @@ const firebaseConfig = {
 // Inicializar Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 
 // === ESTADO GLOBAL ===
+let usuarioAtual = null;
 let vendas = [];
 let anoFiltroSelecionado = new Date().getFullYear(); // Inicializa com ano atual
 let mesFiltroSelecionado = new Date().getMonth(); // Inicializa com mês atual
@@ -235,16 +242,51 @@ function debugFiltros() {
 
 
 // === INICIALIZAÇÃO ===
-document.addEventListener('DOMContentLoaded', async () => {
+// === INICIALIZAÇÃO E CONTROLE DE ACESSO ===
+
+// ESTE É O NOSSO "PORTEIRO"
+// Ele roda assim que a página carrega para verificar o status de login
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        // 1. O usuário está logado. Vamos buscar as informações dele no Firestore.
+        const userDoc = await FirebaseService.carregarPorId('usuarios', user.uid);
+
+        if (userDoc && userDoc.role) {
+            // 2. Encontramos o usuário e sua permissão (role).
+            usuarioAtual = {
+                uid: user.uid,
+                email: user.email,
+                role: userDoc.role,
+                nome: userDoc.nome
+            };
+            console.log(`Usuário ${usuarioAtual.nome} (${usuarioAtual.role}) logado.`);
+
+            // 3. Agora sim, podemos iniciar a aplicação.
+            await iniciarAplicacao();
+        } else {
+            // Caso o usuário exista no Auth mas não no Firestore.
+            alert('Erro: Usuário não possui permissões definidas. Contate o suporte.');
+            fazerLogout();
+        }
+    } else {
+        // 4. Usuário NÃO está logado. Redireciona para a tela de login.
+        console.log("Nenhum usuário logado, redirecionando para login.html");
+        window.location.href = 'login.html';
+    }
+});
+
+// Esta função agora contém todo o código de inicialização que estava no DOMContentLoaded
+async function iniciarAplicacao() {
     mostrarLoading(true);
     popularFiltrosDeData();
     await inicializarSistema();
     configurarEventListeners();
+    // aplicarControlesDeAcesso(); // Deixei comentado por enquanto, será o próximo passo
     await carregarTodosDados();
     renderizarTudo();
     configurarBackupAutomatico();
     mostrarLoading(false);
-});
+}
 
 async function inicializarSistema() {
     document.getElementById('data').valueAsDate = new Date();
@@ -1875,6 +1917,20 @@ function gerarRelatorio() {
     `;
     
     document.getElementById('resultadoRelatorio').innerHTML = relatorioHTML;
+}
+function imprimirRelatorio() {
+    const conteudo = document.getElementById('relatorio-imprimivel').innerHTML;
+    const janelaImprimir = window.open('', '', 'height=600,width=800');
+    janelaImprimir.document.write('<html><head><title>Relatório de Vendas</title>');
+    // Para garantir que o estilo seja aplicado na impressão
+    janelaImprimir.document.write('<link rel="stylesheet" href="css/style.css" type="text/css" media="print"/>');
+    janelaImprimir.document.write('</head><body>');
+    janelaImprimir.document.write(conteudo);
+    janelaImprimir.document.write('</body></html>');
+    janelaImprimir.document.close();
+    setTimeout(() => { // Timeout para dar tempo de carregar o CSS
+        janelaImprimir.print();
+    }, 500);
 }
 async function salvarMeta() {
     const metaInput = document.getElementById('metaMensal');
