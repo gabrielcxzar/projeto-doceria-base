@@ -59,8 +59,8 @@ body {
 .dashboard {
     display: grid;
     /* A MÁGICA ACONTECE AQUI: auto-fit cria quantas colunas couberem,
-       com cada uma tendo no mínimo 250px e no máximo 1 fração do espaço. */
-    grid-template-columns: repeat(auto-fit, minmax(225px, 1fr));
+       com cada uma tendo no mínimo 210px e no máximo 1 fração do espaço. */
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
     gap: 15px;
     margin-bottom: 20px;
 }

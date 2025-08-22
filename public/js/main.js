@@ -55,6 +55,8 @@ let configuracoes = {
 let editandoId = null;
 let charts = {};
 let isLoading = false;
+let currentPage = 1; // <-- ADICIONE ESTA LINHA
+const rowsPerPage = 10;
 
 // === FUNÇÕES DE FIRESTORE ===
 class FirebaseService {
