@@ -504,6 +504,7 @@ const filtroAno = document.getElementById('filtroAno');
     safeAddEventListener('btnMontarReceita', 'click', abrirModalReceita);
     safeAddEventListener('formAdicionarIngredienteReceita', 'submit', adicionarIngredienteNaReceita);
     safeAddEventListener('btnSalvarReceita', 'click', salvarReceita);
+    safeAddEventListener('receitaIngredienteSelect', 'change', atualizarUnidadeReceita);
 }
 function configurarThemeToggle() {
     const toggle = document.getElementById('theme-toggle');
@@ -802,43 +803,49 @@ function calcularPrecoVenda() {
 
 async function adicionarOuEditarProduto(e) {
     e.preventDefault();
-    const dados = {
+    const dadosDoForm = {
         nome: document.getElementById('produtoNome').value.trim().toUpperCase(),
         categoria: document.getElementById('produtoCategoria').value,
-        custoMaterial: parseFloat(document.getElementById('produtoCustoMaterial').value) || 0,
+        // O custo de material não é pego do form, pois é gerenciado pela receita
         custoMaoObra: parseFloat(document.getElementById('produtoCustoMaoObra').value) || 0,
         margem: parseFloat(document.getElementById('produtoMargem').value) || 100,
         valor: parseFloat(document.getElementById('produtoValor').value) || 0,
         tempoPreparo: parseInt(document.getElementById('produtoTempoPreparo').value) || 0
     };
 
-    if (!dados.nome || dados.valor <= 0) {
+    if (!dadosDoForm.nome || dadosDoForm.valor <= 0) {
         return mostrarAlerta('Nome do produto e preço final são obrigatórios.', 'danger');
     }
 
     mostrarLoading(true);
 
     if (editandoId) {
-        const success = await FirebaseService.atualizar('produtos', editandoId, dados);
+        // MODO EDIÇÃO
+        const success = await FirebaseService.atualizar('produtos', editandoId, dadosDoForm);
         if (success) {
             const produtoIndex = produtos.findIndex(p => p.id === editandoId);
             if (produtoIndex > -1) {
-                // Atualiza o produto localmente preservando a receita que não é parte do form principal
-                produtos[produtoIndex] = { ...produtos[produtoIndex], ...dados };
+                // CORREÇÃO: Aqui mesclamos os dados existentes com os novos, preservando a receita.
+                produtos[produtoIndex] = { ...produtos[produtoIndex], ...dadosDoForm };
             }
             mostrarAlerta('Produto atualizado com sucesso!', 'success');
         }
     } else {
-        if (produtos.some(p => p.nome === dados.nome)) {
+        // MODO ADIÇÃO
+        const dadosParaSalvar = { ...dadosDoForm };
+        if (produtos.some(p => p.nome === dadosParaSalvar.nome)) {
             mostrarLoading(false);
             return mostrarAlerta('Produto com este nome já cadastrado.', 'danger');
         }
+        // Pega o custo e a receita que foram montados e estão na variável temporária
+        dadosParaSalvar.custoMaterial = parseFloat(document.getElementById('produtoCustoMaterial').value) || 0;
         if (receitaTemporaria.length > 0) {
-            dados.receita = receitaTemporaria;
+            dadosParaSalvar.receita = receitaTemporaria;
         }
-        const newId = await FirebaseService.salvar('produtos', dados);
+
+        const newId = await FirebaseService.salvar('produtos', dadosParaSalvar);
         if (newId) {
-            const novoProduto = { ...dados, id: newId };
+            const novoProduto = { ...dadosParaSalvar, id: newId };
             produtos.push(novoProduto);
             mostrarAlerta('Produto cadastrado com sucesso!', 'success');
         }
@@ -847,14 +854,11 @@ async function adicionarOuEditarProduto(e) {
     editandoId = null;
     receitaTemporaria = [];
     document.getElementById('produtoForm').reset();
-    
-    // CORREÇÃO APLICADA AQUI:
     document.querySelector('#produtoForm button[type="submit"]').textContent = '➕ Salvar Produto';
-    
     document.getElementById('produtoMargem').value = 100;
     renderizarTudo();
     mostrarLoading(false);
-}
+}   
 
 function editarProduto(id) {
     const produto = produtos.find(p => p.id === id);
@@ -1081,6 +1085,7 @@ function abrirModalReceita() {
     }
 
     atualizarCustoTotalReceita();
+    document.getElementById('receitaIngredienteUnidade').disabled = false;
     document.getElementById('receitaModal').style.display = 'flex';
 }
 
@@ -1147,7 +1152,7 @@ async function salvarReceita() {
     const novaReceita = [];
     let novoCustoMaterial = 0;
 
-    // Monta o objeto da receita a partir da tabela do modal
+    // Monta o objeto da receita e calcula o custo total
     rows.forEach(row => {
         novaReceita.push({
             ingredienteId: row.dataset.ingredienteId,
@@ -1157,7 +1162,7 @@ async function salvarReceita() {
         novoCustoMaterial += parseFloat(row.dataset.custo) || 0;
     });
 
-    // Se estiver editando um produto existente, salva diretamente no banco
+    // Se estiver editando um produto existente, salva a receita no banco
     if (editandoId) {
         mostrarLoading(true);
         const dadosParaAtualizar = { receita: novaReceita, custoMaterial: novoCustoMaterial };
@@ -1166,22 +1171,42 @@ async function salvarReceita() {
         if (success) {
             const index = produtos.findIndex(p => p.id === editandoId);
             if (index > -1) {
-                produtos[index] = { ...produtos[index], ...dadosParaAtualizar };
+                produtos[index].receita = novaReceita;
+                produtos[index].custoMaterial = novoCustoMaterial;
             }
             renderizarTabelaProdutos();
         }
         mostrarLoading(false);
     } else {
-        // Se for um novo produto, apenas armazena a receita na variável temporária
+        // Se for um novo produto, armazena a receita na variável temporária
         receitaTemporaria = novaReceita;
     }
 
-    // Atualiza o formulário principal nos dois casos (produto novo ou existente)
+    // ATUALIZA O FORMULÁRIO PRINCIPAL (RESOLVE A QUESTÃO DA ATUALIZAÇÃO)
     document.getElementById('produtoCustoMaterial').value = novoCustoMaterial.toFixed(2);
     calcularPrecoVenda(); // Recalcula o preço de venda imediatamente
     
     mostrarAlerta('Ficha técnica atualizada! Salve o produto para confirmar as alterações.', 'success');
     fecharModal('receitaModal');
+}
+function atualizarUnidadeReceita() {
+    const ingredienteId = document.getElementById('receitaIngredienteSelect').value;
+    const unidadeSelect = document.getElementById('receitaIngredienteUnidade');
+    
+    // Se um ingrediente foi selecionado...
+    if (ingredienteId) {
+        const ingrediente = ingredientes.find(i => i.id === ingredienteId);
+        if (ingrediente) {
+            // Define o valor do campo para a unidade padrão do ingrediente...
+            unidadeSelect.value = ingrediente.unidadePadrao;
+            // E desabilita o campo para evitar seleção errada.
+            unidadeSelect.disabled = true;
+        }
+    } else {
+        // Se nenhum ingrediente estiver selecionado, reseta e habilita o campo.
+        unidadeSelect.value = 'ml'; // Volta para o valor padrão
+        unidadeSelect.disabled = false;
+    }
 }
 // === LÓGICA DE VENDAS ===
 function preencherValorProduto() {
