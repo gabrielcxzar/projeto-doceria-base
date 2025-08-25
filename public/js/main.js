@@ -635,33 +635,48 @@ async function adicionarOuEditarCliente(e) {
     };
 
     if (!dados.nome) {
-        mostrarAlerta('Nome do cliente é obrigatório', 'danger');
-        return;
+        return mostrarAlerta('Nome do cliente é obrigatório', 'danger');
     }
 
     mostrarLoading(true);
+
     if (editandoId) {
+        // MODO EDIÇÃO
         const success = await FirebaseService.atualizar('clientes', editandoId, dados);
-        if (success) mostrarAlerta('Cliente atualizado com sucesso!', 'success');
+        if (success) {
+            // Atualiza o cliente específico no estado local
+            const clienteIndex = clientes.findIndex(c => c.id === editandoId);
+            if (clienteIndex > -1) {
+                clientes[clienteIndex] = { ...clientes[clienteIndex], ...dados };
+            }
+            mostrarAlerta('Cliente atualizado com sucesso!', 'success');
+        }
         document.querySelector('#clienteForm button').textContent = '➕ Salvar Cliente';
+
     } else {
-    if (clientes.some(c => c.nome === dados.nome)) {
-        mostrarAlerta('Cliente com este nome já cadastrado', 'danger');
-        mostrarLoading(false);
-        return;
+        // MODO ADIÇÃO
+        if (clientes.some(c => c.nome === dados.nome)) {
+            mostrarLoading(false);
+            return mostrarAlerta('Cliente com este nome já cadastrado', 'danger');
+        }
+        const newId = await FirebaseService.salvar('clientes', { ...dados, totalGasto: 0, ultimaCompra: null });
+        if (newId) {
+            // Adiciona o novo cliente ao estado local
+            const novoCliente = { ...dados, totalGasto: 0, ultimaCompra: null, id: newId };
+            clientes.push(novoCliente);
+
+            // Adiciona a atividade
+            const novaAtividade = { tipo: 'cliente', descricao: `Novo cliente cadastrado: ${dados.nome}`, criadoEm: new Date() };
+            await FirebaseService.salvar('atividades', novaAtividade);
+            atividades.push(novaAtividade);
+
+            mostrarAlerta('Cliente cadastrado com sucesso!', 'success');
+        }
     }
-    const newId = await FirebaseService.salvar('clientes', { ...dados, totalGasto: 0, ultimaCompra: null });
-
-    // <-- ADICIONE ESTA LINHA AQUI
-    if (newId) await FirebaseService.salvar('atividades', { tipo: 'cliente', descricao: `Novo cliente cadastrado: ${dados.nome}` });
-
-    if (newId) mostrarAlerta('Cliente cadastrado com sucesso!', 'success');
-}
     
     editandoId = null;
     document.getElementById('clienteForm').reset();
-    await carregarTodosDados();
-    renderizarTudo();
+    renderizarTudo(); // Renderiza com os dados locais já atualizados
     mostrarLoading(false);
 }
 
@@ -787,30 +802,42 @@ async function adicionarOuEditarProduto(e) {
     };
 
     if (!dados.nome || dados.valor <= 0) {
-        mostrarAlerta('Nome do produto e preço final são obrigatórios.', 'danger');
-        return;
+        return mostrarAlerta('Nome do produto e preço final são obrigatórios.', 'danger');
     }
 
     mostrarLoading(true);
+
     if (editandoId) {
+        // MODO EDIÇÃO
         const success = await FirebaseService.atualizar('produtos', editandoId, dados);
-        if (success) mostrarAlerta('Produto atualizado com sucesso!', 'success');
+        if (success) {
+            // Atualiza o produto específico no estado local
+            const produtoIndex = produtos.findIndex(p => p.id === editandoId);
+            if (produtoIndex > -1) {
+                produtos[produtoIndex] = { ...produtos[produtoIndex], ...dados };
+            }
+            mostrarAlerta('Produto atualizado com sucesso!', 'success');
+        }
         document.querySelector('#produtoForm button').textContent = '➕ Salvar Produto';
     } else {
+        // MODO ADIÇÃO
         if (produtos.some(p => p.nome === dados.nome)) {
-            mostrarAlerta('Produto com este nome já cadastrado.', 'danger');
             mostrarLoading(false);
-            return;
+            return mostrarAlerta('Produto com este nome já cadastrado.', 'danger');
         }
         const newId = await FirebaseService.salvar('produtos', dados);
-        if (newId) mostrarAlerta('Produto cadastrado com sucesso!', 'success');
+        if (newId) {
+            // Adiciona o novo produto ao estado local
+            const novoProduto = { ...dados, id: newId };
+            produtos.push(novoProduto);
+            mostrarAlerta('Produto cadastrado com sucesso!', 'success');
+        }
     }
 
     editandoId = null;
     document.getElementById('produtoForm').reset();
-    document.getElementById('produtoMargem').value = 100;
-    await carregarTodosDados();
-    renderizarTudo();
+    document.getElementById('produtoMargem').value = 100; // Reseta valor padrão
+    renderizarTudo(); // Renderiza com os dados locais já atualizados
     mostrarLoading(false);
 }
 
@@ -888,6 +915,7 @@ function preencherValorProduto() {
 
 async function adicionarVenda(e) {
     e.preventDefault();
+    const vendaForm = document.getElementById('vendaForm');
     const venda = {
         data: document.getElementById('data').value,
         pessoa: document.getElementById('pessoa').value,
@@ -898,28 +926,31 @@ async function adicionarVenda(e) {
         status: document.getElementById('status').value
     };
 
-    // --- VALIDAÇÃO MELHORADA ---
-    if (!venda.pessoa) {
-        return mostrarAlerta('Selecione um cliente para a venda.', 'warning');
+    if (!venda.pessoa || !venda.produto || isNaN(venda.valor) || venda.valor <= 0) {
+        return mostrarAlerta('Cliente, produto e valor são obrigatórios.', 'warning');
     }
-    if (!venda.produto) {
-        return mostrarAlerta('Selecione um produto para a venda.', 'warning');
-    }
-    if (isNaN(venda.valor) || venda.valor <= 0) {
-        return mostrarAlerta('O valor do produto é inválido. Verifique o cadastro do produto.', 'danger');
-    }
-    // --- FIM DA VALIDAÇÃO ---
 
     mostrarLoading(true);
     const newId = await FirebaseService.salvar('vendas', venda);
+    
     if (newId) {
+        // 1. Atualiza os dados do cliente (no DB e na memória local)
         await atualizarDadosCliente(venda.pessoa, venda.valor * venda.quantidade);
-        await FirebaseService.salvar('atividades', { tipo: 'venda', descricao: `Venda registrada: ${venda.quantidade}x ${venda.produto} para ${venda.pessoa}` });
+
+        // 2. Cria o objeto completo da nova venda e o adiciona ao estado local
+        const novaVendaCompleta = { ...venda, id: newId, criadoEm: new Date() };
+        vendas.push(novaVendaCompleta);
+
+        // 3. Registra a atividade no DB e no estado local
+        const novaAtividade = { tipo: 'venda', descricao: `Venda registrada: ${venda.quantidade}x ${venda.produto} para ${venda.pessoa}`, criadoEm: new Date() };
+        await FirebaseService.salvar('atividades', novaAtividade);
+        atividades.push(novaAtividade);
         
         mostrarAlerta('Venda registrada com sucesso!', 'success');
-        document.getElementById('vendaForm').reset();
+        vendaForm.reset();
         document.getElementById('data').valueAsDate = new Date();
-        await carregarTodosDados();
+        
+        // 4. Renderiza a UI com os dados locais já atualizados, sem recarregar tudo do DB
         renderizarTudo();
     }
     mostrarLoading(false);
@@ -955,59 +986,57 @@ function atualizarResumoFinanceiro() {
 }
 
 async function excluirVenda(id) {
+    const vendaIndex = vendas.findIndex(v => v.id === id);
+    if (vendaIndex === -1) return mostrarAlerta('Venda não encontrada para exclusão.', 'danger');
+
+    const vendaParaExcluir = vendas[vendaIndex];
+
     showConfirm('Tem certeza que deseja excluir esta venda? Esta ação não pode ser desfeita.', async (confirmado) => {
-        if (confirmado) {
-            mostrarLoading(true);
-            const vendaParaExcluir = vendas.find(v => v.id === id);
+        if (!confirmado) return;
 
-            if (vendaParaExcluir) {
-                const success = await FirebaseService.excluir('vendas', id);
+        mostrarLoading(true);
+        const success = await FirebaseService.excluir('vendas', id);
 
-                if (success) {
-                    // --- INÍCIO DA NOVA LÓGICA DE ATUALIZAÇÃO ---
-                    const cliente = clientes.find(c => c.nome === vendaParaExcluir.pessoa);
+        if (success) {
+            // 1. Remove a venda do estado local ANTES de qualquer recálculo
+            vendas.splice(vendaIndex, 1);
 
-                    if (cliente) {
-                        // 1. Primeiro, subtraímos o valor da venda excluída.
-                        const valorVenda = vendaParaExcluir.valor * vendaParaExcluir.quantidade;
-                        const novoTotalGasto = (cliente.totalGasto || 0) - valorVenda;
+            // 2. Atualiza o cliente correspondente
+            const clienteIndex = clientes.findIndex(c => c.nome === vendaParaExcluir.pessoa);
+            if (clienteIndex > -1) {
+                const cliente = clientes[clienteIndex];
+                const valorVenda = vendaParaExcluir.valor * vendaParaExcluir.quantidade;
+                
+                // Subtrai o valor gasto
+                const novoTotalGasto = (cliente.totalGasto || 0) - valorVenda;
 
-                        // 2. Agora, recalculamos a última data de compra.
-                        // Filtramos as vendas restantes para encontrar a mais recente.
-                        const vendasRestantes = vendas.filter(v => v.pessoa === cliente.nome && v.id !== id);
-                        
-                        let novaUltimaCompra = null;
-                        if (vendasRestantes.length > 0) {
-                            // Ordena para garantir que a primeira é a mais recente
-                            vendasRestantes.sort((a, b) => new Date(b.data) - new Date(a.data));
-                            novaUltimaCompra = vendasRestantes[0].data;
-                        }
-
-                        // 3. Montamos o objeto de atualização e salvamos no Firestore.
-                        const dadosAtualizadosCliente = {
-                            totalGasto: novoTotalGasto,
-                            ultimaCompra: novaUltimaCompra
-                        };
-                        await FirebaseService.atualizar('clientes', cliente.id, dadosAtualizadosCliente);
-                    }
-                    
-                    // Log da atividade (Correção do Bug #3)
-                    await FirebaseService.salvar('atividades', { 
-                        tipo: 'exclusao', 
-                        descricao: `Venda excluída: ${vendaParaExcluir.quantidade}x ${vendaParaExcluir.produto} de ${vendaParaExcluir.pessoa}` 
-                    });
-
-                    mostrarAlerta('Venda excluída com sucesso!', 'success');
-                    // --- FIM DA NOVA LÓGICA ---
+                // Recalcula a data da última compra com base nas vendas restantes
+                const vendasRestantes = vendas.filter(v => v.pessoa === cliente.nome);
+                let novaUltimaCompra = null;
+                if (vendasRestantes.length > 0) {
+                    vendasRestantes.sort((a, b) => new Date(b.data) - new Date(a.data));
+                    novaUltimaCompra = vendasRestantes[0].data;
                 }
-            } else {
-                mostrarAlerta('Erro: Venda não encontrada para exclusão.', 'danger');
+
+                // Atualiza o cliente no DB com ambos os campos de uma vez
+                const dadosAtualizados = { totalGasto: novoTotalGasto, ultimaCompra: novaUltimaCompra };
+                await FirebaseService.atualizar('clientes', cliente.id, dadosAtualizados);
+                
+                // Atualiza o cliente também no estado local
+                clientes[clienteIndex] = { ...cliente, ...dadosAtualizados };
             }
 
-            await carregarTodosDados();
-            renderizarTudo();
-            mostrarLoading(false);
+            // Adiciona a atividade de exclusão
+            const novaAtividade = { tipo: 'exclusao', descricao: `Venda excluída: ${vendaParaExcluir.quantidade}x ${vendaParaExcluir.produto} de ${vendaParaExcluir.pessoa}`, criadoEm: new Date() };
+            await FirebaseService.salvar('atividades', novaAtividade);
+            atividades.push(novaAtividade);
+
+            mostrarAlerta('Venda excluída com sucesso!', 'success');
         }
+
+        // Renderiza a UI com os dados locais já atualizados
+        renderizarTudo();
+        mostrarLoading(false);
     });
 }
 function calcularMargemLucro() {
@@ -1173,41 +1202,42 @@ function renderizarTabelaEncomendas() {
 // === LÓGICA DE DESPESAS ===
 async function adicionarDespesa(e) {
     e.preventDefault();
-
-    // Lê os valores dos campos do formulário
-    const data = document.getElementById('despesaData').value;
-    const tipo = document.getElementById('despesaTipo').value;
-    const descricao = document.getElementById('despesaDescricao').value;
-    // Converte a quantidade para número, se estiver vazio, considera como 1
-    const quantidade = parseFloat(document.getElementById('despesaQuantidade').value) || 1;
+    const despesaForm = document.getElementById('despesaForm');
     const valorUnitario = parseFloat(document.getElementById('despesaValor').value) || 0;
+    const quantidadeInput = document.getElementById('despesaQuantidade');
+    // parseFloat extrai o número inicial de um texto como "5kg" ou "10un"
+    const quantidadeNum = parseFloat(quantidadeInput.value) || 1;
 
-    // --- A LÓGICA DA CORREÇÃO ESTÁ AQUI ---
-    // Multiplica a quantidade pelo valor unitário para obter o valor total da despesa
-    const valorTotalDespesa = quantidade * valorUnitario;
-
-    // Monta o objeto da despesa com o valor total calculado
     const despesa = {
-        data: data,
-        tipo: tipo,
-        descricao: descricao,
-        quantidade: quantidade, // Mantemos a quantidade para referência
-        valor: valorTotalDespesa // O valor salvo agora é o total
+        data: document.getElementById('despesaData').value,
+        tipo: document.getElementById('despesaTipo').value,
+        descricao: document.getElementById('despesaDescricao').value,
+        quantidade: quantidadeInput.value, // Mantém o texto original para referência
+        valor: valorUnitario * quantidadeNum // Salva o valor total calculado
     };
 
-    if (!despesa.data || !despesa.tipo || !despesa.descricao || isNaN(despesa.valor)) {
-        mostrarAlerta('Preencha todos os campos obrigatórios da despesa', 'danger');
+    if (!despesa.data || !despesa.tipo || !despesa.descricao || isNaN(despesa.valor) || despesa.valor <= 0) {
+        mostrarAlerta('Preencha todos os campos obrigatórios da despesa com valores válidos.', 'danger');
         return;
     }
 
     mostrarLoading(true);
     const newId = await FirebaseService.salvar('despesas', despesa);
     if (newId) {
-        await FirebaseService.salvar('atividades', { tipo: 'despesa', descricao: `Despesa: ${despesa.descricao} - ${formatarMoeda(despesa.valor)}`});
+        // 1. Adiciona a nova despesa completa ao estado local
+        const novaDespesaCompleta = { ...despesa, id: newId, criadoEm: new Date() };
+        despesas.push(novaDespesaCompleta);
+
+        // 2. Adiciona a atividade ao estado local e salva no DB
+        const novaAtividade = { tipo: 'despesa', descricao: `Despesa: ${despesa.descricao} - ${formatarMoeda(despesa.valor)}`, criadoEm: new Date() };
+        await FirebaseService.salvar('atividades', novaAtividade);
+        atividades.push(novaAtividade);
+        
         mostrarAlerta('Despesa registrada com sucesso!', 'success');
-        document.getElementById('despesaForm').reset();
+        despesaForm.reset();
         document.getElementById('despesaData').valueAsDate = new Date();
-        await carregarTodosDados();
+        
+        // 3. Renderiza a UI com os dados locais já atualizados
         renderizarTudo();
     }
     mostrarLoading(false);
@@ -1455,25 +1485,24 @@ function atualizarDashboardPrincipal() {
                        encomendasMes.reduce((acc, e) => acc + (e.valorTotal || 0), 0);
     
     const vendasPagasMes = vendasMes.filter(v => v.status === 'A' || v.status === 'E');
-
-    // --- INÍCIO DA CORREÇÃO ---
-    // A lógica foi ajustada para somar as vendas pagas + TODAS as entradas de encomendas do mês.
     const totalRecebidoMes = vendasPagasMes.reduce((acc, v) => acc + (v.valor * v.quantidade), 0) + 
                             encomendasMes.reduce((acc, e) => acc + (e.valorEntrada || 0), 0);
-    // --- FIM DA CORREÇÃO ---
 
     const totalDespesas = despesasMes.reduce((acc, d) => acc + d.valor, 0);
     const lucroLiquido = totalRecebidoMes - totalDespesas;
     const margemLucro = totalRecebidoMes > 0 ? (lucroLiquido / totalRecebidoMes * 100) : 0;
     
-    // --- Valores a receber (CÁLCULO GLOBAL) ---
-    const aReceberVendas = vendas.filter(v => v.status === 'P').reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
-    const aReceberEncomendas = encomendas.filter(e => e.status !== 'Finalizado').reduce((acc, e) => acc + ((e.valorTotal || 0) - (e.valorEntrada || 0)), 0);
+    // --- Valores a receber (CÁLCULO CORRIGIDO PARA O MÊS) ---
+    // CORREÇÃO: As linhas abaixo agora usam as listas já filtradas `vendasMes` e `encomendasMes`.
+    const aReceberVendas = vendasMes.filter(v => v.status === 'P').reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
+    const aReceberEncomendas = encomendasMes.filter(e => e.status !== 'Finalizado').reduce((acc, e) => acc + ((e.valorTotal || 0) - (e.valorEntrada || 0)), 0);
     const totalAReceber = aReceberVendas + aReceberEncomendas;
     
-    const clientesComVendasPendentes = vendas.filter(v => v.status === 'P').map(v => v.pessoa);
-    const clientesComEncomendasPendentes = encomendas.filter(e => e.status !== 'Finalizado' && ((e.valorTotal || 0) - (e.valorEntrada || 0)) > 0).map(e => e.clienteNome);
-    const clientesComPendencia = new Set([...clientesComVendasPendentes, ...clientesComEncomendasPendentes]).size;
+    // O restante do cálculo que já era global permanece global
+    const clientesComPendenciaGlobal = new Set([
+        ...vendas.filter(v => v.status === 'P').map(v => v.pessoa),
+        ...encomendas.filter(e => e.status !== 'Finalizado' && ((e.valorTotal || 0) - (e.valorEntrada || 0)) > 0).map(e => e.clienteNome)
+    ]).size;
 
     // --- Atualiza a interface ---
     document.getElementById('dashTotalVendido').textContent = formatarMoeda(totalVendido);
@@ -1482,22 +1511,20 @@ function atualizarDashboardPrincipal() {
     document.getElementById('despesasChange').textContent = `${despesasMes.length} lançamentos`;
     document.getElementById('dashLucroLiquido').textContent = formatarMoeda(lucroLiquido);
     document.getElementById('lucroChange').textContent = `Margem: ${margemLucro.toFixed(1)}%`;
-    document.getElementById('dashAReceber').textContent = formatarMoeda(totalAReceber);
-    document.getElementById('receberCount').textContent = `${clientesComPendencia} cliente(s) pendente(s)`;
+    document.getElementById('dashAReceber').textContent = formatarMoeda(totalAReceber); // Agora mostra o valor do mês
+    document.getElementById('receberCount').textContent = `${clientesComPendenciaGlobal} cliente(s) pendente(s) no total`; // Texto ajustado para clareza
     document.getElementById('dashValoresRecebidos').textContent = formatarMoeda(totalRecebidoMes);
-
-    // --- INÍCIO DA CORREÇÃO NO TEXTO ---
-    // Garante que o número de entradas exibido seja o correto
+    
     const numeroDeEntradas = encomendasMes.filter(e => (e.valorEntrada || 0) > 0).length;
     document.getElementById('recebidosChange').textContent = `${vendasPagasMes.length} vendas pagas + ${numeroDeEntradas} entradas`;
-    // --- FIM DA CORREÇÃO NO TEXTO ---
 
-    document.getElementById('totalPendente').textContent = formatarMoeda(totalAReceber);
-    document.getElementById('clientesPendentes').textContent = clientesComPendencia;
+    // A lógica de pendências globais continua correta para o badge e resumo
+    const pendenciasGerais = calcularPendenciasGerais();
+    document.getElementById('totalPendente').textContent = formatarMoeda(pendenciasGerais.totalAReceber);
+    document.getElementById('clientesPendentes').textContent = pendenciasGerais.clientesPendentes;
     
     const cobrancasBadge = document.getElementById('cobrancas-badge');
     if (cobrancasBadge) {
-        const pendenciasGerais = calcularPendenciasGerais();
         if (pendenciasGerais.clientesPendentes > 0) {
             cobrancasBadge.textContent = pendenciasGerais.clientesPendentes;
             cobrancasBadge.style.display = 'inline-flex';
@@ -1996,7 +2023,7 @@ function abrirModalRelatorios() {
 }
 
 function gerarRelatorio() {
-    // 1. Coleta e prepara os filtros
+    // 1. Coleta e prepara os filtros (nenhuma mudança aqui)
     const inicio = new Date(document.getElementById('relatorioInicio').value);
     const fim = new Date(document.getElementById('relatorioFim').value);
     const clienteFiltro = document.getElementById('relatorioCliente').value;
@@ -2005,7 +2032,7 @@ function gerarRelatorio() {
     const inicioUTC = new Date(inicio.getUTCFullYear(), inicio.getUTCMonth(), inicio.getUTCDate());
     const fimUTC = new Date(fim.getUTCFullYear(), fim.getUTCMonth(), fim.getUTCDate());
 
-    // 2. Filtra as vendas com base nos critérios
+    // 2. Filtra as vendas com base nos critérios (nenhuma mudança aqui)
     const vendasPeriodo = vendas.filter(v => {
         if (!v.data || isNaN(new Date(v.data))) return false;
         const dataVenda = new Date(v.data);
@@ -2023,57 +2050,49 @@ function gerarRelatorio() {
         return;
     }
 
-    // 3. Agrupa os dados por cliente e depois por produto
+    // 3. Agrupa os dados e calcula os totais (nenhuma mudança aqui)
     const relatorioAgrupado = {};
     const contagemProdutos = {};
     vendasPeriodo.forEach(venda => {
-        // Agrupa por Cliente
         if (!relatorioAgrupado[venda.pessoa]) {
             relatorioAgrupado[venda.pessoa] = { produtos: {}, subtotal: 0 };
         }
-        
-        // Agrupa por Produto dentro do cliente
         const clienteAtual = relatorioAgrupado[venda.pessoa];
         if (!clienteAtual.produtos[venda.produto]) {
             clienteAtual.produtos[venda.produto] = { quantidade: 0, valorTotal: 0 };
         }
-
         clienteAtual.produtos[venda.produto].quantidade += venda.quantidade;
         clienteAtual.produtos[venda.produto].valorTotal += venda.valor * venda.quantidade;
         clienteAtual.subtotal += venda.valor * venda.quantidade;
-
-        // Contagem geral de produtos
         contagemProdutos[venda.produto] = (contagemProdutos[venda.produto] || 0) + venda.quantidade;
     });
 
-    // 4. Calcula os totais e o resumo
     const totalItens = vendasPeriodo.reduce((acc, v) => acc + v.quantidade, 0);
     const valorTotalVendido = vendasPeriodo.reduce((acc, v) => acc + (v.valor * v.quantidade), 0);
     const clientesAtendidos = Object.keys(relatorioAgrupado).length;
     const ticketMedio = valorTotalVendido / clientesAtendidos;
     const produtoMaisVendido = Object.entries(contagemProdutos).sort((a, b) => b[1] - a[1])[0];
-
-    // 5. Monta o HTML do relatório
     const hoje = new Date();
     const dataGeracao = `${hoje.toLocaleDateString()} ${hoje.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
     
+    // 4. Monta o HTML do relatório com a CORREÇÃO
     let relatorioHTML = `
-        <style>
-            .relatorio-container { border: 1px solid #ddd; border-radius: 8px; padding: 25px; background: #fff; }
-            .relatorio-header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 20px; }
-            .relatorio-header img { height: 80px; margin-bottom: 10px; }
-            .relatorio-info { display: flex; justify-content: space-between; font-size: 0.85rem; color: #666; margin-top: 10px; }
-            .relatorio-cliente { margin-top: 25px; }
-            .relatorio-cliente h5 { font-size: 1.1rem; color: var(--primary-color); border-bottom: 1px solid #f0f0f0; padding-bottom: 5px; }
-            .relatorio-tabela { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            .relatorio-tabela th, .relatorio-tabela td { padding: 8px; text-align: left; }
-            .relatorio-tabela thead { background-color: #f8f9fa; border-bottom: 2px solid #dee2e6; }
-            .relatorio-tabela tbody tr:nth-child(odd) { background-color: #fcfcfc; }
-            .subtotal-cliente { text-align: right; font-weight: bold; margin-top: 10px; }
-            .relatorio-resumo { border-top: 2px solid #eee; margin-top: 30px; padding-top: 15px; }
-        </style>
-
         <div id="relatorio-imprimivel" class="relatorio-container">
+            <style>
+                .relatorio-container { border: 1px solid #ddd; border-radius: 8px; padding: 25px; background: #fff; color: #333; }
+                .relatorio-header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 20px; }
+                .relatorio-header img { height: 80px; margin-bottom: 10px; }
+                .relatorio-info { display: flex; justify-content: space-between; font-size: 0.85rem; color: #666; margin-top: 10px; }
+                .relatorio-cliente { margin-top: 25px; }
+                .relatorio-cliente h5 { font-size: 1.1rem; color: #6a1b9a; border-bottom: 1px solid #f0f0f0; padding-bottom: 5px; }
+                .relatorio-tabela { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                .relatorio-tabela th, .relatorio-tabela td { padding: 8px; text-align: left; }
+                .relatorio-tabela thead { background-color: #f8f9fa; border-bottom: 2px solid #dee2e6; }
+                .relatorio-tabela tbody tr:nth-child(odd) { background-color: #fcfcfc; }
+                .subtotal-cliente { text-align: right; font-weight: bold; margin-top: 10px; }
+                .relatorio-resumo { border-top: 2px solid #eee; margin-top: 30px; padding-top: 15px; }
+                body { color: #333 !important; } /* Garante cor do texto na impressão */
+            </style>
             <div class="relatorio-header">
                 <img src="images/logo.png" alt="Logo">
                 <h3>LÁ DIVINO SABOR - RELATÓRIO DE VENDAS</h3>
@@ -2084,7 +2103,6 @@ function gerarRelatorio() {
             </div>
     `;
 
-    // Loop por cada cliente
     for (const nomeCliente in relatorioAgrupado) {
         const dadosCliente = relatorioAgrupado[nomeCliente];
         relatorioHTML += `
@@ -2094,7 +2112,6 @@ function gerarRelatorio() {
                     <thead><tr><th>Produto</th><th>Qtd</th><th>Valor Total</th></tr></thead>
                     <tbody>
         `;
-        // Loop pelos produtos de cada cliente
         for (const nomeProduto in dadosCliente.produtos) {
             const dadosProduto = dadosCliente.produtos[nomeProduto];
             relatorioHTML += `
@@ -2304,6 +2321,7 @@ function excluirEncomenda(id) {
 }
 
 // Esta função processa o formulário e salva a encomenda no Firebase
+// Esta função processa o formulário e salva a encomenda no Firebase
 async function adicionarOuEditarEncomenda(event, encomendaId = null) {
     event.preventDefault();
     const form = event.target;
@@ -2313,33 +2331,50 @@ async function adicionarOuEditarEncomenda(event, encomendaId = null) {
         dataEntrega: form.querySelector('#modalEncomendaDataEntrega').value,
         valorTotal: parseFloat(form.querySelector('#modalEncomendaValorTotal').value) || 0,
         valorEntrada: parseFloat(form.querySelector('#modalEncomendaValorEntrada').value) || 0,
-        status: 'Pendente'
+        // Mantém o status existente se estiver editando, ou define um padrão se for novo
+        status: encomendaId ? encomendas.find(e => e.id === encomendaId)?.status || 'Pendente' : 'Pendente'
     };
 
     if (!dados.clienteNome || !dados.produtoDescricao || !dados.dataEntrega || dados.valorTotal <= 0) {
-        mostrarAlerta('Preencha todos os campos obrigatórios da encomenda.', 'danger');
-        return;
+        return mostrarAlerta('Preencha todos os campos obrigatórios da encomenda.', 'danger');
     }
 
     mostrarLoading(true);
 
     if (encomendaId) {
-        // Lógica de ATUALIZAÇÃO
-        await FirebaseService.atualizar('encomendas', encomendaId, dados);
-        mostrarAlerta('Encomenda atualizada com sucesso!', 'success');
+        // MODO EDIÇÃO
+        const encomendaIndex = encomendas.findIndex(e => e.id === encomendaId);
+        if (encomendaIndex === -1) {
+            mostrarLoading(false);
+            return mostrarAlerta('Erro: Encomenda não encontrada para editar.', 'danger');
+        }
+        const encomendaAntiga = encomendas[encomendaIndex];
+        
+        // Lógica crucial para corrigir o total gasto dos clientes
+        if (encomendaAntiga.clienteNome !== dados.clienteNome || encomendaAntiga.valorTotal !== dados.valorTotal) {
+            // Reverte o valor do cliente antigo
+            await atualizarDadosCliente(encomendaAntiga.clienteNome, encomendaAntiga.valorTotal, true);
+            // Adiciona o novo valor para o novo (ou mesmo) cliente
+            await atualizarDadosCliente(dados.clienteNome, dados.valorTotal, false);
+        }
+
+        const success = await FirebaseService.atualizar('encomendas', encomendaId, dados);
+        if (success) {
+            encomendas[encomendaIndex] = { ...encomendaAntiga, ...dados }; // Atualiza estado local
+            mostrarAlerta('Encomenda atualizada com sucesso!', 'success');
+        }
     } else {
-        // Lógica para SALVAR uma nova encomenda
+        // MODO ADIÇÃO
         const newId = await FirebaseService.salvar('encomendas', dados);
         if (newId) {
-            // ADICIONADO: Atualiza o cadastro do cliente com o VALOR TOTAL da encomenda
             await atualizarDadosCliente(dados.clienteNome, dados.valorTotal);
+            encomendas.push({ ...dados, id: newId }); // Atualiza estado local
             mostrarAlerta('Encomenda agendada com sucesso!', 'success');
         }
     }
 
     fecharModal('encomendaModal');
-    await carregarTodosDados();
-    renderizarTudo();
+    renderizarTudo(); // Renderiza com os dados locais já atualizados
     mostrarLoading(false);
 }
 function formatarMoeda(valor) {
