@@ -393,41 +393,41 @@
                         </button>
                     </form>
                 </div>
-            </div>
-            
-            <div class="table-section" style="margin-top: 20px;">
-                <div class="section-header">
-                    <h3>💸 Histórico de Despesas</h3>
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <select id="filtroDespesas" style="padding: 8px; border: 2px solid #e1e5e9; border-radius: 6px;">
-                            <option value="">Todos os tipos</option>
-                            <option value="Material">Material/Ingredientes</option>
-                            <option value="Equipamento">Equipamentos</option>
-                            <option value="Marketing">Marketing</option>
-                            <option value="Transporte">Transporte</option>
-                            <option value="Outros">Outros</option>
-                        </select>
-                        <input type="text" id="searchDespesas" placeholder="🔍 Buscar despesas..." 
-                            style="padding: 8px; border: 2px solid #e1e5e9; border-radius: 6px; width: 200px;">
+                
+                <div class="table-section" style="margin-top: 20px; grid-column: 1 / -1;">
+                    <div class="section-header">
+                        <h3>💸 Histórico de Despesas</h3>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <select id="filtroDespesas" style="padding: 8px; border: 2px solid #e1e5e9; border-radius: 6px;">
+                                <option value="">Todos os tipos</option>
+                                <option value="Material">Material/Ingredientes</option>
+                                <option value="Equipamento">Equipamentos</option>
+                                <option value="Marketing">Marketing</option>
+                                <option value="Transporte">Transporte</option>
+                                <option value="Outros">Outros</option>
+                            </select>
+                            <input type="text" id="searchDespesas" placeholder="🔍 Buscar despesas..." 
+                                style="padding: 8px; border: 2px solid #e1e5e9; border-radius: 6px; width: 200px;">
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Tipo</th>
+                                    <th>Descrição</th>
+                                    <th>Qtd/Unid.</th>
+                                    <th>Valor</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="despesasTableBody"></tbody>
+                        </table>
                     </div>
                 </div>
-                <div class="table-wrapper">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Data</th>
-                                <th>Tipo</th>
-                                <th>Descrição</th>
-                                <th>Qtd/Unid.</th>
-                                <th>Valor</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="despesasTableBody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+                
+            </div> </div>
 
         <!-- Cadastros Tab -->
         <div id="cadastros" class="tab-content">
