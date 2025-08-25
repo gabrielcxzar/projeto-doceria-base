@@ -45,6 +45,7 @@ let clientes = [];
 let encomendas = [];
 let despesas = [];
 let cobrancas = [];
+let ingredientes = []; 
 let atividades = [];
 let configuracoes = {
     id: null,
@@ -53,8 +54,10 @@ let configuracoes = {
 };
 
 let editandoId = null;
+let receitaTemporaria = [];
 let charts = {};
 let isLoading = false;
+let editandoReceitaProdutoId = null;
 let currentPage = 1; // <-- ADICIONE ESTA LINHA
 const rowsPerPage = 10;
 
@@ -382,7 +385,8 @@ async function carregarTodosDados() {
             despesasData, 
             cobrancasData, 
             atividadesData, 
-            configData
+            configData,
+             ingredientesData
         ] = await Promise.all([
             FirebaseService.carregar('clientes'),
             FirebaseService.carregar('produtos'),
@@ -391,7 +395,8 @@ async function carregarTodosDados() {
             FirebaseService.carregar('despesas'),
             FirebaseService.carregar('cobrancas'),
             FirebaseService.carregar('atividades'),
-            FirebaseService.carregar('configuracoes')
+            FirebaseService.carregar('configuracoes'),
+            FirebaseService.carregar('ingredientes')
         ]);
 
         clientes = clientesData || [];
@@ -401,6 +406,7 @@ async function carregarTodosDados() {
         despesas = despesasData || [];
         cobrancas = cobrancasData || [];
         atividades = atividadesData || [];
+        ingredientes = ingredientesData || [];
         
         if (configData && configData.length > 0) {
             configuracoes = { ...configuracoes, ...configData[0] };
@@ -448,6 +454,7 @@ function configurarEventListeners() {
     safeAddEventListener('produtoForm', 'submit', adicionarOuEditarProduto);
     safeAddEventListener('clienteForm', 'submit', adicionarOuEditarCliente);
     safeAddEventListener('despesaForm', 'submit', adicionarDespesa);
+    safeAddEventListener('ingredienteForm', 'submit', adicionarOuEditarIngrediente);
     safeAddEventListener('cobrancaForm', 'submit', (e) => {
         e.preventDefault();
         atualizarMensagemCobranca();
@@ -494,6 +501,9 @@ const filtroAno = document.getElementById('filtroAno');
             renderizarTudo();
         });
     }
+    safeAddEventListener('btnMontarReceita', 'click', abrirModalReceita);
+    safeAddEventListener('formAdicionarIngredienteReceita', 'submit', adicionarIngredienteNaReceita);
+    safeAddEventListener('btnSalvarReceita', 'click', salvarReceita);
 }
 function configurarThemeToggle() {
     const toggle = document.getElementById('theme-toggle');
@@ -587,6 +597,7 @@ function renderizarTudo() {
     renderizarTabelaVendas();
     renderizarTabelaClientes();
     renderizarTabelaProdutos();
+    renderizarTabelaIngredientes();
     renderizarTabelaEncomendas();
     renderizarTabelaDespesas();
     renderizarTabelaPendencias();
@@ -808,26 +819,25 @@ async function adicionarOuEditarProduto(e) {
     mostrarLoading(true);
 
     if (editandoId) {
-        // MODO EDIÇÃO
         const success = await FirebaseService.atualizar('produtos', editandoId, dados);
         if (success) {
-            // Atualiza o produto específico no estado local
             const produtoIndex = produtos.findIndex(p => p.id === editandoId);
             if (produtoIndex > -1) {
+                // Atualiza o produto localmente preservando a receita que não é parte do form principal
                 produtos[produtoIndex] = { ...produtos[produtoIndex], ...dados };
             }
             mostrarAlerta('Produto atualizado com sucesso!', 'success');
         }
-        document.querySelector('#produtoForm button').textContent = '➕ Salvar Produto';
     } else {
-        // MODO ADIÇÃO
         if (produtos.some(p => p.nome === dados.nome)) {
             mostrarLoading(false);
             return mostrarAlerta('Produto com este nome já cadastrado.', 'danger');
         }
+        if (receitaTemporaria.length > 0) {
+            dados.receita = receitaTemporaria;
+        }
         const newId = await FirebaseService.salvar('produtos', dados);
         if (newId) {
-            // Adiciona o novo produto ao estado local
             const novoProduto = { ...dados, id: newId };
             produtos.push(novoProduto);
             mostrarAlerta('Produto cadastrado com sucesso!', 'success');
@@ -835,15 +845,21 @@ async function adicionarOuEditarProduto(e) {
     }
 
     editandoId = null;
+    receitaTemporaria = [];
     document.getElementById('produtoForm').reset();
-    document.getElementById('produtoMargem').value = 100; // Reseta valor padrão
-    renderizarTudo(); // Renderiza com os dados locais já atualizados
+    
+    // CORREÇÃO APLICADA AQUI:
+    document.querySelector('#produtoForm button[type="submit"]').textContent = '➕ Salvar Produto';
+    
+    document.getElementById('produtoMargem').value = 100;
+    renderizarTudo();
     mostrarLoading(false);
 }
 
 function editarProduto(id) {
     const produto = produtos.find(p => p.id === id);
     if (produto) {
+        receitaTemporaria = []; // Limpa qualquer receita temporária antes de editar
         editandoId = id;
         document.getElementById('produtoNome').value = produto.nome;
         document.getElementById('produtoCategoria').value = produto.categoria;
@@ -851,8 +867,11 @@ function editarProduto(id) {
         document.getElementById('produtoCustoMaoObra').value = produto.custoMaoObra;
         document.getElementById('produtoMargem').value = produto.margem;
         document.getElementById('produtoTempoPreparo').value = produto.tempoPreparo;
-        calcularPrecoVenda(); // Recalcula e preenche o preço final
-        document.querySelector('#produtoForm button').textContent = '💾 Salvar Alterações';
+        document.getElementById('produtoValor').value = produto.valor; // Garante que o valor manual seja carregado
+        
+        // CORREÇÃO APLICADA AQUI:
+        document.querySelector('#produtoForm button[type="submit"]').textContent = '💾 Salvar Alterações';
+        
         document.querySelector('button[onclick*="cadastros"]').click();
         document.getElementById('produtoNome').focus();
         mostrarAlerta('Modo de edição ativado', 'info');
@@ -903,8 +922,267 @@ function renderizarTabelaProdutos() {
         `;
     }).join('');
 }
+// === LÓGICA DE INGREDIENTES ===
 
+function renderizarTabelaIngredientes() {
+    const tbody = document.getElementById('ingredientesTableBody');
+    if (!tbody) return;
 
+    // Ordena os ingredientes por nome
+    const ingredientesOrdenados = [...ingredientes].sort((a, b) => a.nome.localeCompare(b.nome));
+
+    tbody.innerHTML = ingredientesOrdenados.map(ing => `
+        <tr>
+            <td><strong>${ing.nome}</strong></td>
+            <td>${ing.unidadeCompra} por ${formatarMoeda(ing.precoCompra)}</td>
+            <td><strong>${formatarMoeda(ing.custoUnitarioPadrao)} / ${ing.unidadePadrao}</strong></td>
+            <td class="actions">
+                <button class="btn btn-primary btn-sm requires-admin" onclick="editarIngrediente('${ing.id}')" title="Editar">✏️</button>
+                <button class="btn btn-danger btn-sm requires-admin" onclick="excluirIngrediente('${ing.id}')" title="Excluir">🗑️</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function adicionarOuEditarIngrediente(e) {
+    e.preventDefault();
+    const form = document.getElementById('ingredienteForm');
+
+    const precoCompra = parseFloat(document.getElementById('ingredientePrecoCompra').value) || 0;
+    const tamanhoCompra = parseFloat(document.getElementById('ingredienteTamanhoCompra').value) || 0;
+
+    if (tamanhoCompra <= 0) {
+        return mostrarAlerta('A "Quantidade na Unidade Base" deve ser maior que zero.', 'danger');
+    }
+
+    const dados = {
+        nome: document.getElementById('ingredienteNome').value.trim(),
+        unidadeCompra: document.getElementById('ingredienteUnidadeCompra').value.trim(),
+        precoCompra: precoCompra,
+        tamanhoCompra: tamanhoCompra,
+        unidadePadrao: document.getElementById('ingredienteUnidadePadrao').value,
+        // O cálculo central do custo unitário
+        custoUnitarioPadrao: precoCompra / tamanhoCompra
+    };
+
+    if (!dados.nome) {
+        return mostrarAlerta('O nome do ingrediente é obrigatório.', 'danger');
+    }
+
+    mostrarLoading(true);
+
+    if (editandoId) {
+        // MODO EDIÇÃO
+        const success = await FirebaseService.atualizar('ingredientes', editandoId, dados);
+        if (success) {
+            const index = ingredientes.findIndex(i => i.id === editandoId);
+            if (index > -1) {
+                ingredientes[index] = { ...ingredientes[index], ...dados };
+            }
+            mostrarAlerta('Ingrediente atualizado com sucesso!', 'success');
+        }
+    } else {
+        // MODO ADIÇÃO
+        const newId = await FirebaseService.salvar('ingredientes', dados);
+        if (newId) {
+            ingredientes.push({ ...dados, id: newId });
+            mostrarAlerta('Ingrediente cadastrado com sucesso!', 'success');
+        }
+    }
+
+    editandoId = null;
+    form.reset();
+    document.querySelector('#ingredienteForm button').textContent = '➕ Salvar Ingrediente';
+    renderizarTudo();
+    mostrarLoading(false);
+}
+
+function editarIngrediente(id) {
+    const ingrediente = ingredientes.find(i => i.id === id);
+    if (ingrediente) {
+        editandoId = id;
+        document.getElementById('ingredienteNome').value = ingrediente.nome;
+        document.getElementById('ingredienteUnidadeCompra').value = ingrediente.unidadeCompra;
+        document.getElementById('ingredientePrecoCompra').value = ingrediente.precoCompra;
+        document.getElementById('ingredienteTamanhoCompra').value = ingrediente.tamanhoCompra;
+        document.getElementById('ingredienteUnidadePadrao').value = ingrediente.unidadePadrao;
+
+        document.querySelector('#ingredienteForm button').textContent = '💾 Salvar Alterações';
+        openTab(event, 'ingredientes'); // Garante que a aba correta está aberta
+        document.getElementById('ingredienteNome').focus();
+    }
+}
+
+function excluirIngrediente(id) {
+    const ingrediente = ingredientes.find(i => i.id === id);
+    if (!ingrediente) return;
+
+    showConfirm(`Tem certeza que deseja excluir o ingrediente "${ingrediente.nome}"?`, async (confirmado) => {
+        if (confirmado) {
+            mostrarLoading(true);
+            const success = await FirebaseService.excluir('ingredientes', id);
+            if (success) {
+                const index = ingredientes.findIndex(i => i.id === id);
+                if (index > -1) {
+                    ingredientes.splice(index, 1);
+                }
+                mostrarAlerta('Ingrediente excluído com sucesso!', 'success');
+            }
+            renderizarTudo();
+            mostrarLoading(false);
+        }
+    });
+}
+// === LÓGICA DE RECEITAS ===
+
+// Abre o modal para montar a receita de um produto
+function abrirModalReceita() {
+    const nomeProdutoDoForm = document.getElementById('produtoNome').value;
+    let produtoExistente = null;
+
+    // Verifica se estamos editando um produto que já existe
+    if (editandoId) {
+        produtoExistente = produtos.find(p => p.id === editandoId);
+    }
+
+    // Impede a abertura do modal se não houver um nome de produto (para produtos novos)
+    if (!editandoId && !nomeProdutoDoForm) {
+        return mostrarAlerta('Digite o nome do produto primeiro para montar a ficha técnica.', 'info');
+    }
+    
+    // Define o título do modal com o nome do produto novo ou existente
+    document.getElementById('receitaModalProductName').textContent = nomeProdutoDoForm || produtoExistente.nome;
+
+    // Popula o <select> com todos os ingredientes cadastrados
+    const select = document.getElementById('receitaIngredienteSelect');
+    select.innerHTML = '<option value="">Selecione...</option>' + ingredientes
+        .sort((a,b) => a.nome.localeCompare(b.nome))
+        .map(ing => `<option value="${ing.id}">${ing.nome} (${formatarMoeda(ing.custoUnitarioPadrao)}/${ing.unidadePadrao})</option>`)
+        .join('');
+    
+    document.getElementById('receitaIngredientesTbody').innerHTML = ''; // Sempre limpa a tabela antes de carregar
+
+    // Decide qual receita carregar: a de um produto existente ou a temporária de um produto novo
+    let receitaParaCarregar = [];
+    if (produtoExistente && produtoExistente.receita) {
+        receitaParaCarregar = produtoExistente.receita; // Carrega a receita salva
+    } else if (!editandoId && receitaTemporaria.length > 0) {
+        receitaParaCarregar = receitaTemporaria; // Carrega a receita temporária
+    }
+    
+    // Preenche a tabela com os ingredientes da receita
+    if (receitaParaCarregar.length > 0) {
+        receitaParaCarregar.forEach(item => {
+            const ingrediente = ingredientes.find(i => i.id === item.ingredienteId);
+            if (ingrediente) {
+                adicionarLinhaIngredienteNaTabela(ingrediente, item.quantidade, item.unidadeUso);
+            }
+        });
+    }
+
+    atualizarCustoTotalReceita();
+    document.getElementById('receitaModal').style.display = 'flex';
+}
+
+// Adiciona um ingrediente na tabela do modal (não salva ainda)
+function adicionarIngredienteNaReceita(e) {
+    e.preventDefault();
+    const ingredienteId = document.getElementById('receitaIngredienteSelect').value;
+    const quantidade = parseFloat(document.getElementById('receitaIngredienteQtd').value);
+    const unidadeUso = document.getElementById('receitaIngredienteUnidade').value;
+
+    if (!ingredienteId || isNaN(quantidade) || quantidade <= 0) {
+        return mostrarAlerta('Selecione um ingrediente e informe uma quantidade válida.', 'warning');
+    }
+
+    const ingrediente = ingredientes.find(i => i.id === ingredienteId);
+    if (ingrediente.unidadePadrao !== unidadeUso) {
+        return mostrarAlerta(`Unidade inválida! A unidade base para "${ingrediente.nome}" é "${ingrediente.unidadePadrao}".`, 'danger');
+    }
+
+    adicionarLinhaIngredienteNaTabela(ingrediente, quantidade, unidadeUso);
+    atualizarCustoTotalReceita();
+    document.getElementById('formAdicionarIngredienteReceita').reset();
+}
+
+// Função auxiliar para criar as linhas da tabela no modal
+function adicionarLinhaIngredienteNaTabela(ingrediente, quantidade, unidadeUso) {
+    const tbody = document.getElementById('receitaIngredientesTbody');
+    const custoItem = ingrediente.custoUnitarioPadrao * quantidade;
+
+    const row = document.createElement('tr');
+    // Armazena os dados nos atributos da linha para fácil recuperação ao salvar
+    row.dataset.ingredienteId = ingrediente.id;
+    row.dataset.quantidade = quantidade;
+    row.dataset.unidadeUso = unidadeUso;
+    row.dataset.custo = custoItem;
+
+    row.innerHTML = `
+        <td>${ingrediente.nome}</td>
+        <td>${quantidade} ${unidadeUso}</td>
+        <td>${formatarMoeda(custoItem)}</td>
+        <td class="actions">
+            <button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove(); atualizarCustoTotalReceita();">🗑️</button>
+        </td>
+    `;
+    tbody.appendChild(row);
+}
+
+// Recalcula e exibe o custo total dos materiais no modal
+function atualizarCustoTotalReceita() {
+    const tbody = document.getElementById('receitaIngredientesTbody');
+    const rows = tbody.querySelectorAll('tr');
+    let custoTotal = 0;
+    rows.forEach(row => {
+        custoTotal += parseFloat(row.dataset.custo) || 0;
+    });
+    document.getElementById('receitaCustoTotal').textContent = formatarMoeda(custoTotal);
+}
+
+// Salva a receita montada no produto
+async function salvarReceita() {
+    const tbody = document.getElementById('receitaIngredientesTbody');
+    const rows = tbody.querySelectorAll('tr');
+    
+    const novaReceita = [];
+    let novoCustoMaterial = 0;
+
+    // Monta o objeto da receita a partir da tabela do modal
+    rows.forEach(row => {
+        novaReceita.push({
+            ingredienteId: row.dataset.ingredienteId,
+            quantidade: parseFloat(row.dataset.quantidade),
+            unidadeUso: row.dataset.unidadeUso
+        });
+        novoCustoMaterial += parseFloat(row.dataset.custo) || 0;
+    });
+
+    // Se estiver editando um produto existente, salva diretamente no banco
+    if (editandoId) {
+        mostrarLoading(true);
+        const dadosParaAtualizar = { receita: novaReceita, custoMaterial: novoCustoMaterial };
+        const success = await FirebaseService.atualizar('produtos', editandoId, dadosParaAtualizar);
+        
+        if (success) {
+            const index = produtos.findIndex(p => p.id === editandoId);
+            if (index > -1) {
+                produtos[index] = { ...produtos[index], ...dadosParaAtualizar };
+            }
+            renderizarTabelaProdutos();
+        }
+        mostrarLoading(false);
+    } else {
+        // Se for um novo produto, apenas armazena a receita na variável temporária
+        receitaTemporaria = novaReceita;
+    }
+
+    // Atualiza o formulário principal nos dois casos (produto novo ou existente)
+    document.getElementById('produtoCustoMaterial').value = novoCustoMaterial.toFixed(2);
+    calcularPrecoVenda(); // Recalcula o preço de venda imediatamente
+    
+    mostrarAlerta('Ficha técnica atualizada! Salve o produto para confirmar as alterações.', 'success');
+    fecharModal('receitaModal');
+}
 // === LÓGICA DE VENDAS ===
 function preencherValorProduto() {
     const produtoNome = document.getElementById('produto').value;
@@ -1904,7 +2182,7 @@ function fecharModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
         modal.style.display = 'none';
-        modal.innerHTML = ''; // Limpa o conteúdo para a próxima vez
+        // A linha que apagava o conteúdo foi REMOVIDA.
     }
 }
 
@@ -2500,6 +2778,11 @@ window.editarCliente = editarCliente;
 window.excluirCliente = excluirCliente;
 window.editarProduto = editarProduto;
 window.excluirProduto = excluirProduto;
+window.editarIngrediente = editarIngrediente;
+window.excluirIngrediente = excluirIngrediente;
+window.abrirModalReceita = abrirModalReceita;
+window.adicionarIngredienteNaReceita = adicionarIngredienteNaReceita; 
+window.salvarReceita = salvarReceita; 
 window.editarEncomenda = editarEncomenda;     // Adicionado
 window.excluirEncomenda = excluirEncomenda;   // Adicionado
 
