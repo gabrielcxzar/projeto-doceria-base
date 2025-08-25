@@ -941,3 +941,4 @@ input:checked + .slider:before {
     cursor: not-allowed;
     opacity: 0.5;
 }
+/* SOLUÇÃO DEFINITIVA PARA O LAYOUT DO FORMULÁRIO DE PRODUTOS */
