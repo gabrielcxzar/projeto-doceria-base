@@ -13,32 +13,33 @@
 </head>
 <body>
     <div class="container">
-    <header class="header">
-        <img src="images/logo.png" alt="Logo da Lá Divino Sabor" class="header-logo">
-        <div class="subtitle">Lá Divino Sabor</div>
-</header>
-    <div class="user-info-bar">
-        <span id="userInfoDisplay"></span>
-        <div class="theme-switch-wrapper">
+        <header class="header">
+            <img src="images/logo.png" alt="Logo da Lá Divino Sabor" class="header-logo">
+            <div class="subtitle">Lá Divino Sabor</div>
+        </header>
+        
+        <div class="user-info-bar">
+            <span id="userInfoDisplay"></span>
+            <div class="theme-switch-wrapper">
                 <label class="theme-switch" for="theme-toggle">
                     <input type="checkbox" id="theme-toggle" />
                     <div class="slider round"></div>
                 </label>
             </div>
-        <button class="btn btn-danger btn-sm" onclick="fazerLogout()">Sair</button>
-    </div>
-    <div class="filtros-container card">
-        <div class="filtro-item">
-            <label for="filtroAno">ANO</label>
-            <select id="filtroAno"></select>
+            <button class="btn btn-danger btn-sm" onclick="fazerLogout()">Sair</button>
         </div>
-        <div class="filtro-item">
-            <label for="filtroMes">MÊS</label>
-            <select id="filtroMes"></select>
+        
+        <div class="filtros-container card">
+            <div class="filtro-item">
+                <label for="filtroAno">ANO</label>
+                <select id="filtroAno"></select>
+            </div>
+            <div class="filtro-item">
+                <label for="filtroMes">MÊS</label>
+                <select id="filtroMes"></select>
+            </div>
         </div>
-    </div>
 
-         
         <!-- Dashboard Principal -->
         <div class="dashboard" id="mainDashboard">
             <div class="card">
@@ -78,6 +79,7 @@
                 <div class="stat-change stat-positive" id="recebidosChange">Este mês</div>
             </div>  
         </div>
+        
         <!-- Ações Rápidas -->
         <div class="quick-actions">
             <button class="btn btn-primary requires-admin" onclick="abrirModalVendaRapida()">⚡ Venda Rápida</button>
@@ -95,78 +97,8 @@
             <button class="tab-button" onclick="openTab(event, 'cadastros')">👥 Cadastros</button>
             <button class="tab-button" onclick="openTab(event, 'ingredientes')">📦 Ingredientes</button>
             <button class="tab-button" onclick="openTab(event, 'cobrancas')">
-            🔔 Cobranças <span class="badge badge-danger" id="cobrancas-badge" style="display: none;">0</span>
+                🔔 Cobranças <span class="badge badge-danger" id="cobrancas-badge" style="display: none;">0</span>
             </button>
-        </div>
-         <div id="ingredientes" class="tab-content">
-            <div class="content-grid">
-                <div class="form-section">
-                    <h3>📦 Gerenciar Ingredientes</h3>
-                    <p style="margin-bottom: 15px; font-size: 0.9rem;">Cadastre aqui a matéria-prima usada nas suas receitas.</p>
-                    <form id="ingredienteForm">
-                        <div class="form-group full-width">
-                            <label for="ingredienteNome">Nome do Ingrediente</label>
-                            <input type="text" id="ingredienteNome" placeholder="Ex: Leite Integral, Farinha de Trigo" required>
-                        </div>
-                        
-                        <h4 style="margin: 20px 0 10px 0; color: var(--primary-color);">📦 Informações de Compra</h4>
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label for="ingredienteUnidadeCompra">Formato da Compra</label>
-                                <input type="text" id="ingredienteUnidadeCompra" placeholder="Ex: Litro, Caixa com 30, Saco 1kg" required>
-                            </div>
-                             <div class="form-group">
-                                <label for="ingredientePrecoCompra">Preço Pago (R$)</label>
-                                <input type="number" id="ingredientePrecoCompra" step="0.01" min="0" placeholder="7.00" required>
-                            </div>
-                        </div>
-
-                        <h4 style="margin: 20px 0 10px 0; color: var(--primary-color);">⚖️ Unidade para Cálculo</h4>
-                         <div class="form-grid">
-                            <div class="form-group">
-                                <label for="ingredienteTamanhoCompra">Quantidade na Unidade Base</label>
-                                <input type="number" id="ingredienteTamanhoCompra" min="0" placeholder="1000" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="ingredienteUnidadePadrao">Unidade Base</label>
-                                <select id="ingredienteUnidadePadrao" required>
-                                    <option value="ml">ml (Mililitro)</option>
-                                    <option value="g">g (Grama)</option>
-                                    <option value="unidade">unidade</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="alert alert-info" style="margin-top: 15px;">
-                            <strong>Exemplo:</strong> Se você compra <strong>Leite</strong> em <strong>Litro</strong> (1000ml) por R$7,00, preencha: Formato="Litro", Preço="7.00", Quantidade="1000", Unidade="ml".
-                        </div>
-                        
-                        <button type="submit" class="btn btn-primary requires-admin" style="margin-top: 15px; width: 100%;">
-                            ➕ Salvar Ingrediente
-                        </button>
-                    </form>
-                </div>
-
-                <div class="table-section">
-                    <div class="section-header">
-                        <h3>📋 Lista de Matéria-Prima</h3>
-                    </div>
-                    <div class="table-wrapper">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Ingrediente</th>
-                                    <th>Preço de Compra</th>
-                                    <th>Custo Unitário</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ingredientesTableBody">
-                                </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
         </div>
 
         <!-- Dashboard Tab -->
@@ -190,15 +122,15 @@
                     </div>
                     <div id="statusMeta">Defina uma meta para acompanhar</div>
                 </div>
-            </div>
-            
-            <div class="card" style="margin-top: 20px;">
-                <h3>📋 Resumo de Atividades Recentes</h3>
-                <div class="timeline" id="timelineAtividades">
-                    <div class="timeline-item">
-                        <div class="timeline-content">
-                            <strong>Sistema iniciado</strong>
-                            <div style="font-size: 0.85rem; color: #666;">Pronto para uso!</div>
+
+                <div class="card" style="grid-column: 1 / -1;">
+                    <h3>📋 Resumo de Atividades Recentes</h3>
+                    <div class="timeline" id="timelineAtividades">
+                        <div class="timeline-item">
+                            <div class="timeline-content">
+                                <strong>Sistema iniciado</strong>
+                                <div style="font-size: 0.85rem; color: #666;">Pronto para uso!</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -207,27 +139,29 @@
 
         <!-- Encomendas Tab -->
         <div id="encomendas" class="tab-content">
-            <div class="table-section">
-                <div class="section-header">
-                    <h3>📅 Agenda de Encomendas</h3>
-                    <button class="btn btn-primary requires-admin" onclick="abrirModalEncomenda()">➕ Nova Encomenda</button>
-                </div>
-                <div class="table-wrapper">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Entrega</th>
-                                <th>Cliente</th>
-                                <th>Descrição</th>
-                                <th>Valor Total</th>
-                                <th>Entrada</th>
-                                <th>Restante</th>
-                                <th>Status</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="encomendasTableBody"></tbody>
-                    </table>
+            <div class="content-grid">
+                <div class="table-section" style="grid-column: 1 / -1;">
+                    <div class="section-header">
+                        <h3>📅 Agenda de Encomendas</h3>
+                        <button class="btn btn-primary requires-admin" onclick="abrirModalEncomenda()">➕ Nova Encomenda</button>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Entrega</th>
+                                    <th>Cliente</th>
+                                    <th>Descrição</th>
+                                    <th>Valor Total</th>
+                                    <th>Entrada</th>
+                                    <th>Restante</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="encomendasTableBody"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -303,7 +237,8 @@
                             <input type="text" id="searchVendas" placeholder="🔍 Buscar vendas..." 
                                 style="padding: 10px; border: 2px solid #e1e5e9; border-radius: 8px; width: 250px;">
                         </div>
-                    </div> <div class="table-wrapper">
+                    </div> 
+                    <div class="table-wrapper">
                         <table class="table">
                             <thead>
                                 <tr>
@@ -319,11 +254,7 @@
                             <tbody id="vendasTableBody"></tbody>
                         </table>
                     </div>
-
                     <div id="paginacaoVendas" class="paginacao-container"></div>
-
-                </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -426,8 +357,8 @@
                         </table>
                     </div>
                 </div>
-                
-            </div> </div>
+            </div>
+        </div>
 
         <!-- Cadastros Tab -->
         <div id="cadastros" class="tab-content">
@@ -561,6 +492,77 @@
             </div>
         </div>
 
+        <!-- Ingredientes Tab -->
+        <div id="ingredientes" class="tab-content">
+            <div class="content-grid">
+                <div class="form-section">
+                    <h3>📦 Gerenciar Ingredientes</h3>
+                    <p style="margin-bottom: 15px; font-size: 0.9rem;">Cadastre aqui a matéria-prima usada nas suas receitas.</p>
+                    <form id="ingredienteForm">
+                        <div class="form-group full-width">
+                            <label for="ingredienteNome">Nome do Ingrediente</label>
+                            <input type="text" id="ingredienteNome" placeholder="Ex: Leite Integral, Farinha de Trigo" required>
+                        </div>
+                        
+                        <h4 style="margin: 20px 0 10px 0; color: var(--primary-color);">📦 Informações de Compra</h4>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="ingredienteUnidadeCompra">Formato da Compra</label>
+                                <input type="text" id="ingredienteUnidadeCompra" placeholder="Ex: Litro, Caixa com 30, Saco 1kg" required>
+                            </div>
+                             <div class="form-group">
+                                <label for="ingredientePrecoCompra">Preço Pago (R$)</label>
+                                <input type="number" id="ingredientePrecoCompra" step="0.01" min="0" placeholder="7.00" required>
+                            </div>
+                        </div>
+
+                        <h4 style="margin: 20px 0 10px 0; color: var(--primary-color);">⚖️ Unidade para Cálculo</h4>
+                         <div class="form-grid">
+                            <div class="form-group">
+                                <label for="ingredienteTamanhoCompra">Quantidade na Unidade Base</label>
+                                <input type="number" id="ingredienteTamanhoCompra" min="0" placeholder="1000" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="ingredienteUnidadePadrao">Unidade Base</label>
+                                <select id="ingredienteUnidadePadrao" required>
+                                    <option value="ml">ml (Mililitro)</option>
+                                    <option value="g">g (Grama)</option>
+                                    <option value="unidade">unidade</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="alert alert-info" style="margin-top: 15px;">
+                            <strong>Exemplo:</strong> Se você compra <strong>Leite</strong> em <strong>Litro</strong> (1000ml) por R$7,00, preencha: Formato="Litro", Preço="7.00", Quantidade="1000", Unidade="ml".
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary requires-admin" style="margin-top: 15px; width: 100%;">
+                            ➕ Salvar Ingrediente
+                        </button>
+                    </form>
+                </div>
+
+                <div class="table-section">
+                    <div class="section-header">
+                        <h3>📋 Lista de Matéria-Prima</h3>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Ingrediente</th>
+                                    <th>Preço de Compra</th>
+                                    <th>Custo Unitário</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ingredientesTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Cobranças Tab -->
         <div id="cobrancas" class="tab-content">
             <div class="content-grid">
@@ -614,39 +616,39 @@
                         </div>
                     </form>
                 </div>
-            </div>
-            
-            <div class="table-section" style="margin-top: 20px;">
-                <div class="section-header">
-                    <h3>📋 Lista de Pendências</h3>
-                    <div style="display: flex; gap: 10px;">
-                        <button class="btn btn-warning btn-sm requires-admin" onclick="marcarTodosComoContatados()">
-                            ✅ Marcar Todos Contatados
-                        </button>
-                        <button class="btn btn-info btn-sm requires-admin" onclick="abrirModalQuitarCliente()">
-                            💰 Quitar Cliente
-                        </button>
+
+                <div class="table-section" style="margin-top: 20px; grid-column: 1 / -1;">
+                    <div class="section-header">
+                        <h3>📋 Lista de Pendências</h3>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn btn-warning btn-sm requires-admin" onclick="marcarTodosComoContatados()">
+                                ✅ Marcar Todos Contatados
+                            </button>
+                            <button class="btn btn-info btn-sm requires-admin" onclick="abrirModalQuitarCliente()">
+                                💰 Quitar Cliente
+                            </button>
+                        </div>
                     </div>
-                </div>
-                <div class="table-wrapper">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Cliente</th>
-                                <th>Descrição do Item</th>
-                                <th>Data</th>
-                                <th>Valor Devido</th>
-                                <th>Status</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="pendenciasTableBody"></tbody>
-                    </table>
+                    <div class="table-wrapper">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Cliente</th>
+                                    <th>Descrição do Item</th>
+                                    <th>Data</th>
+                                    <th>Valor Devido</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pendenciasTableBody"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-        </div>
+
     <!-- Modais -->
     <div id="vendaRapidaModal" class="modal"></div>
     <div id="encomendaModal" class="modal"></div>
@@ -666,55 +668,56 @@
     <button class="floating-btn requires-admin" onclick="abrirModalVendaRapida()" title="Venda Rápida">⚡</button>
 
     <script src="js/main.js" type="module"></script>
+    
     <div id="receitaModal" class="modal">
-    <div class="modal-content" style="max-width: 800px;">
-        <div class="modal-header">
-            <h3>Ficha Técnica do Produto: <span id="receitaModalProductName"></span></h3>
-            <button class="close-btn" onclick="fecharModal('receitaModal')">&times;</button>
-        </div>
-
-        <form id="formAdicionarIngredienteReceita" class="form-grid" style="grid-template-columns: 2fr 1fr 1fr 0.5fr; gap: 10px; align-items: flex-end; margin-top: 20px;">
-            <div class="form-group">
-                <label>Ingrediente</label>
-                <select id="receitaIngredienteSelect" required></select>
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>Ficha Técnica do Produto: <span id="receitaModalProductName"></span></h3>
+                <button class="close-btn" onclick="fecharModal('receitaModal')">&times;</button>
             </div>
-            <div class="form-group">
-                <label>Quantidade</label>
-                <input type="number" id="receitaIngredienteQtd" step="any" min="0" required placeholder="Ex: 200">
+
+            <form id="formAdicionarIngredienteReceita" class="form-grid" style="grid-template-columns: 2fr 1fr 1fr 0.5fr; gap: 10px; align-items: flex-end; margin-top: 20px;">
+                <div class="form-group">
+                    <label>Ingrediente</label>
+                    <select id="receitaIngredienteSelect" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Quantidade</label>
+                    <input type="number" id="receitaIngredienteQtd" step="any" min="0" required placeholder="Ex: 200">
+                </div>
+                 <div class="form-group">
+                    <label>Unidade</label>
+                    <select id="receitaIngredienteUnidade" required>
+                         <option value="ml">ml</option>
+                         <option value="g">g</option>
+                         <option value="unidade">unidade</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">➕</button>
+            </form>
+
+            <div class="table-wrapper" style="margin-top: 20px;">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Ingrediente</th>
+                            <th>Quantidade</th>
+                            <th>Custo</th>
+                            <th>Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="receitaIngredientesTbody"></tbody>
+                </table>
             </div>
-             <div class="form-group">
-                <label>Unidade</label>
-                <select id="receitaIngredienteUnidade" required>
-                     <option value="ml">ml</option>
-                     <option value="g">g</option>
-                     <option value="unidade">unidade</option>
-                </select>
+
+            <div style="text-align: right; margin-top: 20px; font-size: 1.2rem;">
+                <strong>Custo Total dos Materiais: <span id="receitaCustoTotal">R$ 0,00</span></strong>
             </div>
-            <button type="submit" class="btn btn-primary">➕</button>
-        </form>
 
-        <div class="table-wrapper" style="margin-top: 20px;">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Ingrediente</th>
-                        <th>Quantidade</th>
-                        <th>Custo</th>
-                        <th>Ação</th>
-                    </tr>
-                </thead>
-                <tbody id="receitaIngredientesTbody"></tbody>
-            </table>
+            <button class="btn btn-success requires-admin" id="btnSalvarReceita" style="width: 100%; margin-top: 20px;">
+                💾 Salvar Ficha Técnica e Atualizar Custo do Produto
+            </button>
         </div>
-
-        <div style="text-align: right; margin-top: 20px; font-size: 1.2rem;">
-            <strong>Custo Total dos Materiais: <span id="receitaCustoTotal">R$ 0,00</span></strong>
-        </div>
-
-        <button class="btn btn-success requires-admin" id="btnSalvarReceita" style="width: 100%; margin-top: 20px;">
-            💾 Salvar Ficha Técnica e Atualizar Custo do Produto
-        </button>
     </div>
-</div>
 </body>
 </html>
