@@ -539,6 +539,11 @@ function configurarThemeToggle() {
 
 // === LÓGICA DAS ABAS ===
 function openTab(evt, tabName) {
+    // --- CORREÇÃO ADICIONADA ---
+    // Reseta para a primeira página sempre que uma nova aba é aberta.
+    // Isso evita que você vá para a aba "Despesas" e ela tente mostrar a "página 3" que você estava vendo em "Vendas".
+    currentPage = 1;
+
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
     document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
     document.getElementById(tabName).classList.add('active');
@@ -551,6 +556,8 @@ function openTab(evt, tabName) {
         } else if (tabName === 'financeiro') {
             renderizarGraficoFluxoCaixa();
         }
+        // Ao trocar de aba, a função renderizarTudo() será chamada,
+        // e a tabela da nova aba será renderizada corretamente na página 1.
     }, 100);
 }
 function renderizarTabelaVendas() {
@@ -566,12 +573,14 @@ function renderizarTabelaVendas() {
 
     vendasFiltradas.sort((a, b) => new Date(b.data) - new Date(a.data));
 
-    // --- INÍCIO DA LÓGICA DE PAGINAÇÃO ---
+    // --- INÍCIO DA CORREÇÃO ---
+    // Adicionamos a lógica para "fatiar" o array com base na página atual.
     const startIndex = (currentPage - 1) * rowsPerPage;
     const endIndex = startIndex + rowsPerPage;
     const vendasPaginadas = vendasFiltradas.slice(startIndex, endIndex);
-    // --- FIM DA LÓGICA DE PAGINAÇÃO ---
+    // --- FIM DA CORREÇÃO ---
 
+    // Agora, o .map() itera sobre o array já paginado, e não mais sobre a lista completa.
     tbody.innerHTML = vendasPaginadas.map(v => `
         <tr>
             <td>${formatarData(v.data)}</td>
@@ -587,7 +596,7 @@ function renderizarTabelaVendas() {
         </tr>
     `).join('');
 
-    // Renderiza os botões de controle da paginação
+    // A função que desenha os botões de página agora recebe a lista completa para calcular o total de páginas corretamente.
     renderizarControlesPaginacao(vendasFiltradas, 'paginacaoVendas', renderizarTabelaVendas);
 }
 
@@ -760,7 +769,16 @@ async function atualizarDadosCliente(nomeCliente, valorCompra, subtrair = false)
 
 function renderizarTabelaClientes() {
     const tbody = document.getElementById('clientesTableBody');
-    tbody.innerHTML = clientes.map(c => {
+    const clientesOrdenados = [...clientes].sort((a, b) => a.nome.localeCompare(b.nome));
+
+    // --- CORREÇÃO APLICADA ---
+    const TabelaClientesRowsPerPage = 5; // Limite específico para esta tabela
+    const startIndex = (currentPage - 1) * TabelaClientesRowsPerPage;
+    const endIndex = startIndex + TabelaClientesRowsPerPage;
+    const clientesPaginados = clientesOrdenados.slice(startIndex, endIndex);
+    // --- FIM DA CORREÇÃO ---
+
+    tbody.innerHTML = clientesPaginados.map(c => {
         const ultimaCompra = c.ultimaCompra ? formatarData(c.ultimaCompra) : 'Nunca';
         const totalGasto = c.totalGasto || 0;
         
@@ -777,6 +795,9 @@ function renderizarTabelaClientes() {
             </tr>
         `;
     }).join('');
+
+    // Agora passamos o limite de 5 para a função de paginação.
+    renderizarControlesPaginacao(clientesOrdenados, 'paginacaoClientes', renderizarTabelaClientes, TabelaClientesRowsPerPage);
 }
 
 
@@ -903,7 +924,16 @@ function excluirProduto(id) {
 
 function renderizarTabelaProdutos() {
     const tbody = document.getElementById('produtosTableBody');
-    tbody.innerHTML = produtos.map(p => {
+    
+    // Criamos uma cópia ordenada para garantir a consistência entre as páginas
+    const produtosOrdenados = [...produtos].sort((a,b) => a.nome.localeCompare(b.nome));
+
+    // --- LÓGICA DE PAGINAÇÃO APLICADA ---
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    const endIndex = startIndex + rowsPerPage;
+    const produtosPaginados = produtosOrdenados.slice(startIndex, endIndex);
+
+    tbody.innerHTML = produtosPaginados.map(p => {
         const custoTotal = (p.custoMaterial || 0) + (p.custoMaoObra || 0);
         const margemReal = custoTotal > 0 ? ((p.valor - custoTotal) / custoTotal * 100) : 0;
         
@@ -925,6 +955,9 @@ function renderizarTabelaProdutos() {
             </tr>
         `;
     }).join('');
+
+    // Adicionamos a chamada para criar os botões de paginação.
+    renderizarControlesPaginacao(produtosOrdenados, 'paginacaoProdutos', renderizarTabelaProdutos);
 }
 // === LÓGICA DE INGREDIENTES ===
 
@@ -1563,14 +1596,19 @@ await FirebaseService.salvar('atividades', { tipo: 'exclusao', descricao: `Despe
     });
 }
 
-function renderizarControlesPaginacao(items, containerId, renderFunction) {
+function renderizarControlesPaginacao(items, containerId, renderFunction, customRowsPerPage) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    const totalPages = Math.ceil(items.length / rowsPerPage);
+    // --- CORREÇÃO APLICADA ---
+    // Usa o limite customizado se ele for fornecido; senão, usa a constante global.
+    const pageSize = customRowsPerPage || rowsPerPage;
+    const totalPages = Math.ceil(items.length / pageSize);
+    // --- FIM DA CORREÇÃO ---
+    
     container.innerHTML = '';
 
-    if (totalPages <= 1) return; // Não mostra os controles se só tem 1 página
+    if (totalPages <= 1) return;
 
     // Botão "Anterior"
     const prevButton = document.createElement('button');
@@ -1584,7 +1622,7 @@ function renderizarControlesPaginacao(items, containerId, renderFunction) {
     };
     container.appendChild(prevButton);
 
-    // Botões de Página (simplificado por enquanto)
+    // Botões de Página
     for (let i = 1; i <= totalPages; i++) {
         const pageButton = document.createElement('button');
         pageButton.textContent = i;
@@ -1624,7 +1662,12 @@ function renderizarTabelaDespesas() {
 
     despesasFiltradas.sort((a, b) => new Date(b.data) - new Date(a.data));
 
-    tbody.innerHTML = despesasFiltradas.map(d => `
+    // --- LÓGICA DE PAGINAÇÃO APLICADA ---
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    const endIndex = startIndex + rowsPerPage;
+    const despesasPaginadas = despesasFiltradas.slice(startIndex, endIndex);
+
+    tbody.innerHTML = despesasPaginadas.map(d => `
         <tr>
             <td>${formatarData(d.data)}</td>
             <td><span class="badge badge-info">${d.tipo}</span></td>
@@ -1636,6 +1679,9 @@ function renderizarTabelaDespesas() {
             </td>
         </tr>
     `).join('');
+
+    // Chamada para renderizar os controles de paginação
+    renderizarControlesPaginacao(despesasFiltradas, 'paginacaoDespesas', renderizarTabelaDespesas);
 }
 
 
