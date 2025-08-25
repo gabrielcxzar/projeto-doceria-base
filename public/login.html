@@ -5,19 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Lá Divino Sabor</title>
     <link rel="icon" type="image/png" href="images/logo.png">
-    <link rel="stylesheet" href="css/style.css"> <style>
-        /* Estilos simples para centralizar o card de login */
+    <link rel="stylesheet" href="css/style.css">
+    <style>
         body {
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background: linear-gradient(135deg, #f5f7fa 0%, #e8eaf6 100%);
         }
         .login-card {
             max-width: 450px;
             width: 100%;
-            padding: 30px;
+            padding: 40px;
+        }
+        /* Novo estilo para o container do checkbox */
+        .form-group-extra {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+            font-size: 0.9rem;
+        }
+        .form-group-extra input[type="checkbox"] {
+            width: auto; /* Garante que o checkbox não ocupe 100% da largura */
         }
     </style>
 </head>
@@ -30,12 +40,18 @@
         <form id="loginForm">
             <div class="form-group">
                 <label for="email">E-mail</label>
-                <input type="email" id="email" class="form-control" required>
+                <input type="email" id="email" required autocomplete="email">
             </div>
             <div class="form-group" style="margin-top: 15px;">
-                <label for="password">Senha</label>
-                <input type="password" id="password" class="form-control" required>
+                <label for="senha">Senha</label>
+                <input type="password" id="senha" required autocomplete="current-password">
             </div>
+
+            <div class="form-group-extra">
+                <input type="checkbox" id="manterConectado" checked>
+                <label for="manterConectado">Manter conectado</label>
+            </div>
+
             <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 25px;">Entrar</button>
             <p id="login-error" style="color: var(--danger-color); text-align: center; margin-top: 15px; display: none;"></p>
         </form>

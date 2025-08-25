@@ -58,7 +58,8 @@ let receitaTemporaria = [];
 let charts = {};
 let isLoading = false;
 let editandoReceitaProdutoId = null;
-let currentPage = 1; // <-- ADICIONE ESTA LINHA
+let currentPage = 1;
+let receitas = [];
 const rowsPerPage = 10;
 
 // === FUNÇÕES DE FIRESTORE ===
@@ -377,6 +378,7 @@ async function adicionarDadosExemplo() {
 
 async function carregarTodosDados() {
     try {
+        // A ordem das variáveis aqui...
         const [
             clientesData, 
             produtosData, 
@@ -386,8 +388,10 @@ async function carregarTodosDados() {
             cobrancasData, 
             atividadesData, 
             configData,
-             ingredientesData
+            ingredientesData,
+            receitasData // Adicionado aqui
         ] = await Promise.all([
+            // ...deve ser a mesma ordem das chamadas aqui.
             FirebaseService.carregar('clientes'),
             FirebaseService.carregar('produtos'),
             FirebaseService.carregar('vendas'),
@@ -396,7 +400,8 @@ async function carregarTodosDados() {
             FirebaseService.carregar('cobrancas'),
             FirebaseService.carregar('atividades'),
             FirebaseService.carregar('configuracoes'),
-            FirebaseService.carregar('ingredientes')
+            FirebaseService.carregar('ingredientes'),
+            FirebaseService.carregar('receitas') // Adicionado aqui
         ]);
 
         clientes = clientesData || [];
@@ -407,11 +412,11 @@ async function carregarTodosDados() {
         cobrancas = cobrancasData || [];
         atividades = atividadesData || [];
         ingredientes = ingredientesData || [];
+        receitas = receitasData || []; // Adicionado aqui
         
         if (configData && configData.length > 0) {
             configuracoes = { ...configuracoes, ...configData[0] };
         } else {
-            // Se não existe, cria um documento de configuração padrão
             const newConfigId = await FirebaseService.salvar('configuracoes', { metaMensal: 0, ultimoBackup: null });
             if (newConfigId) {
                 configuracoes.id = newConfigId;
@@ -420,8 +425,308 @@ async function carregarTodosDados() {
         
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
-        mostrarAlerta('Erro ao carregar dados do servidor', 'danger');
+        mostrarAlerta(`Erro ao carregar dados: ${error.message}`, 'danger');
     }
+}
+// Adicione esta nova função em main.js
+function imprimirReceitaExistente(id) {
+    const receita = receitas.find(r => r.id === id);
+    if (!receita) return mostrarAlerta('Receita não encontrada.', 'danger');
+
+    let ingredientesHTML = '';
+    if (receita.ingredientes) {
+        // Itera sobre a lista de ingredientes da receita para criar as linhas da tabela
+        receita.ingredientes.forEach(item => {
+            const ingrediente = ingredientes.find(i => i.id === item.ingredienteId);
+            if (ingrediente) {
+                ingredientesHTML += `<tr><td>${ingrediente.nome}</td><td>${item.quantidade} ${item.unidadeUso}</td></tr>`;
+            }
+        });
+    }
+
+    // Template HTML e CSS para a página de impressão
+    const conteudoParaImprimir = `
+        <html>
+        <head>
+            <title>Ficha Técnica - ${receita.titulo}</title>
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+            <style>
+                :root {
+                    --chocolate-brown: #6B3E26;
+                    --cream-beige: #F5E2C8;
+                    --soft-black: #1C1C1C;
+                }
+                body {
+                    font-family: 'Poppins', sans-serif;
+                    margin: 0;
+                    padding: 30px;
+                    color: var(--soft-black);
+                }
+                .header {
+                    text-align: center;
+                    border-bottom: 2px solid var(--cream-beige);
+                    padding-bottom: 20px;
+                    margin-bottom: 30px;
+                }
+                .logo {
+                    height: 80px;
+                    margin-bottom: 10px;
+                }
+                h1 {
+                    font-size: 2.5rem;
+                    color: var(--chocolate-brown);
+                    margin: 0;
+                    font-weight: 700;
+                }
+                .summary-container {
+                    display: flex;
+                    justify-content: space-around;
+                    text-align: center;
+                    background-color: #fafafa;
+                    border-radius: 8px;
+                    padding: 20px;
+                    margin-bottom: 30px;
+                }
+                .summary-item {
+                    flex-basis: 33%;
+                }
+                .summary-item h3 {
+                    margin: 0 0 5px 0;
+                    font-size: 1rem;
+                    color: #555;
+                    font-weight: 400;
+                }
+                .summary-item p {
+                    margin: 0;
+                    font-size: 1.5rem;
+                    font-weight: 600;
+                    color: var(--chocolate-brown);
+                }
+                .ingredients-section h2 {
+                    font-size: 1.8rem;
+                    color: var(--chocolate-brown);
+                    border-bottom: 1px solid #ddd;
+                    padding-bottom: 10px;
+                    margin-bottom: 15px;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 1rem;
+                }
+                th, td {
+                    padding: 12px 15px;
+                    text-align: left;
+                    border-bottom: 1px solid #e0e0e0;
+                }
+                thead tr {
+                    background-color: #f9f9f9;
+                    font-weight: 600;
+                }
+                tbody tr:nth-child(even) {
+                    background-color: #fdfdfd;
+                }
+                footer {
+                    text-align: center;
+                    margin-top: 40px;
+                    padding-top: 20px;
+                    border-top: 1px solid #eee;
+                    font-size: 0.8rem;
+                    color: #888;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <img src="images/logo.png" alt="Logo Lá Divino Sabor" class="logo">
+                <h1>${receita.titulo}</h1>
+            </div>
+
+            <div class="summary-container">
+                <div class="summary-item">
+                    <h3>Rendimento</h3>
+                    <p>${receita.rendimento} unidades</p>
+                </div>
+                <div class="summary-item">
+                    <h3>Custo Total</h3>
+                    <p>${formatarMoeda(receita.custoTotal)}</p>
+                </div>
+                <div class="summary-item">
+                    <h3>Custo por Unidade</h3>
+                    <p>${formatarMoeda(receita.custoPorUnidade)}</p>
+                </div>
+            </div>
+
+            <div class="ingredients-section">
+                <h2>Ingredientes</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ingrediente</th>
+                            <th>Quantidade</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${ingredientesHTML}
+                    </tbody>
+                </table>
+            </div>
+            
+            <footer>
+                Lá Divino Sabor - Controle Total | Gerado em: ${new Date().toLocaleDateString('pt-BR')}
+            </footer>
+        </body>
+        </html>
+    `;
+
+    const janelaImprimir = window.open('', '', 'height=800,width=900');
+    janelaImprimir.document.write(conteudoParaImprimir);
+    janelaImprimir.document.close();
+    setTimeout(() => { janelaImprimir.print(); }, 500); // Timeout para garantir que a fonte externa carregue
+}
+// Adicione esta nova função em qualquer lugar do main.js
+function renderizarTabelaReceitas() {
+    const tbody = document.getElementById('receitasTableBody');
+    if (!tbody) return;
+
+    const receitasOrdenadas = [...receitas].sort((a, b) => a.titulo.localeCompare(b.titulo));
+
+    tbody.innerHTML = receitasOrdenadas.map(rec => `
+        <tr>
+            <td><strong>${rec.titulo}</strong></td>
+            <td>${rec.rendimento} unid.</td>
+            <td>${formatarMoeda(rec.custoTotal)}</td>
+            <td>${formatarMoeda(rec.custoPorUnidade)} / unid.</td>
+            <td class="actions">
+                <button class="btn btn-secondary btn-sm" onclick="imprimirReceitaExistente('${rec.id}')" title="Imprimir Receita">🖨️</button>
+                <button class="btn btn-primary btn-sm requires-admin" onclick="editarReceita('${rec.id}')" title="Editar">✏️</button>
+                <button class="btn btn-danger btn-sm requires-admin" onclick="excluirReceita('${rec.id}')" title="Excluir">🗑️</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Função para EXCLUIR uma receita
+function excluirReceita(id) {
+    const receita = receitas.find(r => r.id === id);
+    if (!receita) return;
+
+    showConfirm(`Tem certeza que deseja excluir a receita "${receita.titulo}"?`, async (confirmado) => {
+        if (confirmado) {
+            mostrarLoading(true);
+            const success = await FirebaseService.excluir('receitas', id);
+            if (success) {
+                mostrarAlerta('Receita excluída com sucesso!', 'success');
+                await carregarTodosDados();
+                renderizarTudo();
+            }
+            mostrarLoading(false);
+        }
+    });
+}
+
+// Substitua esta função em main.js
+// Substitua esta função em main.js
+function editarReceita(id) {
+    const receita = receitas.find(r => r.id === id);
+    if (!receita) return;
+
+    editandoId = id;
+    document.querySelector('.sub-tab-button[data-target="panel-receitas"]').click();
+    
+    // Agora o JS vai encontrar estes campos sem erro
+    document.getElementById('receitaTitulo').value = receita.titulo;
+    document.getElementById('receitaRendimento').value = receita.rendimento;
+    
+    const tbody = document.getElementById('receitaIngredientesTbody');
+    tbody.innerHTML = '';
+    if (receita.ingredientes) {
+        receita.ingredientes.forEach(item => {
+            const ingrediente = ingredientes.find(i => i.id === item.ingredienteId);
+            if (ingrediente) {
+                adicionarLinhaIngredienteNaTabela(ingrediente, item.quantidade, item.unidadeUso);
+            }
+        });
+    }
+    
+    atualizarCustoTotalReceita();
+
+    // Lógica dos botões ATUALIZADA para o novo layout de 2 colunas
+    const btnSalvar = document.getElementById('btnSalvarReceita');
+    const btnCancelar = document.getElementById('btnCancelarEdicaoReceita');
+
+    btnCancelar.style.display = 'inline-flex'; // Mostra o botão Cancelar
+    btnSalvar.textContent = '💾 Salvar Alterações';
+    btnSalvar.style.gridColumn = '2'; // Move o botão Salvar para a segunda coluna
+    
+    document.getElementById('receitaTitulo').focus();
+}
+
+
+async function adicionarOuEditarReceita(e) {
+    e.preventDefault();
+
+    const titulo = document.getElementById('receitaTitulo').value;
+    const rendimento = parseInt(document.getElementById('receitaRendimento').value);
+
+    if (!titulo || isNaN(rendimento) || rendimento <= 0) {
+        return mostrarAlerta('Título e Rendimento válido são obrigatórios.', 'warning');
+    }
+
+    const ingredientesDaReceita = [];
+    let custoTotalReceita = 0;
+    const rows = document.querySelectorAll('#receitaIngredientesTbody tr');
+    
+    if (rows.length === 0) {
+        return mostrarAlerta('Adicione pelo menos um ingrediente à receita.', 'warning');
+    }
+
+    rows.forEach(row => {
+        ingredientesDaReceita.push({
+            ingredienteId: row.dataset.ingredienteId,
+            quantidade: parseFloat(row.dataset.quantidade),
+            unidadeUso: row.dataset.unidadeUso,
+            custo: parseFloat(row.dataset.custo)
+        });
+        custoTotalReceita += parseFloat(row.dataset.custo);
+    });
+
+    const dadosReceita = {
+        titulo: titulo,
+        rendimento: rendimento,
+        ingredientes: ingredientesDaReceita,
+        custoTotal: custoTotalReceita,
+        custoPorUnidade: custoTotalReceita / rendimento
+    };
+
+    mostrarLoading(true);
+
+    if (editandoId) { 
+        await FirebaseService.atualizar('receitas', editandoId, dadosReceita);
+        mostrarAlerta('Receita atualizada com sucesso!', 'success');
+    } else { 
+        await FirebaseService.salvar('receitas', dadosReceita);
+        mostrarAlerta('Receita salva com sucesso!', 'success');
+    }
+    
+    editandoId = null;
+    document.getElementById('receitaForm').reset();
+    document.getElementById('receitaIngredientesTbody').innerHTML = '';
+    atualizarCustoTotalReceita();
+
+    // Correção: Usando os IDs dos botões
+    const btnSalvar = document.getElementById('btnSalvarReceita');
+    const btnCancelar = document.getElementById('btnCancelarEdicaoReceita');
+
+    btnCancelar.style.display = 'none';
+    btnSalvar.textContent = '💾 Salvar Receita';
+    btnSalvar.style.gridColumn = '3';
+
+    await carregarTodosDados(); 
+    renderizarTudo(); 
+    mostrarLoading(false);
 }
 
 function mostrarLoading(show) {
@@ -433,10 +738,37 @@ function mostrarLoading(show) {
         body.classList.remove('loading');
     }
 }
+// Função para atualizar o custo do produto com base na receita selecionada
+function atualizarCustoProdutoComReceita() {
+    const receitaId = document.getElementById('produtoReceitaSelect').value;
+    const custoInput = document.getElementById('produtoCustoMaterial');
 
-// main.js
+    // Se uma receita foi selecionada...
+    if (receitaId) {
+        // Encontra a receita completa no nosso array de receitas
+        const receitaSelecionada = receitas.find(r => r.id === receitaId);
+        if (receitaSelecionada) {
+            // Preenche o campo de custo com o valor calculado (custo/unidade)
+            custoInput.value = receitaSelecionada.custoPorUnidade.toFixed(2);
+            // Bloqueia o campo para evitar edição manual
+            custoInput.readOnly = true;
+            custoInput.style.background = '#f8f9fa'; // Adiciona um feedback visual
+        }
+    } 
+    // Se a opção "Cadastrar sem receita" for selecionada...
+    else {
+        // Limpa o campo de custo
+        custoInput.value = '';
+        // Libera o campo para edição manual
+        custoInput.readOnly = false;
+        custoInput.style.background = '#fff';
+        custoInput.placeholder = 'Digite o custo manual';
+    }
 
-// SUBSTITUA SUA FUNÇÃO ANTIGA POR ESTA VERSÃO COMPLETA E CORRIGIDA
+    // Após alterar o custo, recalcula o preço final do produto
+    calcularPrecoVenda();
+}
+
 function configurarEventListeners() {
     configurarThemeToggle();
     // Função auxiliar para evitar repetição
@@ -448,6 +780,19 @@ function configurarEventListeners() {
             console.warn(`Elemento com id '${id}' não foi encontrado.`);
         }
     };
+    const subTabButtons = document.querySelectorAll('.sub-tab-button');
+    subTabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            // Remove a classe 'active' de todos os botões e painéis
+            subTabButtons.forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.sub-panel').forEach(panel => panel.classList.remove('active'));
+
+            // Adiciona a classe 'active' ao botão clicado e ao painel correspondente
+            button.classList.add('active');
+            const targetPanelId = button.getAttribute('data-target');
+            document.getElementById(targetPanelId).classList.add('active');
+        });
+    });
 
     // --- Formulários ---
     safeAddEventListener('vendaForm', 'submit', adicionarVenda);
@@ -455,6 +800,7 @@ function configurarEventListeners() {
     safeAddEventListener('clienteForm', 'submit', adicionarOuEditarCliente);
     safeAddEventListener('despesaForm', 'submit', adicionarDespesa);
     safeAddEventListener('ingredienteForm', 'submit', adicionarOuEditarIngrediente);
+    safeAddEventListener('receitaForm', 'submit', adicionarOuEditarReceita);
     safeAddEventListener('cobrancaForm', 'submit', (e) => {
         e.preventDefault();
         atualizarMensagemCobranca();
@@ -501,10 +847,26 @@ const filtroAno = document.getElementById('filtroAno');
             renderizarTudo();
         });
     }
-    safeAddEventListener('btnMontarReceita', 'click', abrirModalReceita);
-    safeAddEventListener('formAdicionarIngredienteReceita', 'submit', adicionarIngredienteNaReceita);
-    safeAddEventListener('btnSalvarReceita', 'click', salvarReceita);
+    
+    safeAddEventListener('btnAddIngredienteNaReceita', 'click', adicionarIngredienteNaReceita);
+    safeAddEventListener('produtoReceitaSelect', 'change', atualizarCustoProdutoComReceita);
     safeAddEventListener('receitaIngredienteSelect', 'change', atualizarUnidadeReceita);
+    safeAddEventListener('btnCancelarEdicaoReceita', 'click', cancelarEdicaoReceita);
+}
+// Substitua esta função em main.js
+function cancelarEdicaoReceita() {
+    editandoId = null;
+    document.getElementById('receitaForm').reset();
+    document.getElementById('receitaIngredientesTbody').innerHTML = '';
+    atualizarCustoTotalReceita();
+
+    // Lógica dos botões ATUALIZADA para restaurar o estado inicial
+    const btnSalvar = document.getElementById('btnSalvarReceita');
+    const btnCancelar = document.getElementById('btnCancelarEdicaoReceita');
+
+    btnCancelar.style.display = 'none'; // Esconde o botão Cancelar
+    btnSalvar.textContent = '💾 Salvar Receita';
+    btnSalvar.style.gridColumn = '1 / -1'; // Faz o botão Salvar ocupar as 2 colunas
 }
 function configurarThemeToggle() {
     const toggle = document.getElementById('theme-toggle');
@@ -539,10 +901,24 @@ function configurarThemeToggle() {
 
 // === LÓGICA DAS ABAS ===
 function openTab(evt, tabName) {
-    // --- CORREÇÃO ADICIONADA ---
     // Reseta para a primeira página sempre que uma nova aba é aberta.
-    // Isso evita que você vá para a aba "Despesas" e ela tente mostrar a "página 3" que você estava vendo em "Vendas".
     currentPage = 1;
+
+    // --- INÍCIO DA CORREÇÃO ---
+    // Reseta a variável de edição e a aparência dos formulários.
+    // Isso garante que o sistema saia de qualquer "modo de edição" pendente.
+    editandoId = null;
+    
+    // Reseta o texto dos botões para o estado de "Adicionar"
+    const clienteBtn = document.querySelector('#clienteForm button[type="submit"]');
+    if (clienteBtn) clienteBtn.textContent = '➕ Salvar Cliente';
+
+    const produtoBtn = document.querySelector('#produtoForm button[type="submit"]');
+    if (produtoBtn) produtoBtn.textContent = '➕ Salvar Produto';
+
+    const ingredienteBtn = document.querySelector('#ingredienteForm button[type="submit"]');
+    if (ingredienteBtn) ingredienteBtn.textContent = '➕ Salvar Ingrediente';
+    // --- FIM DA CORREÇÃO ---
 
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
     document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
@@ -556,8 +932,6 @@ function openTab(evt, tabName) {
         } else if (tabName === 'financeiro') {
             renderizarGraficoFluxoCaixa();
         }
-        // Ao trocar de aba, a função renderizarTudo() será chamada,
-        // e a tabela da nova aba será renderizada corretamente na página 1.
     }, 100);
 }
 function renderizarTabelaVendas() {
@@ -608,6 +982,7 @@ function renderizarTudo() {
     renderizarTabelaClientes();
     renderizarTabelaProdutos();
     renderizarTabelaIngredientes();
+    renderizarTabelaReceitas(); 
     renderizarTabelaEncomendas();
     renderizarTabelaDespesas();
     renderizarTabelaPendencias();
@@ -620,10 +995,30 @@ function renderizarTudo() {
 function preencherSelects() {
     const clienteSelects = document.querySelectorAll('#pessoa, #clienteCobranca, #modalEncomendaCliente');
     const produtoSelect = document.getElementById('produto');
+    const receitaIngredienteSelect = document.getElementById('receitaIngredienteSelect');
+    const produtoReceitaSelect = document.getElementById('produtoReceitaSelect'); // Adicionado
 
     const clientesOptions = clientes.sort((a,b) => a.nome.localeCompare(b.nome)).map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
     const produtosOptions = produtos.sort((a,b) => a.nome.localeCompare(b.nome)).map(p => `<option value="${p.nome}">${p.nome}</option>`).join('');
     
+    if (receitaIngredienteSelect) {
+        const ingredientesOptions = ingredientes
+            .sort((a,b) => a.nome.localeCompare(b.nome))
+            .map(ing => `<option value="${ing.id}">${ing.nome} (${formatarMoeda(ing.custoUnitarioPadrao)}/${ing.unidadePadrao})</option>`)
+            .join('');
+        receitaIngredienteSelect.innerHTML = `<option value="">Selecione...</option>${ingredientesOptions}`;
+    }
+
+    // --- INÍCIO DA CORREÇÃO ---
+    // Lógica para popular a lista suspensa de receitas no formulário de produtos
+    if (produtoReceitaSelect) {
+        const receitasOptions = receitas
+            .sort((a,b) => a.titulo.localeCompare(b.titulo))
+            .map(rec => `<option value="${rec.id}">${rec.titulo}</option>`)
+            .join('');
+        produtoReceitaSelect.innerHTML = `<option value="">-- Cadastrar sem receita (custo manual) --</option>${receitasOptions}`;
+    }
+
     clienteSelects.forEach(select => {
         if (select) {
             const currentValue = select.value;
@@ -641,7 +1036,7 @@ function preencherSelects() {
             produtoSelect.value = currentValue;
         }
     }
-}
+}   
 
 
 // === LÓGICA DE CLIENTES (CRM) ===
@@ -1072,57 +1467,12 @@ function excluirIngrediente(id) {
 }
 // === LÓGICA DE RECEITAS ===
 
-// Abre o modal para montar a receita de um produto
-function abrirModalReceita() {
-    const nomeProdutoDoForm = document.getElementById('produtoNome').value;
-    let produtoExistente = null;
 
-    // Verifica se estamos editando um produto que já existe
-    if (editandoId) {
-        produtoExistente = produtos.find(p => p.id === editandoId);
-    }
 
-    // Impede a abertura do modal se não houver um nome de produto (para produtos novos)
-    if (!editandoId && !nomeProdutoDoForm) {
-        return mostrarAlerta('Digite o nome do produto primeiro para montar a ficha técnica.', 'info');
-    }
-    
-    // Define o título do modal com o nome do produto novo ou existente
-    document.getElementById('receitaModalProductName').textContent = nomeProdutoDoForm || produtoExistente.nome;
 
-    // Popula o <select> com todos os ingredientes cadastrados
-    const select = document.getElementById('receitaIngredienteSelect');
-    select.innerHTML = '<option value="">Selecione...</option>' + ingredientes
-        .sort((a,b) => a.nome.localeCompare(b.nome))
-        .map(ing => `<option value="${ing.id}">${ing.nome} (${formatarMoeda(ing.custoUnitarioPadrao)}/${ing.unidadePadrao})</option>`)
-        .join('');
-    
-    document.getElementById('receitaIngredientesTbody').innerHTML = ''; // Sempre limpa a tabela antes de carregar
 
-    // Decide qual receita carregar: a de um produto existente ou a temporária de um produto novo
-    let receitaParaCarregar = [];
-    if (produtoExistente && produtoExistente.receita) {
-        receitaParaCarregar = produtoExistente.receita; // Carrega a receita salva
-    } else if (!editandoId && receitaTemporaria.length > 0) {
-        receitaParaCarregar = receitaTemporaria; // Carrega a receita temporária
-    }
-    
-    // Preenche a tabela com os ingredientes da receita
-    if (receitaParaCarregar.length > 0) {
-        receitaParaCarregar.forEach(item => {
-            const ingrediente = ingredientes.find(i => i.id === item.ingredienteId);
-            if (ingrediente) {
-                adicionarLinhaIngredienteNaTabela(ingrediente, item.quantidade, item.unidadeUso);
-            }
-        });
-    }
 
-    atualizarCustoTotalReceita();
-    document.getElementById('receitaIngredienteUnidade').disabled = false;
-    document.getElementById('receitaModal').style.display = 'flex';
-}
-
-// Adiciona um ingrediente na tabela do modal (não salva ainda)
+// Substitua esta função em main.js
 function adicionarIngredienteNaReceita(e) {
     e.preventDefault();
     const ingredienteId = document.getElementById('receitaIngredienteSelect').value;
@@ -1140,7 +1490,12 @@ function adicionarIngredienteNaReceita(e) {
 
     adicionarLinhaIngredienteNaTabela(ingrediente, quantidade, unidadeUso);
     atualizarCustoTotalReceita();
-    document.getElementById('formAdicionarIngredienteReceita').reset();
+    
+    // --- CORREÇÃO AQUI ---
+    // Limpa os campos manualmente, pois .reset() não funciona em <div>
+    document.getElementById('receitaIngredienteSelect').value = "";
+    document.getElementById('receitaIngredienteQtd').value = "";
+    document.getElementById('receitaIngredienteUnidade').value = "ml"; // Valor padrão
 }
 
 // Função auxiliar para criar as linhas da tabela no modal
@@ -1177,51 +1532,7 @@ function atualizarCustoTotalReceita() {
     document.getElementById('receitaCustoTotal').textContent = formatarMoeda(custoTotal);
 }
 
-// Salva a receita montada no produto
-async function salvarReceita() {
-    const tbody = document.getElementById('receitaIngredientesTbody');
-    const rows = tbody.querySelectorAll('tr');
-    
-    const novaReceita = [];
-    let novoCustoMaterial = 0;
 
-    // Monta o objeto da receita e calcula o custo total
-    rows.forEach(row => {
-        novaReceita.push({
-            ingredienteId: row.dataset.ingredienteId,
-            quantidade: parseFloat(row.dataset.quantidade),
-            unidadeUso: row.dataset.unidadeUso
-        });
-        novoCustoMaterial += parseFloat(row.dataset.custo) || 0;
-    });
-
-    // Se estiver editando um produto existente, salva a receita no banco
-    if (editandoId) {
-        mostrarLoading(true);
-        const dadosParaAtualizar = { receita: novaReceita, custoMaterial: novoCustoMaterial };
-        const success = await FirebaseService.atualizar('produtos', editandoId, dadosParaAtualizar);
-        
-        if (success) {
-            const index = produtos.findIndex(p => p.id === editandoId);
-            if (index > -1) {
-                produtos[index].receita = novaReceita;
-                produtos[index].custoMaterial = novoCustoMaterial;
-            }
-            renderizarTabelaProdutos();
-        }
-        mostrarLoading(false);
-    } else {
-        // Se for um novo produto, armazena a receita na variável temporária
-        receitaTemporaria = novaReceita;
-    }
-
-    // ATUALIZA O FORMULÁRIO PRINCIPAL (RESOLVE A QUESTÃO DA ATUALIZAÇÃO)
-    document.getElementById('produtoCustoMaterial').value = novoCustoMaterial.toFixed(2);
-    calcularPrecoVenda(); // Recalcula o preço de venda imediatamente
-    
-    mostrarAlerta('Ficha técnica atualizada! Salve o produto para confirmar as alterações.', 'success');
-    fecharModal('receitaModal');
-}
 function atualizarUnidadeReceita() {
     const ingredienteId = document.getElementById('receitaIngredienteSelect').value;
     const unidadeSelect = document.getElementById('receitaIngredienteUnidade');
@@ -2843,6 +3154,7 @@ window.fecharModal = fecharModal;
 window.salvarMeta = salvarMeta;
 window.gerarRelatorio = gerarRelatorio;
 window.imprimirRelatorio = imprimirRelatorio;
+window.imprimirReceitaExistente = imprimirReceitaExistente;
 
 // Tabelas de Cadastros
 window.editarCliente = editarCliente;
@@ -2851,12 +3163,12 @@ window.editarProduto = editarProduto;
 window.excluirProduto = excluirProduto;
 window.editarIngrediente = editarIngrediente;
 window.excluirIngrediente = excluirIngrediente;
-window.abrirModalReceita = abrirModalReceita;
 window.adicionarIngredienteNaReceita = adicionarIngredienteNaReceita; 
-window.salvarReceita = salvarReceita; 
 window.editarEncomenda = editarEncomenda;     // Adicionado
 window.excluirEncomenda = excluirEncomenda;   // Adicionado
-
+window.editarReceita = editarReceita;
+window.excluirReceita = excluirReceita;
+window.atualizarCustoTotalReceita = atualizarCustoTotalReceita;
 // Tabela de Vendas
 window.editarStatusVenda = editarStatusVenda;
 window.excluirVenda = excluirVenda;

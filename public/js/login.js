@@ -1,9 +1,10 @@
-// js/login.js
-
+// Importa as funções de inicialização e autenticação
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
+import { getAuth, setPersistence, browserSessionPersistence, browserLocalPersistence, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
 
-// IMPORTANTE: Copie e cole aqui a sua variável `firebaseConfig` que está no main.js
+// --- INÍCIO DA CORREÇÃO ---
+// Bloco de configuração e inicialização do Firebase
+// Este bloco estava faltando.
 const firebaseConfig = {
     apiKey: "AIzaSyBtmmi8NLvJswGLzGNs-NdIYwqqizBDWaI",
     authDomain: "gestao-de-confeitaria.firebaseapp.com",
@@ -15,26 +16,34 @@ const firebaseConfig = {
 
 // Inicializa o Firebase
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+// --- FIM DA CORREÇÃO ---
 
+const auth = getAuth(app); // Agora getAuth() sabe qual app usar
 const loginForm = document.getElementById('loginForm');
 const loginError = document.getElementById('login-error');
 
 loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
-    loginError.style.display = 'none'; // Esconde a mensagem de erro
+    loginError.style.display = 'none';
 
-    signInWithEmailAndPassword(auth, email, password)
+    const email = document.getElementById('email').value;
+    const senha = document.getElementById('senha').value;
+    const manterConectado = document.getElementById('manterConectado').checked;
+
+    const persistencia = manterConectado
+        ? browserLocalPersistence
+        : browserSessionPersistence;
+
+    setPersistence(auth, persistencia)
+        .then(() => {
+            return signInWithEmailAndPassword(auth, email, senha);
+        })
         .then((userCredential) => {
-            // Login foi um sucesso, o usuário será redirecionado pelo porteiro no index.html
             window.location.href = 'index.html';
         })
         .catch((error) => {
-            console.error("Erro de login:", error.code);
-            loginError.textContent = 'E-mail ou senha inválidos.';
+            console.error("Erro no login:", error.code, error.message);
+            loginError.textContent = "E-mail ou senha incorretos. Tente novamente.";
             loginError.style.display = 'block';
         });
 });

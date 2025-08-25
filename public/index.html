@@ -363,7 +363,13 @@
 
         <!-- Cadastros Tab -->
         <div id="cadastros" class="tab-content">
-            <div class="content-grid">
+            <div class="sub-tabs">
+                <button class="sub-tab-button active" data-target="panel-clientes">👥 Clientes</button>
+                <button class="sub-tab-button" data-target="panel-produtos">🍰 Produtos</button>
+                <button class="sub-tab-button" data-target="panel-receitas">📖 Receitas</button>
+            </div>
+
+            <div id="panel-clientes" class="sub-panel active">
                 <div class="form-section">
                     <h3>👥 Gerenciar Clientes</h3>
                     <form id="clienteForm">
@@ -410,7 +416,9 @@
                     </div>
                     <div id="paginacaoClientes" class="paginacao-container"></div>
                 </div>
+            </div>
 
+            <div id="panel-produtos" class="sub-panel">
                 <div class="form-section">
                     <h3>🍰 Gerenciar Produtos</h3>
                     <form id="produtoForm">
@@ -435,28 +443,31 @@
                             </div>
                         </div>
 
-                        <h4 style="margin: 20px 0 10px 0; color: var(--primary-color);">💰 Precificação Inteligente</h4>
+                        <h4 style="margin: 20px 0 10px 0; color: var(--primary-color);">📖 Custo e Precificação</h4>
 
+                        <div class="form-group full-width">
+                            <label for="produtoReceitaSelect">Usar Receita (Opcional)</label>
+                            <select id="produtoReceitaSelect">
+                                <option value="">-- Cadastrar sem receita (custo manual) --</option>
+                            </select>
+                        </div>
+                        
                         <div class="form-grid">
                             <div class="form-group">
-                                <label for="produtoCustoMaterial">Custo Material (R$)</label>
-                                <input type="number" id="produtoCustoMaterial" step="0.01" min="0" required>
+                                <label for="produtoCustoMaterial">Custo Base (R$)</label>
+                                <input type="number" id="produtoCustoMaterial" step="0.01" min="0" required placeholder="Automático com receita">
                             </div>
                             <div class="form-group">
                                 <label for="produtoCustoMaoObra">Custo Mão de Obra (R$)</label>
                                 <input type="number" id="produtoCustoMaoObra" step="0.01" min="0" value="0">
                             </div>
                         </div>
-                        <div class="form-group full-width" style="margin-top: 15px;">
-                            <button type="button" class="btn btn-secondary requires-admin" id="btnMontarReceita" style="width: 100%;">
-                                Ficha Técnica (Montar Receita)
-                            </button>
-                        </div>
-
+                        
                         <div class="form-group full-width" style="flex-direction: row; align-items: center; gap: 10px; margin-top: 15px;">
                             <input type="checkbox" id="definirPrecoManual" style="width: auto;">
                             <label for="definirPrecoManual" style="margin-bottom: 0;">Definir preço final manualmente?</label>
                         </div>
+
                         <div class="form-grid" style="margin-top: 15px;">
                             <div class="form-group">
                                 <label for="produtoMargem">Margem Lucro (%)</label>
@@ -464,20 +475,15 @@
                             </div>
                             <div class="form-group">
                                 <label for="produtoValor">Preço Final (R$)</label>
-                                <input type="number" id="produtoValor" step="0.01" min="0" readonly
-                                    style="background: #e8f5e8; font-weight: bold;">
+                                <input type="number" id="produtoValor" step="0.01" min="0" readonly style="background: #e8f5e8; font-weight: bold;">
                             </div>
                         </div>
 
-                        <div class="alert alert-info" style="margin: 15px 0;">
-                            <strong>💡 Cálculo:</strong> Preço = (Custo Material + Mão de Obra) × (1 + Margem/100)
-                        </div>
-
-                        <button type="submit" class="btn btn-primary requires-admin" style="width: 100%;">
+                        <button type="submit" class="btn btn-primary requires-admin" style="width: 100%; margin-top: 20px;">
                             ➕ Salvar Produto
                         </button>
                     </form>
-                    
+
                     <div class="table-wrapper" style="margin-top: 20px;">
                         <table class="table">
                             <thead>
@@ -494,6 +500,83 @@
                         </table>
                     </div>
                     <div id="paginacaoProdutos" class="paginacao-container"></div>
+                </div>
+            </div>
+
+            <div id="panel-receitas" class="sub-panel">
+                <div class="form-section">
+                    <h3>📖 Gerenciar Receitas</h3>
+                    <form id="receitaForm">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="receitaTitulo">Título da Receita</label>
+                                <input type="text" id="receitaTitulo" placeholder="Ex: Massa Branca para Bolos" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="receitaRendimento">Rendimento (em unidades)</label>
+                                <input type="number" id="receitaRendimento" min="1" placeholder="Ex: 2 (bolos), 25 (brigadeiros)" required>
+                            </div>
+                        </div>
+
+                        <h4 style="margin: 20px 0 10px 0; color: var(--primary-color);">🌿 Ingredientes da Receita</h4>
+                        
+                        <div id="formAdicionarIngredienteReceita" class="form-grid" style="grid-template-columns: 2fr 1fr 1fr 0.5fr; gap: 10px; align-items: flex-end;">
+                            <div class="form-group">
+                                <label>Ingrediente</label>
+                                <select id="receitaIngredienteSelect"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Quantidade</label>
+                                <input type="number" id="receitaIngredienteQtd" step="any" min="0" placeholder="Ex: 200">
+                            </div>
+                            <div class="form-group">
+                                <label>Unidade</label>
+                                <select id="receitaIngredienteUnidade">
+                                    <option value="ml">ml</option>
+                                    <option value="g">g</option>
+                                    <option value="unidade">unidade</option>
+                                </select>
+                            </div>
+                            <button type="button" id="btnAddIngredienteNaReceita" class="btn btn-primary">➕</button>
+                        </div>
+
+                        <div class="table-wrapper" style="margin-top: 20px;">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Ingrediente</th>
+                                        <th>Quantidade</th>
+                                        <th>Custo</th>
+                                        <th>Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="receitaIngredientesTbody"></tbody>
+                            </table>
+                        </div>
+                        <div style="text-align: right; margin-top: 20px; font-size: 1.2rem;">
+                            <strong>Custo Total dos Ingredientes: <span id="receitaCustoTotal">R$ 0,00</span></strong>
+                        </div>
+
+                        <div class="form-grid" style="margin-top: 20px; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <button type="button" id="btnCancelarEdicaoReceita" class="btn btn-danger requires-admin" style="display: none;">✖️ Cancelar Edição</button>
+                            <button type="submit" id="btnSalvarReceita" class="btn btn-primary requires-admin" style="grid-column: 1 / -1;">💾 Salvar Receita</button>
+                        </div>
+                    </form>
+
+                    <div class="table-wrapper" style="margin-top: 40px;">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Título</th>
+                                    <th>Rendimento</th>
+                                    <th>Custo Total</th>
+                                    <th>Custo/Unid.</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="receitasTableBody"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -675,55 +758,5 @@
 
     <script src="js/main.js" type="module"></script>
     
-    <div id="receitaModal" class="modal">
-        <div class="modal-content" style="max-width: 800px;">
-            <div class="modal-header">
-                <h3>Ficha Técnica do Produto: <span id="receitaModalProductName"></span></h3>
-                <button class="close-btn" onclick="fecharModal('receitaModal')">&times;</button>
-            </div>
-
-            <form id="formAdicionarIngredienteReceita" class="form-grid" style="grid-template-columns: 2fr 1fr 1fr 0.5fr; gap: 10px; align-items: flex-end; margin-top: 20px;">
-                <div class="form-group">
-                    <label>Ingrediente</label>
-                    <select id="receitaIngredienteSelect" required></select>
-                </div>
-                <div class="form-group">
-                    <label>Quantidade</label>
-                    <input type="number" id="receitaIngredienteQtd" step="any" min="0" required placeholder="Ex: 200">
-                </div>
-                 <div class="form-group">
-                    <label>Unidade</label>
-                    <select id="receitaIngredienteUnidade" required>
-                         <option value="ml">ml</option>
-                         <option value="g">g</option>
-                         <option value="unidade">unidade</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary">➕</button>
-            </form>
-
-            <div class="table-wrapper" style="margin-top: 20px;">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Ingrediente</th>
-                            <th>Quantidade</th>
-                            <th>Custo</th>
-                            <th>Ação</th>
-                        </tr>
-                    </thead>
-                    <tbody id="receitaIngredientesTbody"></tbody>
-                </table>
-            </div>
-
-            <div style="text-align: right; margin-top: 20px; font-size: 1.2rem;">
-                <strong>Custo Total dos Materiais: <span id="receitaCustoTotal">R$ 0,00</span></strong>
-            </div>
-
-            <button class="btn btn-success requires-admin" id="btnSalvarReceita" style="width: 100%; margin-top: 20px;">
-                💾 Salvar Ficha Técnica e Atualizar Custo do Produto
-            </button>
-        </div>
-    </div>
 </body>
 </html>
