@@ -60,6 +60,9 @@ let isLoading = false;
 let editandoReceitaProdutoId = null;
 let currentPage = 1;
 let receitas = [];
+let materiais = [];
+let composicaoReceitas = [];
+let materiaisUtilizados = [];
 const rowsPerPage = 10;
 
 // === FUNÇÕES DE FIRESTORE ===
@@ -389,7 +392,8 @@ async function carregarTodosDados() {
             atividadesData, 
             configData,
             ingredientesData,
-            receitasData // Adicionado aqui
+            receitasData,
+            materiaisData // Adicionado aqui
         ] = await Promise.all([
             // ...deve ser a mesma ordem das chamadas aqui.
             FirebaseService.carregar('clientes'),
@@ -401,7 +405,8 @@ async function carregarTodosDados() {
             FirebaseService.carregar('atividades'),
             FirebaseService.carregar('configuracoes'),
             FirebaseService.carregar('ingredientes'),
-            FirebaseService.carregar('receitas') // Adicionado aqui
+            FirebaseService.carregar('receitas'),
+            FirebaseService.carregar('materiais') // Adicionado aqui
         ]);
 
         clientes = clientesData || [];
@@ -412,7 +417,8 @@ async function carregarTodosDados() {
         cobrancas = cobrancasData || [];
         atividades = atividadesData || [];
         ingredientes = ingredientesData || [];
-        receitas = receitasData || []; // Adicionado aqui
+        receitas = receitasData || []; 
+        materiais = materiaisData || [];// Adicionado aqui
         
         if (configData && configData.length > 0) {
             configuracoes = { ...configuracoes, ...configData[0] };
@@ -428,6 +434,95 @@ async function carregarTodosDados() {
         mostrarAlerta(`Erro ao carregar dados: ${error.message}`, 'danger');
     }
 }
+
+// Adicione estas 4 novas funções em main.js
+
+function renderizarTabelaMateriais() {
+    const tbody = document.getElementById('materiaisTableBody');
+    if (!tbody) return;
+
+    const materiaisOrdenados = [...materiais].sort((a, b) => a.nome.localeCompare(b.nome));
+
+    tbody.innerHTML = materiaisOrdenados.map(mat => `
+        <tr>
+            <td><strong>${mat.nome}</strong></td>
+            <td>${formatarMoeda(mat.custo)}</td>
+            <td class="actions">
+                <button class="btn btn-primary btn-sm requires-admin" onclick="editarMaterial('${mat.id}')" title="Editar">✏️</button>
+                <button class="btn btn-danger btn-sm requires-admin" onclick="excluirMaterial('${mat.id}')" title="Excluir">🗑️</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function adicionarOuEditarMaterial(e) {
+    e.preventDefault();
+    const dados = {
+        nome: document.getElementById('materialNome').value.trim(),
+        custo: parseFloat(document.getElementById('materialCusto').value) || 0,
+    };
+
+    if (!dados.nome || dados.custo <= 0) {
+        return mostrarAlerta('Nome e Custo válido são obrigatórios.', 'warning');
+    }
+
+    mostrarLoading(true);
+
+    if (editandoId) {
+        await FirebaseService.atualizar('materiais', editandoId, dados);
+        mostrarAlerta('Material atualizado com sucesso!', 'success');
+    } else {
+        await FirebaseService.salvar('materiais', dados);
+        mostrarAlerta('Material salvo com sucesso!', 'success');
+    }
+    
+    editandoId = null;
+    document.getElementById('materialForm').reset();
+    document.querySelector('#materialForm button[type="submit"]').textContent = '➕ Salvar Material';
+    
+    await carregarTodosDados();
+    renderizarTudo();
+    mostrarLoading(false);
+}
+
+
+function editarMaterial(id) {
+    const material = materiais.find(m => m.id === id);
+    if (!material) return;
+
+    // 1. NAVEGA PARA A TELA CORRETA PRIMEIRO
+    const cadastrosTabButton = document.querySelector('.tab-button[onclick*="cadastros"]');
+    if (cadastrosTabButton) cadastrosTabButton.click();
+    
+    const materiaisSubTabButton = document.querySelector('.sub-tab-button[data-target="panel-materiais"]');
+    if (materiaisSubTabButton) materiaisSubTabButton.click();
+
+    // 2. AGORA, DEPOIS DE NAVEGAR, DEFINE O ID DE EDIÇÃO
+    editandoId = id;
+
+    // 3. Preenche o formulário
+    document.getElementById('materialNome').value = material.nome;
+    document.getElementById('materialCusto').value = material.custo;
+    document.querySelector('#materialForm button[type="submit"]').textContent = '💾 Salvar Alterações';
+    document.getElementById('materialNome').focus();
+}
+
+function excluirMaterial(id) {
+    const material = materiais.find(m => m.id === id);
+    if (!material) return;
+
+    showConfirm(`Tem certeza que deseja excluir o material "${material.nome}"?`, async (confirmado) => {
+        if (confirmado) {
+            mostrarLoading(true);
+            await FirebaseService.excluir('materiais', id);
+            mostrarAlerta('Material excluído com sucesso!', 'success');
+            await carregarTodosDados();
+            renderizarTudo();
+            mostrarLoading(false);
+        }
+    });
+}
+
 // Adicione esta nova função em main.js
 function imprimirReceitaExistente(id) {
     const receita = receitas.find(r => r.id === id);
@@ -627,16 +722,22 @@ function excluirReceita(id) {
     });
 }
 
-// Substitua esta função em main.js
-// Substitua esta função em main.js
+
 function editarReceita(id) {
     const receita = receitas.find(r => r.id === id);
     if (!receita) return;
 
-    editandoId = id;
-    document.querySelector('.sub-tab-button[data-target="panel-receitas"]').click();
+    // 1. NAVEGA PARA A TELA CORRETA PRIMEIRO
+    const cadastrosTabButton = document.querySelector('.tab-button[onclick*="cadastros"]');
+    if (cadastrosTabButton) cadastrosTabButton.click();
+
+    const receitasSubTabButton = document.querySelector('.sub-tab-button[data-target="panel-receitas"]');
+    if (receitasSubTabButton) receitasSubTabButton.click();
     
-    // Agora o JS vai encontrar estes campos sem erro
+    // 2. AGORA, DEPOIS DE NAVEGAR, DEFINE O ID DE EDIÇÃO
+    editandoId = id;
+
+    // 3. Preenche o formulário
     document.getElementById('receitaTitulo').value = receita.titulo;
     document.getElementById('receitaRendimento').value = receita.rendimento;
     
@@ -653,17 +754,14 @@ function editarReceita(id) {
     
     atualizarCustoTotalReceita();
 
-    // Lógica dos botões ATUALIZADA para o novo layout de 2 colunas
     const btnSalvar = document.getElementById('btnSalvarReceita');
     const btnCancelar = document.getElementById('btnCancelarEdicaoReceita');
-
-    btnCancelar.style.display = 'inline-flex'; // Mostra o botão Cancelar
+    btnCancelar.style.display = 'inline-flex';
     btnSalvar.textContent = '💾 Salvar Alterações';
-    btnSalvar.style.gridColumn = '2'; // Move o botão Salvar para a segunda coluna
+    btnSalvar.style.gridColumn = '2 / span 2'; 
     
     document.getElementById('receitaTitulo').focus();
 }
-
 
 async function adicionarOuEditarReceita(e) {
     e.preventDefault();
@@ -801,6 +899,12 @@ function configurarEventListeners() {
     safeAddEventListener('despesaForm', 'submit', adicionarDespesa);
     safeAddEventListener('ingredienteForm', 'submit', adicionarOuEditarIngrediente);
     safeAddEventListener('receitaForm', 'submit', adicionarOuEditarReceita);
+    safeAddEventListener('materialForm', 'submit', adicionarOuEditarMaterial);
+    safeAddEventListener('btnAddReceitaAoProduto', 'click', adicionarReceitaAoProduto);
+    safeAddEventListener('btnAddMaterialAoProduto', 'click', adicionarMaterialAoProduto);
+    safeAddEventListener('produtoCustoMaoObra', 'input', calcularPrecoVenda);
+    safeAddEventListener('produtoCustosInvisiveis', 'input', calcularCustoTotalProduto);
+    safeAddEventListener('produtoMargem', 'input', calcularPrecoVenda);
     safeAddEventListener('cobrancaForm', 'submit', (e) => {
         e.preventDefault();
         atualizarMensagemCobranca();
@@ -983,6 +1087,7 @@ function renderizarTudo() {
     renderizarTabelaProdutos();
     renderizarTabelaIngredientes();
     renderizarTabelaReceitas(); 
+    renderizarTabelaMateriais();
     renderizarTabelaEncomendas();
     renderizarTabelaDespesas();
     renderizarTabelaPendencias();
@@ -996,7 +1101,8 @@ function preencherSelects() {
     const clienteSelects = document.querySelectorAll('#pessoa, #clienteCobranca, #modalEncomendaCliente');
     const produtoSelect = document.getElementById('produto');
     const receitaIngredienteSelect = document.getElementById('receitaIngredienteSelect');
-    const produtoReceitaSelect = document.getElementById('produtoReceitaSelect'); // Adicionado
+    const produtoReceitaSelect = document.getElementById('produtoReceitaSelect');
+    const produtoMaterialSelect = document.getElementById('produtoMaterialSelect'); // Adicionado
 
     const clientesOptions = clientes.sort((a,b) => a.nome.localeCompare(b.nome)).map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
     const produtosOptions = produtos.sort((a,b) => a.nome.localeCompare(b.nome)).map(p => `<option value="${p.nome}">${p.nome}</option>`).join('');
@@ -1018,6 +1124,13 @@ function preencherSelects() {
             .join('');
         produtoReceitaSelect.innerHTML = `<option value="">-- Cadastrar sem receita (custo manual) --</option>${receitasOptions}`;
     }
+    if (produtoMaterialSelect) {
+        const materiaisOptions = materiais
+            .sort((a,b) => a.nome.localeCompare(b.nome))
+            .map(mat => `<option value="${mat.id}">${mat.nome}</option>`)
+            .join('');
+        produtoMaterialSelect.innerHTML = `<option value="">-- Selecione um material --</option>${materiaisOptions}`;
+    }
 
     clienteSelects.forEach(select => {
         if (select) {
@@ -1036,7 +1149,77 @@ function preencherSelects() {
             produtoSelect.value = currentValue;
         }
     }
-}   
+}
+
+// Adicione estas 4 novas funções em main.js
+
+// FUNÇÃO 1: Renderiza as listas de receitas e materiais do produto
+function renderizarComposicaoProduto() {
+    const listaReceitasDiv = document.getElementById('listaReceitasProduto');
+    const listaMateriaisDiv = document.getElementById('listaMateriaisProduto');
+
+    // Renderiza a lista de receitas adicionadas
+    listaReceitasDiv.innerHTML = composicaoReceitas.map((rec, index) => `
+        <div class="list-item">
+            <span>${rec.titulo}</span>
+            <button type="button" class="btn btn-danger btn-sm" onclick="removerItemDaComposicao('receita', ${index})">🗑️</button>
+        </div>
+    `).join('');
+
+    // Renderiza a lista de materiais adicionados
+    listaMateriaisDiv.innerHTML = materiaisUtilizados.map((mat, index) => `
+        <div class="list-item">
+            <span>${mat.nome}</span>
+            <button type="button" class="btn btn-danger btn-sm" onclick="removerItemDaComposicao('material', ${index})">🗑️</button>
+        </div>
+    `).join('');
+}
+
+// FUNÇÃO 2: Chamada ao clicar no botão "Adicionar" de Receitas
+function adicionarReceitaAoProduto() {
+    const receitaId = document.getElementById('produtoReceitaSelect').value;
+    if (!receitaId) return;
+
+    // Impede adicionar a mesma receita duas vezes
+    if (composicaoReceitas.some(r => r.id === receitaId)) {
+        return mostrarAlerta('Esta receita já foi adicionada.', 'warning');
+    }
+
+    const receita = receitas.find(r => r.id === receitaId);
+    if (receita) {
+        composicaoReceitas.push(receita);
+        renderizarComposicaoProduto();
+        calcularCustoTotalProduto();
+    }
+}
+
+// FUNÇÃO 3: Chamada ao clicar no botão "Adicionar" de Materiais
+function adicionarMaterialAoProduto() {
+    const materialId = document.getElementById('produtoMaterialSelect').value;
+    if (!materialId) return;
+
+    if (materiaisUtilizados.some(m => m.id === materialId)) {
+        return mostrarAlerta('Este material já foi adicionado.', 'warning');
+    }
+
+    const material = materiais.find(m => m.id === materialId);
+    if (material) {
+        materiaisUtilizados.push(material);
+        renderizarComposicaoProduto();
+        calcularCustoTotalProduto();
+    }
+}
+
+// FUNÇÃO 4: Remove um item de qualquer uma das listas
+function removerItemDaComposicao(tipo, index) {
+    if (tipo === 'receita') {
+        composicaoReceitas.splice(index, 1);
+    } else if (tipo === 'material') {
+        materiaisUtilizados.splice(index, 1);
+    }
+    renderizarComposicaoProduto();
+    calcularCustoTotalProduto();
+}
 
 
 // === LÓGICA DE CLIENTES (CRM) ===
@@ -1099,16 +1282,24 @@ async function adicionarOuEditarCliente(e) {
 function editarCliente(id) {
     const cliente = clientes.find(c => c.id === id);
     if (cliente) {
+        // 1. NAVEGA PARA A TELA CORRETA PRIMEIRO
+        const cadastrosTabButton = document.querySelector('.tab-button[onclick*="cadastros"]');
+        if (cadastrosTabButton) cadastrosTabButton.click();
+
+        const clientesSubTabButton = document.querySelector('.sub-tab-button[data-target="panel-clientes"]');
+        if (clientesSubTabButton) clientesSubTabButton.click();
+        
+        // 2. AGORA, DEPOIS DE NAVEGAR, DEFINE O ID DE EDIÇÃO
         editandoId = id;
+
+        // 3. Preenche o formulário
         document.getElementById('clienteNome').value = cliente.nome;
         document.getElementById('clienteContato').value = cliente.contato || '';
         document.getElementById('clienteEmail').value = cliente.email || '';
         document.getElementById('clienteEndereco').value = cliente.endereco || '';
         document.getElementById('clienteObservacoes').value = cliente.observacoes || '';
         document.querySelector('#clienteForm button').textContent = '💾 Salvar Alterações';
-        document.querySelector('button[onclick*="cadastros"]').click();
         document.getElementById('clienteNome').focus();
-        mostrarAlerta('Modo de edição ativado', 'info');
     }
 }
 
@@ -1197,105 +1388,147 @@ function renderizarTabelaClientes() {
 
 
 // === LÓGICA DE PRODUTOS ===
-function calcularPrecoVenda() {
-    // Esta verificação é para a nova funcionalidade que vamos implementar depois.
-    // Por enquanto, ela garante que o cálculo automático sempre funcione.
-    if (document.getElementById('definirPrecoManual') && document.getElementById('definirPrecoManual').checked) {
-        return; // Se o modo manual estiver ativo, não faz nada
+function calcularCustoTotalProduto() {
+    // 1. Soma o custo unitário de todas as receitas na composição
+    const custoTotalReceitas = composicaoReceitas.reduce((acc, rec) => acc + (rec.custoPorUnidade || 0), 0);
+    
+    // 2. Soma o custo de todos os materiais utilizados
+    const custoTotalMateriais = materiaisUtilizados.reduce((acc, mat) => acc + (mat.custo || 0), 0);
+
+    // 3. Soma os componentes para ter um subtotal
+    const custoComponentes = custoTotalReceitas + custoTotalMateriais;
+
+    // 4. Calcula o valor dos custos invisíveis
+    const percentualCustosInvisiveis = parseFloat(document.getElementById('produtoCustosInvisiveis').value) || 0;
+    const valorCustosInvisiveis = custoComponentes * (percentualCustosInvisiveis / 100);
+
+    // 5. Calcula o Custo Base final
+    const custoBaseFinal = custoComponentes + valorCustosInvisiveis;
+
+    // 6. Atualiza o campo "Custo Base" no formulário
+    const custoInput = document.getElementById('produtoCustoMaterial');
+    if (composicaoReceitas.length > 0 || materiaisUtilizados.length > 0) {
+        custoInput.value = custoBaseFinal.toFixed(2);
+        custoInput.readOnly = true;
+    } else {
+        // Se não houver receitas ou materiais, permite a edição manual do custo base
+        custoInput.readOnly = false;
     }
 
-    const custoMaterial = parseFloat(document.getElementById('produtoCustoMaterial').value) || 0;
+    // 7. Chama a função de calcular o preço de venda para finalizar
+    calcularPrecoVenda();
+}
+function calcularPrecoVenda() {
+    // A função agora é mais simples, pois o Custo Base já foi calculado
+    const custoBase = parseFloat(document.getElementById('produtoCustoMaterial').value) || 0;
     const custoMaoObra = parseFloat(document.getElementById('produtoCustoMaoObra').value) || 0;
     const margem = parseFloat(document.getElementById('produtoMargem').value) || 0;
 
-    const custoTotal = custoMaterial + custoMaoObra;
-
-    // A fórmula correta:
+    const custoTotal = custoBase + custoMaoObra;
     const precoVenda = custoTotal * (1 + margem / 100);
 
-    // Atualiza o campo do preço final, formatando com 2 casas decimais.
     document.getElementById('produtoValor').value = precoVenda.toFixed(2);
 }
 
 async function adicionarOuEditarProduto(e) {
     e.preventDefault();
-    const dadosDoForm = {
+
+    // 1. Coleta os dados básicos do formulário
+    const dadosProduto = {
         nome: document.getElementById('produtoNome').value.trim().toUpperCase(),
         categoria: document.getElementById('produtoCategoria').value,
-        // O custo de material não é pego do form, pois é gerenciado pela receita
+        tempoPreparo: parseInt(document.getElementById('produtoTempoPreparo').value) || 0,
         custoMaoObra: parseFloat(document.getElementById('produtoCustoMaoObra').value) || 0,
+        custosInvisiveis: parseFloat(document.getElementById('produtoCustosInvisiveis').value) || 0,
         margem: parseFloat(document.getElementById('produtoMargem').value) || 100,
+        // Os custos e o preço final são pegos diretamente do que foi calculado na tela
+        custoMaterial: parseFloat(document.getElementById('produtoCustoMaterial').value) || 0,
         valor: parseFloat(document.getElementById('produtoValor').value) || 0,
-        tempoPreparo: parseInt(document.getElementById('produtoTempoPreparo').value) || 0
     };
 
-    if (!dadosDoForm.nome || dadosDoForm.valor <= 0) {
-        return mostrarAlerta('Nome do produto e preço final são obrigatórios.', 'danger');
+    if (!dadosProduto.nome) {
+        return mostrarAlerta('O nome do produto é obrigatório.', 'danger');
     }
+
+    // 2. Coleta os dados das novas listas de composição
+    // Mapeamos para salvar apenas a informação essencial (ID e nome/título)
+    dadosProduto.composicaoReceitas = composicaoReceitas.map(r => ({ id: r.id, titulo: r.titulo }));
+    dadosProduto.materiaisUtilizados = materiaisUtilizados.map(m => ({ id: m.id, nome: m.nome }));
 
     mostrarLoading(true);
 
     if (editandoId) {
-        // MODO EDIÇÃO
-        const success = await FirebaseService.atualizar('produtos', editandoId, dadosDoForm);
-        if (success) {
-            const produtoIndex = produtos.findIndex(p => p.id === editandoId);
-            if (produtoIndex > -1) {
-                // CORREÇÃO: Aqui mesclamos os dados existentes com os novos, preservando a receita.
-                produtos[produtoIndex] = { ...produtos[produtoIndex], ...dadosDoForm };
-            }
-            mostrarAlerta('Produto atualizado com sucesso!', 'success');
-        }
+        // MODO EDIÇÃO: Atualiza o produto existente
+        await FirebaseService.atualizar('produtos', editandoId, dadosProduto);
+        mostrarAlerta('Produto atualizado com sucesso!', 'success');
     } else {
-        // MODO ADIÇÃO
-        const dadosParaSalvar = { ...dadosDoForm };
-        if (produtos.some(p => p.nome === dadosParaSalvar.nome)) {
+        // MODO ADIÇÃO: Salva um novo produto
+        if (produtos.some(p => p.nome === dadosProduto.nome)) {
             mostrarLoading(false);
             return mostrarAlerta('Produto com este nome já cadastrado.', 'danger');
         }
-        // Pega o custo e a receita que foram montados e estão na variável temporária
-        dadosParaSalvar.custoMaterial = parseFloat(document.getElementById('produtoCustoMaterial').value) || 0;
-        if (receitaTemporaria.length > 0) {
-            dadosParaSalvar.receita = receitaTemporaria;
-        }
-
-        const newId = await FirebaseService.salvar('produtos', dadosParaSalvar);
-        if (newId) {
-            const novoProduto = { ...dadosParaSalvar, id: newId };
-            produtos.push(novoProduto);
-            mostrarAlerta('Produto cadastrado com sucesso!', 'success');
-        }
+        await FirebaseService.salvar('produtos', dadosProduto);
+        mostrarAlerta('Produto cadastrado com sucesso!', 'success');
     }
 
+    // 3. Limpa tudo para o próximo cadastro
     editandoId = null;
-    receitaTemporaria = [];
-    document.getElementById('produtoForm').reset();
+    composicaoReceitas = [];
+    materiaisUtilizados = [];
+    document.getElementById('produtoForm').reset(); // Limpa os campos do formulário
+    renderizarComposicaoProduto(); // Limpa as listas visuais
     document.querySelector('#produtoForm button[type="submit"]').textContent = '➕ Salvar Produto';
-    document.getElementById('produtoMargem').value = 100;
+    
+    await carregarTodosDados();
     renderizarTudo();
     mostrarLoading(false);
-}   
+}  
 
+// Substitua esta função em main.js
 function editarProduto(id) {
     const produto = produtos.find(p => p.id === id);
-    if (produto) {
-        receitaTemporaria = []; // Limpa qualquer receita temporária antes de editar
-        editandoId = id;
-        document.getElementById('produtoNome').value = produto.nome;
-        document.getElementById('produtoCategoria').value = produto.categoria;
-        document.getElementById('produtoCustoMaterial').value = produto.custoMaterial;
-        document.getElementById('produtoCustoMaoObra').value = produto.custoMaoObra;
-        document.getElementById('produtoMargem').value = produto.margem;
-        document.getElementById('produtoTempoPreparo').value = produto.tempoPreparo;
-        document.getElementById('produtoValor').value = produto.valor; // Garante que o valor manual seja carregado
-        
-        // CORREÇÃO APLICADA AQUI:
-        document.querySelector('#produtoForm button[type="submit"]').textContent = '💾 Salvar Alterações';
-        
-        document.querySelector('button[onclick*="cadastros"]').click();
-        document.getElementById('produtoNome').focus();
-        mostrarAlerta('Modo de edição ativado', 'info');
+    if (!produto) return;
+
+    // 1. Navega para a tela correta
+    const cadastrosTabButton = document.querySelector('.tab-button[onclick*="cadastros"]');
+    if (cadastrosTabButton) cadastrosTabButton.click();
+    const produtosSubTabButton = document.querySelector('.sub-tab-button[data-target="panel-produtos"]');
+    if (produtosSubTabButton) produtosSubTabButton.click();
+
+    // 2. Define o modo de edição
+    editandoId = id;
+
+    // 3. Limpa os estados temporários e preenche o formulário básico
+    composicaoReceitas = [];
+    materiaisUtilizados = [];
+    document.getElementById('produtoForm').reset();
+    document.getElementById('produtoNome').value = produto.nome;
+    document.getElementById('produtoCategoria').value = produto.categoria;
+    document.getElementById('produtoTempoPreparo').value = produto.tempoPreparo || 0;
+    document.getElementById('produtoCustoMaoObra').value = produto.custoMaoObra || 0;
+    document.getElementById('produtoCustosInvisiveis').value = produto.custosInvisiveis || 0;
+    document.getElementById('produtoMargem').value = produto.margem || 100;
+    
+    // 4. Carrega a composição de receitas e materiais do produto (se existirem)
+    if (produto.composicaoReceitas) {
+        // Recria a lista temporária a partir dos dados salvos
+        composicaoReceitas = produto.composicaoReceitas.map(recSalva => {
+            return receitas.find(r => r.id === recSalva.id);
+        }).filter(r => r); // Filtra caso alguma receita tenha sido deletada
     }
+    if (produto.materiaisUtilizados) {
+        materiaisUtilizados = produto.materiaisUtilizados.map(matSalvo => {
+            return materiais.find(m => m.id === matSalvo.id);
+        }).filter(m => m); // Filtra caso algum material tenha sido deletado
+    }
+
+    // 5. Renderiza as listas e recalcula todos os custos
+    renderizarComposicaoProduto();
+    calcularCustoTotalProduto();
+    
+    // 6. Ajusta o botão e foca no campo principal
+    document.querySelector('#produtoForm button[type="submit"]').textContent = '💾 Salvar Alterações';
+    document.getElementById('produtoNome').focus();
 }
 
 function excluirProduto(id) {
@@ -3168,6 +3401,9 @@ window.editarEncomenda = editarEncomenda;     // Adicionado
 window.excluirEncomenda = excluirEncomenda;   // Adicionado
 window.editarReceita = editarReceita;
 window.excluirReceita = excluirReceita;
+window.editarMaterial = editarMaterial;   // Adicione esta linha
+window.excluirMaterial = excluirMaterial; // Adicione esta linha
+window.removerItemDaComposicao = removerItemDaComposicao;
 window.atualizarCustoTotalReceita = atualizarCustoTotalReceita;
 // Tabela de Vendas
 window.editarStatusVenda = editarStatusVenda;

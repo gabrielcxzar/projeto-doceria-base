@@ -367,6 +367,7 @@
                 <button class="sub-tab-button active" data-target="panel-clientes">👥 Clientes</button>
                 <button class="sub-tab-button" data-target="panel-produtos">🍰 Produtos</button>
                 <button class="sub-tab-button" data-target="panel-receitas">📖 Receitas</button>
+                <button class="sub-tab-button" data-target="panel-materiais">✂️ Materiais</button>
             </div>
 
             <div id="panel-clientes" class="sub-panel active">
@@ -443,23 +444,56 @@
                             </div>
                         </div>
 
-                        <h4 style="margin: 20px 0 10px 0; color: var(--primary-color);">📖 Custo e Precificação</h4>
+                        <h4 style="margin: 20px 0 10px 0; color: var(--primary-color);">📖 Composição e Custos</h4>
 
-                        <div class="form-group full-width">
-                            <label for="produtoReceitaSelect">Usar Receita (Opcional)</label>
-                            <select id="produtoReceitaSelect">
-                                <option value="">-- Cadastrar sem receita (custo manual) --</option>
-                            </select>
-                        </div>
-                        
                         <div class="form-grid">
                             <div class="form-group">
-                                <label for="produtoCustoMaterial">Custo Base (R$)</label>
-                                <input type="number" id="produtoCustoMaterial" step="0.01" min="0" required placeholder="Automático com receita">
+                                <label>Composição de Receitas:</label>
+                                <div class="input-group">
+                                    <select id="produtoReceitaSelect" style="border-radius: 8px 0 0 8px;">
+                                        <option value="">-- Selecione uma receita --</option>
+                                    </select>
+                                    <button type="button" id="btnAddReceitaAoProduto" class="btn btn-primary" style="border-radius: 0 8px 8px 0;">Adicionar</button>
+                                </div>
                             </div>
                             <div class="form-group">
-                                <label for="produtoCustoMaoObra">Custo Mão de Obra (R$)</label>
-                                <input type="number" id="produtoCustoMaoObra" step="0.01" min="0" value="0">
+                                <label>Receitas Adicionadas</label>
+                                <div id="listaReceitasProduto" class="item-list-box"></div>
+                            </div>
+                        </div>
+
+                        <div class="form-grid" style="margin-top: 15px;">
+                            <div class="form-group">
+                                <label>Materiais:</label>
+                                <div class="input-group">
+                                    <select id="produtoMaterialSelect" style="border-radius: 8px 0 0 8px;">
+                                        <option value="">-- Selecione um material --</option>
+                                    </select>
+                                    <button type="button" id="btnAddMaterialAoProduto" class="btn btn-primary" style="border-radius: 0 8px 8px 0;">Adicionar</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Materiais Adicionados</label>
+                                <div id="listaMateriaisProduto" class="item-list-box"></div>
+                            </div>
+                        </div>
+
+                        <div class="form-grid" style="margin-top: 20px; grid-template-columns: 1fr 1fr 1fr 1fr;">
+                            <div class="form-group">
+                                <label for="produtoCustoMaterial">Custo Base (R$)</label>
+                                <input type="number" id="produtoCustoMaterial" readonly placeholder="Automático">
+                            </div>
+                            <div class="form-group">
+                                <label for="produtoCustoMaoObra">Mão de Obra (R$)</label>
+                                <input type="number" id="produtoCustoMaoObra" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="produtoCustosInvisiveis">Custos Invis. (%)</label>
+                                <input type="number" id="produtoCustosInvisiveis" value="0" placeholder="Ex: 10">
+                            </div>
+                            <div class="form-group">
+                                <label for="produtoMargem">Margem Lucro (%)</label>
+                                <input type="number" id="produtoMargem" value="100" required>
                             </div>
                         </div>
                         
@@ -468,15 +502,9 @@
                             <label for="definirPrecoManual" style="margin-bottom: 0;">Definir preço final manualmente?</label>
                         </div>
 
-                        <div class="form-grid" style="margin-top: 15px;">
-                            <div class="form-group">
-                                <label for="produtoMargem">Margem Lucro (%)</label>
-                                <input type="number" id="produtoMargem" min="0" max="500" value="100" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="produtoValor">Preço Final (R$)</label>
-                                <input type="number" id="produtoValor" step="0.01" min="0" readonly style="background: #e8f5e8; font-weight: bold;">
-                            </div>
+                        <div class="form-group full-width" style="margin-top: 10px;">
+                            <label for="produtoValor">Preço Final (R$)</label>
+                            <input type="number" id="produtoValor" readonly style="background: #e8f5e8; font-weight: bold; font-size: 1.2rem; text-align: center;">
                         </div>
 
                         <button type="submit" class="btn btn-primary requires-admin" style="width: 100%; margin-top: 20px;">
@@ -484,7 +512,15 @@
                         </button>
                     </form>
 
-                    <div class="table-wrapper" style="margin-top: 20px;">
+                    <style>
+                        .input-group { display: flex; }
+                        .input-group select { flex-grow: 1; margin-right: -1px; }
+                    </style>
+
+                    <div class="table-wrapper" style="margin-top: 40px;">
+                        <div class="section-header">
+                            <h3>📋 Lista de Produtos Cadastrados</h3>
+                        </div>
                         <table class="table">
                             <thead>
                                 <tr>
@@ -496,8 +532,7 @@
                                     <th>Ações</th>
                                 </tr>
                             </thead>
-                            <tbody id="produtosTableBody"></tbody>
-                        </table>
+                            <tbody id="produtosTableBody"></tbody> </table>
                     </div>
                     <div id="paginacaoProdutos" class="paginacao-container"></div>
                 </div>
@@ -579,6 +614,44 @@
                     </div>
                 </div>
             </div>
+
+            <div id="panel-materiais" class="sub-panel"> <div class="content-grid">
+                <div class="form-section">
+                    <h3>✂️ Gerenciar Materiais</h3>
+                    <p style="margin-bottom: 15px; font-size: 0.9rem;">Cadastre aqui itens de embalagem e apresentação.</p>
+                    <form id="materialForm">
+                        <div class="form-group full-width">
+                            <label for="materialNome">Nome do Material</label>
+                            <input type="text" id="materialNome" placeholder="Ex: Bandeja Média, Caixa para Bolo" required>
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="materialCusto">Custo Unitário (R$)</label>
+                            <input type="number" id="materialCusto" step="0.01" min="0" placeholder="Ex: 1.50" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary requires-admin" style="margin-top: 15px; width: 100%;">
+                            ➕ Salvar Material
+                        </button>
+                    </form>
+                </div>
+                <div class="table-section">
+                    <div class="section-header">
+                        <h3>📋 Lista de Materiais</h3>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Material</th>
+                                    <th>Custo Unitário</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="materiaisTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+    </div>
         </div>
 
         <!-- Ingredientes Tab -->
@@ -651,6 +724,8 @@
                 </div>
             </div>
         </div>
+
+        
 
         <!-- Cobranças Tab -->
         <div id="cobrancas" class="tab-content">
