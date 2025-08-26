@@ -511,15 +511,17 @@ function excluirMaterial(id) {
     const material = materiais.find(m => m.id === id);
     if (!material) return;
 
-    // --- VALIDAÇÃO ADICIONADA ---
-    // Verifica se o material está em algum produto
-    const produtosComMaterial = produtos.filter(p => p.materiaisUtilizados && p.materiaisUtilizados.some(m => m.id === id));
+    // --- LÓGICA DE VERIFICAÇÃO CORRIGIDA ---
+    // A verificação agora aponta para o campo correto 'materiaisUtilizados' dentro de cada produto.
+    const produtosComMaterial = produtos.filter(p => 
+        p.materiaisUtilizados && p.materiaisUtilizados.some(mat => mat.id === id)
+    );
 
     if (produtosComMaterial.length > 0) {
         const nomesProdutos = produtosComMaterial.map(p => p.nome).join(', ');
         return mostrarAlerta(`O material "${material.nome}" não pode ser excluído. Ele está em uso no(s) seguinte(s) produto(s): ${nomesProdutos}.`, 'danger');
     }
-    // --- FIM DA VALIDAÇÃO ---
+    // --- FIM DA CORREÇÃO ---
 
     showConfirm(`Tem certeza que deseja excluir o material "${material.nome}"?`, async (confirmado) => {
         if (confirmado) {
@@ -714,19 +716,22 @@ function renderizarTabelaReceitas() {
 }
 
 // Função para EXCLUIR uma receita
+// Substitua esta função em main.js
 function excluirReceita(id) {
     const receita = receitas.find(r => r.id === id);
     if (!receita) return;
 
-    // --- VALIDAÇÃO ADICIONADA ---
-    // Verifica se a receita está em algum produto
-    const produtosComReceita = produtos.filter(p => p.composicaoReceitas && p.composicaoReceitas.some(r => r.id === id));
+    // --- LÓGICA DE VERIFICAÇÃO CORRIGIDA ---
+    // A verificação agora aponta para o campo correto 'composicaoReceitas' dentro de cada produto.
+    const produtosComReceita = produtos.filter(p => 
+        p.composicaoReceitas && p.composicaoReceitas.some(rec => rec.id === id)
+    );
 
     if (produtosComReceita.length > 0) {
         const nomesProdutos = produtosComReceita.map(p => p.nome).join(', ');
         return mostrarAlerta(`A receita "${receita.titulo}" não pode ser excluída. Ela está em uso no(s) seguinte(s) produto(s): ${nomesProdutos}.`, 'danger');
     }
-    // --- FIM DA VALIDAÇÃO ---
+    // --- FIM DA CORREÇÃO ---
 
     showConfirm(`Tem certeza que deseja excluir a receita "${receita.titulo}"?`, async (confirmado) => {
         if (confirmado) {
