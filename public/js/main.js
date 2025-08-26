@@ -325,15 +325,21 @@ function aplicarControlesDeAcesso() {
     // Se for 'admin', não fazemos nada, pois ele pode ver e usar tudo por padrão.
 }
 
+
 async function inicializarSistema() {
     document.getElementById('data').valueAsDate = new Date();
     document.getElementById('despesaData').valueAsDate = new Date();
     
-    // Verificar se há dados no Firestore, se não, adicionar exemplos
+    // --- CORREÇÃO APLICADA AQUI ---
+    // Verificar se AMBAS as coleções principais estão vazias
     const produtosExistentes = await FirebaseService.carregar('produtos');
-    if (produtosExistentes.length === 0) {
+    const clientesExistentes = await FirebaseService.carregar('clientes');
+
+    if (produtosExistentes.length === 0 && clientesExistentes.length === 0) {
+        // Só adiciona os exemplos se não houver nem produtos, nem clientes.
         await adicionarDadosExemplo();
     }
+    // --- FIM DA CORREÇÃO ---
 }
 
 async function adicionarDadosExemplo() {
