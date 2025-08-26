@@ -511,6 +511,16 @@ function excluirMaterial(id) {
     const material = materiais.find(m => m.id === id);
     if (!material) return;
 
+    // --- VALIDAÇÃO ADICIONADA ---
+    // Verifica se o material está em algum produto
+    const produtosComMaterial = produtos.filter(p => p.materiaisUtilizados && p.materiaisUtilizados.some(m => m.id === id));
+
+    if (produtosComMaterial.length > 0) {
+        const nomesProdutos = produtosComMaterial.map(p => p.nome).join(', ');
+        return mostrarAlerta(`O material "${material.nome}" não pode ser excluído. Ele está em uso no(s) seguinte(s) produto(s): ${nomesProdutos}.`, 'danger');
+    }
+    // --- FIM DA VALIDAÇÃO ---
+
     showConfirm(`Tem certeza que deseja excluir o material "${material.nome}"?`, async (confirmado) => {
         if (confirmado) {
             mostrarLoading(true);
@@ -707,6 +717,16 @@ function renderizarTabelaReceitas() {
 function excluirReceita(id) {
     const receita = receitas.find(r => r.id === id);
     if (!receita) return;
+
+    // --- VALIDAÇÃO ADICIONADA ---
+    // Verifica se a receita está em algum produto
+    const produtosComReceita = produtos.filter(p => p.composicaoReceitas && p.composicaoReceitas.some(r => r.id === id));
+
+    if (produtosComReceita.length > 0) {
+        const nomesProdutos = produtosComReceita.map(p => p.nome).join(', ');
+        return mostrarAlerta(`A receita "${receita.titulo}" não pode ser excluída. Ela está em uso no(s) seguinte(s) produto(s): ${nomesProdutos}.`, 'danger');
+    }
+    // --- FIM DA VALIDAÇÃO ---
 
     showConfirm(`Tem certeza que deseja excluir a receita "${receita.titulo}"?`, async (confirmado) => {
         if (confirmado) {
@@ -1303,10 +1323,26 @@ function editarCliente(id) {
     }
 }
 
+// Substitua esta função em main.js
 function excluirCliente(id) {
     const cliente = clientes.find(c => c.id === id);
     if (!cliente) return;
-    
+
+    // --- VALIDAÇÃO ADICIONADA ---
+    // Verifica se o cliente está vinculado a vendas ou encomendas
+    const vendasDoCliente = vendas.filter(v => v.pessoa === cliente.nome);
+    const encomendasDoCliente = encomendas.filter(e => e.clienteNome === cliente.nome);
+
+    if (vendasDoCliente.length > 0 || encomendasDoCliente.length > 0) {
+        let erroMsg = `O cliente "${cliente.nome}" não pode ser excluído, pois possui `;
+        if (vendasDoCliente.length > 0) erroMsg += `${vendasDoCliente.length} venda(s) registrada(s)`;
+        if (vendasDoCliente.length > 0 && encomendasDoCliente.length > 0) erroMsg += ` e `;
+        if (encomendasDoCliente.length > 0) erroMsg += `${encomendasDoCliente.length} encomenda(s) registrada(s)`;
+        erroMsg += `.`;
+        return mostrarAlerta(erroMsg, 'danger');
+    }
+    // --- FIM DA VALIDAÇÃO ---
+
     showConfirm(`Tem certeza que deseja excluir ${cliente.nome}? A exclusão não pode ser desfeita.`, async (confirmado) => {
         if (confirmado) {
             mostrarLoading(true);
@@ -1682,18 +1718,25 @@ function excluirIngrediente(id) {
     const ingrediente = ingredientes.find(i => i.id === id);
     if (!ingrediente) return;
 
+    // --- VALIDAÇÃO ADICIONADA ---
+    // Verifica se o ingrediente está em alguma receita
+    const receitasComIngrediente = receitas.filter(r => r.ingredientes && r.ingredientes.some(i => i.ingredienteId === id));
+
+    if (receitasComIngrediente.length > 0) {
+        const nomesReceitas = receitasComIngrediente.map(r => r.titulo).join(', ');
+        return mostrarAlerta(`O ingrediente "${ingrediente.nome}" não pode ser excluído. Ele está em uso na(s) seguinte(s) receita(s): ${nomesReceitas}.`, 'danger');
+    }
+    // --- FIM DA VALIDAÇÃO ---
+
     showConfirm(`Tem certeza que deseja excluir o ingrediente "${ingrediente.nome}"?`, async (confirmado) => {
         if (confirmado) {
             mostrarLoading(true);
             const success = await FirebaseService.excluir('ingredientes', id);
             if (success) {
-                const index = ingredientes.findIndex(i => i.id === id);
-                if (index > -1) {
-                    ingredientes.splice(index, 1);
-                }
                 mostrarAlerta('Ingrediente excluído com sucesso!', 'success');
+                await carregarTodosDados();
+                renderizarTudo();
             }
-            renderizarTudo();
             mostrarLoading(false);
         }
     });
@@ -3373,52 +3416,63 @@ function configurarBackupAutomatico() {
     }, 60 * 60 * 1000); // Verifica a cada hora
 }
 // === EXPOR FUNÇÕES PARA O HTML ===
-window.openTab = openTab;
-window.fazerLogout = fazerLogout;
 
-// Ações Rápidas e Modais
-window.abrirModalVendaRapida = abrirModalVendaRapida;
-window.abrirModalEncomenda = abrirModalEncomenda;
-window.abrirModalRelatorios = abrirModalRelatorios;
-window.exportarDados = exportarDados;
+// --- GERAL E NAVEGAÇÃO ---
 window.fecharModal = fecharModal;
+window.fazerLogout = fazerLogout;
+window.openTab = openTab;
 
-// Dashboard
-window.salvarMeta = salvarMeta;
+// --- AÇÕES RÁPIDAS E MODAIS PRINCIPAIS ---
+window.abrirModalEncomenda = abrirModalEncomenda;
+window.abrirModalQuitarCliente = abrirModalQuitarCliente; 
+window.abrirModalRelatorios = abrirModalRelatorios;
+window.abrirModalVendaRapida = abrirModalVendaRapida;
+window.exportarDados = exportarDados;
+
+// --- DASHBOARD E RELATÓRIOS ---
 window.gerarRelatorio = gerarRelatorio;
 window.imprimirRelatorio = imprimirRelatorio;
-window.imprimirReceitaExistente = imprimirReceitaExistente;
+window.salvarMeta = salvarMeta;
 
-// Tabelas de Cadastros
+// --- LÓGICA DE CADASTROS (CRUD) ---
+// Clientes
 window.editarCliente = editarCliente;
 window.excluirCliente = excluirCliente;
-window.editarProduto = editarProduto;
-window.excluirProduto = excluirProduto;
+// Encomendas
+window.editarEncomenda = editarEncomenda;
+window.excluirEncomenda = excluirEncomenda;
+// Ingredientes
 window.editarIngrediente = editarIngrediente;
 window.excluirIngrediente = excluirIngrediente;
-window.adicionarIngredienteNaReceita = adicionarIngredienteNaReceita; 
-window.editarEncomenda = editarEncomenda;     // Adicionado
-window.excluirEncomenda = excluirEncomenda;   // Adicionado
+// Materiais
+window.editarMaterial = editarMaterial;
+window.excluirMaterial = excluirMaterial;
+// Produtos
+window.editarProduto = editarProduto;
+window.excluirProduto = excluirProduto;
+// Receitas
 window.editarReceita = editarReceita;
 window.excluirReceita = excluirReceita;
-window.editarMaterial = editarMaterial;   // Adicione esta linha
-window.excluirMaterial = excluirMaterial; // Adicione esta linha
-window.removerItemDaComposicao = removerItemDaComposicao;
+window.imprimirReceitaExistente = imprimirReceitaExistente;
+
+// --- FUNÇÕES AUXILIARES DE FORMULÁRIOS ---
+window.adicionarIngredienteNaReceita = adicionarIngredienteNaReceita; 
 window.atualizarCustoTotalReceita = atualizarCustoTotalReceita;
-// Tabela de Vendas
+window.removerItemDaComposicao = removerItemDaComposicao;
+
+// --- LÓGICA DE VENDAS E DESPESAS ---
 window.editarStatusVenda = editarStatusVenda;
+window.excluirDespesa = excluirDespesa;
 window.excluirVenda = excluirVenda;
 
-// Tabela de Despesas
-window.excluirDespesa = excluirDespesa;
-
-// Aba de Cobranças
+// --- LÓGICA DE COBRANÇAS ---
 window.copiarMensagem = copiarMensagem;
-window.abrirWhatsApp = abrirWhatsApp;
 window.marcarPendenciaComoPaga = marcarPendenciaComoPaga;
 window.marcarTodosComoContatados = marcarTodosComoContatados;
-window.abrirModalQuitarCliente = abrirModalQuitarCliente; 
+window.abrirWhatsApp = abrirWhatsApp;
 window.quitarTodasPendenciasCliente = quitarTodasPendenciasCliente;
+
+// --- FUNÇÕES UTILITÁRIAS E DEBUG (Manter no final) ---
+window.criarFiltroData = criarFiltroData;
 window.debugFiltros = debugFiltros;
 window.extrairDataDoItem = extrairDataDoItem;
-window.criarFiltroData = criarFiltroData;
