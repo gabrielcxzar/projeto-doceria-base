@@ -934,7 +934,7 @@ function configurarEventListeners() {
     safeAddEventListener('btnAddReceitaAoProduto', 'click', adicionarReceitaAoProduto);
     safeAddEventListener('btnAddMaterialAoProduto', 'click', adicionarMaterialAoProduto);
     safeAddEventListener('produtoCustoMaoObra', 'input', calcularPrecoVenda);
-    safeAddEventListener('produtoCustosInvisiveis', 'input', calcularCustoTotalProduto);
+    safeAddEventListener('produtoCustosInvisiveis', 'input', calcularPrecoVenda);
     safeAddEventListener('produtoMargem', 'input', calcularPrecoVenda);
     safeAddEventListener('cobrancaForm', 'submit', (e) => {
         e.preventDefault();
@@ -1442,37 +1442,36 @@ function calcularCustoTotalProduto() {
     // 2. Soma o custo de todos os materiais utilizados
     const custoTotalMateriais = materiaisUtilizados.reduce((acc, mat) => acc + (mat.custo || 0), 0);
 
-    // 3. Soma os componentes para ter um subtotal
-    const custoComponentes = custoTotalReceitas + custoTotalMateriais;
+    // 3. O Custo Base agora é APENAS a soma dos componentes
+    const custoBase = custoTotalReceitas + custoTotalMateriais;
 
-    // 4. Calcula o valor dos custos invisíveis
-    const percentualCustosInvisiveis = parseFloat(document.getElementById('produtoCustosInvisiveis').value) || 0;
-    const valorCustosInvisiveis = custoComponentes * (percentualCustosInvisiveis / 100);
-
-    // 5. Calcula o Custo Base final
-    const custoBaseFinal = custoComponentes + valorCustosInvisiveis;
-
-    // 6. Atualiza o campo "Custo Base" no formulário
+    // 4. Atualiza o campo "Custo Base" no formulário
     const custoInput = document.getElementById('produtoCustoMaterial');
-    if (composicaoReceitas.length > 0 || materiaisUtilizados.length > 0) {
-        custoInput.value = custoBaseFinal.toFixed(2);
-        custoInput.readOnly = true;
-    } else {
-        // Se não houver receitas ou materiais, permite a edição manual do custo base
-        custoInput.readOnly = false;
-    }
+    custoInput.value = custoBase.toFixed(2);
 
-    // 7. Chama a função de calcular o preço de venda para finalizar
+    // Permite edição manual apenas se não houver componentes
+    custoInput.readOnly = (composicaoReceitas.length > 0 || materiaisUtilizados.length > 0);
+
+    // 5. Chama a função de calcular o preço de venda para finalizar a cadeia de cálculo
     calcularPrecoVenda();
 }
 function calcularPrecoVenda() {
-    // A função agora é mais simples, pois o Custo Base já foi calculado
     const custoBase = parseFloat(document.getElementById('produtoCustoMaterial').value) || 0;
     const custoMaoObra = parseFloat(document.getElementById('produtoCustoMaoObra').value) || 0;
+    const percentualCustosInvisiveis = parseFloat(document.getElementById('produtoCustosInvisiveis').value) || 0;
     const margem = parseFloat(document.getElementById('produtoMargem').value) || 0;
 
-    const custoTotal = custoBase + custoMaoObra;
-    const precoVenda = custoTotal * (1 + margem / 100);
+    // 1. Calcula o subtotal (custos diretos + mão de obra)
+    const subtotalCustos = custoBase + custoMaoObra;
+
+    // 2. Calcula o valor dos custos invisíveis com base no subtotal
+    const valorCustosInvisiveis = subtotalCustos * (percentualCustosInvisiveis / 100);
+
+    // 3. Calcula o custo total final antes da margem de lucro
+    const custoTotalFinal = subtotalCustos + valorCustosInvisiveis;
+
+    // 4. Aplica a margem de lucro para obter o preço de venda
+    const precoVenda = custoTotalFinal * (1 + margem / 100);
 
     document.getElementById('produtoValor').value = precoVenda.toFixed(2);
 }
