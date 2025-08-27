@@ -95,7 +95,6 @@
             <button class="tab-button" onclick="openTab(event, 'vendas')">⚡ Vendas</button>
             <button class="tab-button" onclick="openTab(event, 'financeiro')">💲 Financeiro</button>
             <button class="tab-button" onclick="openTab(event, 'cadastros')">👥 Cadastros</button>
-            <button class="tab-button" onclick="openTab(event, 'ingredientes')">📦 Ingredientes</button>
             <button class="tab-button" onclick="openTab(event, 'cobrancas')">
                 🔔 Cobranças <span class="badge badge-danger" id="cobrancas-badge" style="display: none;">0</span>
             </button>
@@ -368,6 +367,7 @@
                 <button class="sub-tab-button" data-target="panel-produtos">🍰 Produtos</button>
                 <button class="sub-tab-button" data-target="panel-receitas">📖 Receitas</button>
                 <button class="sub-tab-button" data-target="panel-materiais">✂️ Materiais</button>
+                <button class="sub-tab-button" data-target="panel-ingredientes">📦 Ingredientes</button>
             </div>
 
             <div id="panel-clientes" class="sub-panel active">
@@ -652,10 +652,7 @@
                 </div>
             </div>
     </div>
-        </div>
-
-        <!-- Ingredientes Tab -->
-        <div id="ingredientes" class="tab-content">
+    <div id="panel-ingredientes" class="sub-panel">
             <div class="content-grid">
                 <div class="form-section">
                     <h3>📦 Gerenciar Ingredientes</h3>
@@ -724,6 +721,10 @@
                 </div>
             </div>
         </div>
+        </div>
+
+        <!-- Ingredientes Tab -->
+        
 
         
 

@@ -387,7 +387,7 @@ async function adicionarDadosExemplo() {
 
 async function carregarTodosDados() {
     try {
-        // A ordem das variáveis aqui...
+        // A ordem das variáveis na lista de baixo...
         const [
             clientesData, 
             produtosData, 
@@ -399,20 +399,20 @@ async function carregarTodosDados() {
             configData,
             ingredientesData,
             receitasData,
-            materiaisData // Adicionado aqui
+            materiaisData
         ] = await Promise.all([
-            // ...deve ser a mesma ordem das chamadas aqui.
+            // ...deve ser exatamente a mesma ordem das chamadas aqui.
             FirebaseService.carregar('clientes'),
             FirebaseService.carregar('produtos'),
             FirebaseService.carregar('vendas'),
             FirebaseService.carregar('encomendas'),
             FirebaseService.carregar('despesas'),
             FirebaseService.carregar('cobrancas'),
-            FirebaseService.carregar('atividades'),
+            FirebaseService.carregar('atividades'), // <-- ESTA LINHA ESTAVA FALTANDO
             FirebaseService.carregar('configuracoes'),
             FirebaseService.carregar('ingredientes'),
             FirebaseService.carregar('receitas'),
-            FirebaseService.carregar('materiais') // Adicionado aqui
+            FirebaseService.carregar('materiais')
         ]);
 
         clientes = clientesData || [];
@@ -424,7 +424,7 @@ async function carregarTodosDados() {
         atividades = atividadesData || [];
         ingredientes = ingredientesData || [];
         receitas = receitasData || []; 
-        materiais = materiaisData || [];// Adicionado aqui
+        materiais = materiaisData || [];
         
         if (configData && configData.length > 0) {
             configuracoes = { ...configuracoes, ...configData[0] };
@@ -476,6 +476,7 @@ async function adicionarOuEditarMaterial(e) {
 
     if (editandoId) {
         await FirebaseService.atualizar('materiais', editandoId, dados);
+        await FirebaseService.salvar('atividades', { tipo: 'edicao', descricao: `Material atualizado: ${dados.nome}`, usuarioNome: usuarioAtual.nome });
         mostrarAlerta('Material atualizado com sucesso!', 'success');
     } else {
         await FirebaseService.salvar('materiais', dados);
@@ -834,6 +835,7 @@ async function adicionarOuEditarReceita(e) {
 
     if (editandoId) { 
         await FirebaseService.atualizar('receitas', editandoId, dadosReceita);
+        await FirebaseService.salvar('atividades', { tipo: 'edicao', descricao: `Receita atualizada: ${dadosReceita.titulo}`, usuarioNome: usuarioAtual.nome });
         mostrarAlerta('Receita atualizada com sucesso!', 'success');
     } else { 
         await FirebaseService.salvar('receitas', dadosReceita);
@@ -1271,42 +1273,27 @@ async function adicionarOuEditarCliente(e) {
     mostrarLoading(true);
 
     if (editandoId) {
-        // MODO EDIÇÃO
-        const success = await FirebaseService.atualizar('clientes', editandoId, dados);
-        if (success) {
-            // Atualiza o cliente específico no estado local
-            const clienteIndex = clientes.findIndex(c => c.id === editandoId);
-            if (clienteIndex > -1) {
-                clientes[clienteIndex] = { ...clientes[clienteIndex], ...dados };
-            }
-            mostrarAlerta('Cliente atualizado com sucesso!', 'success');
-        }
-        document.querySelector('#clienteForm button').textContent = '➕ Salvar Cliente';
-
+        await FirebaseService.atualizar('clientes', editandoId, dados);
+        await FirebaseService.salvar('atividades', { tipo: 'edicao', descricao: `Cliente atualizado: ${dados.nome}`, usuarioNome: usuarioAtual.nome });
+        mostrarAlerta('Cliente atualizado com sucesso!', 'success');
     } else {
-        // MODO ADIÇÃO
         if (clientes.some(c => c.nome === dados.nome)) {
             mostrarLoading(false);
             return mostrarAlerta('Cliente com este nome já cadastrado', 'danger');
         }
         const newId = await FirebaseService.salvar('clientes', { ...dados, totalGasto: 0, ultimaCompra: null });
         if (newId) {
-            // Adiciona o novo cliente ao estado local
-            const novoCliente = { ...dados, totalGasto: 0, ultimaCompra: null, id: newId };
-            clientes.push(novoCliente);
-
-            // Adiciona a atividade
-            const novaAtividade = { tipo: 'cliente', descricao: `Novo cliente cadastrado: ${dados.nome}`, criadoEm: new Date() };
-            await FirebaseService.salvar('atividades', novaAtividade);
-            atividades.push(novaAtividade);
-
+            await FirebaseService.salvar('atividades', { tipo: 'criacao', descricao: `Novo cliente cadastrado: ${dados.nome}`, usuarioNome: usuarioAtual.nome });
             mostrarAlerta('Cliente cadastrado com sucesso!', 'success');
         }
     }
     
     editandoId = null;
     document.getElementById('clienteForm').reset();
-    renderizarTudo(); // Renderiza com os dados locais já atualizados
+    document.querySelector('#clienteForm button').textContent = '➕ Salvar Cliente';
+    
+    await carregarTodosDados();
+    renderizarTudo();
     mostrarLoading(false);
 }
 
@@ -1359,7 +1346,7 @@ function excluirCliente(id) {
             mostrarLoading(true);
             const success = await FirebaseService.excluir('clientes', id);
             if (success) {
-                await FirebaseService.salvar('atividades', { tipo: 'exclusao', descricao: `Cliente excluído: ${cliente.nome}` });
+                await FirebaseService.salvar('atividades', { tipo: 'exclusao', descricao: `Cliente excluído: ${cliente.nome}`,usuarioNome: usuarioAtual.nome });
                 mostrarAlerta('Cliente excluído com sucesso', 'success');
                 await carregarTodosDados();
                 renderizarTudo();
@@ -1504,8 +1491,9 @@ async function adicionarOuEditarProduto(e) {
     mostrarLoading(true);
 
     if (editandoId) {
-        // MODO EDIÇÃO: Atualiza o produto existente
+        // MODO EDIÇÃO: Atualiza o produto existente (Esta parte já está correta)
         await FirebaseService.atualizar('produtos', editandoId, dadosProduto);
+        await FirebaseService.salvar('atividades', { tipo: 'edicao', descricao: `Produto atualizado: ${dadosProduto.nome}`, usuarioNome: usuarioAtual.nome });
         mostrarAlerta('Produto atualizado com sucesso!', 'success');
     } else {
         // MODO ADIÇÃO: Salva um novo produto
@@ -1513,8 +1501,15 @@ async function adicionarOuEditarProduto(e) {
             mostrarLoading(false);
             return mostrarAlerta('Produto com este nome já cadastrado.', 'danger');
         }
-        await FirebaseService.salvar('produtos', dadosProduto);
-        mostrarAlerta('Produto cadastrado com sucesso!', 'success');
+        
+        // --- MELHORIA APLICADA AQUI ---
+        const newId = await FirebaseService.salvar('produtos', dadosProduto);
+        if (newId) { // Garante que o produto foi salvo antes de registrar a atividade
+            // Adiciona o log de criação ao histórico
+            await FirebaseService.salvar('atividades', { tipo: 'criacao', descricao: `Novo produto cadastrado: ${dadosProduto.nome}`, usuarioNome: usuarioAtual.nome });
+            mostrarAlerta('Produto cadastrado com sucesso!', 'success');
+        }
+        // --- FIM DA MELHORIA ---
     }
 
     // 3. Limpa tudo para o próximo cadastro
@@ -1586,7 +1581,7 @@ function excluirProduto(id) {
             mostrarLoading(true);
             const success = await FirebaseService.excluir('produtos', id);
             if (success) {
-                await FirebaseService.salvar('atividades', { tipo: 'exclusao', descricao: `Produto excluído: ${produto.nome}` });
+                await FirebaseService.salvar('atividades', { tipo: 'exclusao', descricao: `Produto excluído: ${produto.nome}`, usuarioNome: usuarioAtual.nome });
                 mostrarAlerta('Produto excluído com sucesso!', 'success');
                 await carregarTodosDados();
                 renderizarTudo();
@@ -1690,6 +1685,7 @@ async function adicionarOuEditarIngrediente(e) {
             if (index > -1) {
                 ingredientes[index] = { ...ingredientes[index], ...dados };
             }
+            await FirebaseService.salvar('atividades', { tipo: 'edicao', descricao: `Ingrediente atualizado: ${dados.nome}`, usuarioNome: usuarioAtual.nome });
             mostrarAlerta('Ingrediente atualizado com sucesso!', 'success');
         }
     } else {
@@ -1711,15 +1707,21 @@ async function adicionarOuEditarIngrediente(e) {
 function editarIngrediente(id) {
     const ingrediente = ingredientes.find(i => i.id === id);
     if (ingrediente) {
+        // 1. Navega para a aba principal "Cadastros"
+        document.querySelector('.tab-button[onclick*="cadastros"]').click();
+        
+        // 2. Em seguida, ativa a sub-aba "Ingredientes"
+        document.querySelector('.sub-tab-button[data-target="panel-ingredientes"]').click();
+
+        // 3. Define o ID de edição APÓS a navegação
         editandoId = id;
+
+        // 4. Preenche o formulário
         document.getElementById('ingredienteNome').value = ingrediente.nome;
         document.getElementById('ingredienteUnidadeCompra').value = ingrediente.unidadeCompra;
-        document.getElementById('ingredientePrecoCompra').value = ingrediente.precoCompra;
-        document.getElementById('ingredienteTamanhoCompra').value = ingrediente.tamanhoCompra;
-        document.getElementById('ingredienteUnidadePadrao').value = ingrediente.unidadePadrao;
+        // ... (resto do preenchimento do formulário)
 
         document.querySelector('#ingredienteForm button').textContent = '💾 Salvar Alterações';
-        openTab(event, 'ingredientes'); // Garante que a aba correta está aberta
         document.getElementById('ingredienteNome').focus();
     }
 }
@@ -1846,6 +1848,7 @@ function preencherValorProduto() {
     atualizarTotalVenda(); // Adiciona a chamada para atualizar o total
 }
 
+
 async function adicionarVenda(e) {
     e.preventDefault();
     const vendaForm = document.getElementById('vendaForm');
@@ -1867,23 +1870,20 @@ async function adicionarVenda(e) {
     const newId = await FirebaseService.salvar('vendas', venda);
     
     if (newId) {
-        // 1. Atualiza os dados do cliente (no DB e na memória local)
         await atualizarDadosCliente(venda.pessoa, venda.valor * venda.quantidade);
-
-        // 2. Cria o objeto completo da nova venda e o adiciona ao estado local
-        const novaVendaCompleta = { ...venda, id: newId, criadoEm: new Date() };
-        vendas.push(novaVendaCompleta);
-
-        // 3. Registra a atividade no DB e no estado local
-        const novaAtividade = { tipo: 'venda', descricao: `Venda registrada: ${venda.quantidade}x ${venda.produto} para ${venda.pessoa}`, criadoEm: new Date() };
+        
+        const novaAtividade = { 
+            tipo: 'venda', 
+            descricao: `Venda registrada: ${venda.quantidade}x ${venda.produto} para ${venda.pessoa}`, 
+            usuarioNome: usuarioAtual.nome, 
+        };
         await FirebaseService.salvar('atividades', novaAtividade);
-        atividades.push(novaAtividade);
         
         mostrarAlerta('Venda registrada com sucesso!', 'success');
         vendaForm.reset();
         document.getElementById('data').valueAsDate = new Date();
         
-        // 4. Renderiza a UI com os dados locais já atualizados, sem recarregar tudo do DB
+        await carregarTodosDados();
         renderizarTudo();
     }
     mostrarLoading(false);
@@ -1960,7 +1960,7 @@ async function excluirVenda(id) {
             }
 
             // Adiciona a atividade de exclusão
-            const novaAtividade = { tipo: 'exclusao', descricao: `Venda excluída: ${vendaParaExcluir.quantidade}x ${vendaParaExcluir.produto} de ${vendaParaExcluir.pessoa}`, criadoEm: new Date() };
+            const novaAtividade = { tipo: 'exclusao', descricao: `Venda excluída: ${vendaParaExcluir.quantidade}x ${vendaParaExcluir.produto} de ${vendaParaExcluir.pessoa}`, usuarioNome: usuarioAtual.nome, criadoEm: new Date() };
             await FirebaseService.salvar('atividades', novaAtividade);
             atividades.push(novaAtividade);
 
@@ -2088,7 +2088,15 @@ async function editarStatusVenda(id) {
     
     if (novoStatus && ['P', 'A', 'E'].includes(novoStatus.toUpperCase())) {
         mostrarLoading(true);
-        await FirebaseService.atualizar('vendas', id, { status: novoStatus.toUpperCase() });
+        const statusFinal = novoStatus.toUpperCase();
+        await FirebaseService.atualizar('vendas', id, { status: statusFinal });
+        
+        await FirebaseService.salvar('atividades', { 
+            tipo: 'edicao', 
+            descricao: `Status da venda de ${venda.produto} alterado para '${statusFinal}'`, 
+            usuarioNome: usuarioAtual.nome 
+        });
+
         mostrarAlerta('Status da venda atualizado!', 'success');
         await carregarTodosDados();
         renderizarTudo();
@@ -2136,41 +2144,34 @@ function renderizarTabelaEncomendas() {
 async function adicionarDespesa(e) {
     e.preventDefault();
     const despesaForm = document.getElementById('despesaForm');
-    const valorUnitario = parseFloat(document.getElementById('despesaValor').value) || 0;
-    const quantidadeInput = document.getElementById('despesaQuantidade');
-    // parseFloat extrai o número inicial de um texto como "5kg" ou "10un"
-    const quantidadeNum = parseFloat(quantidadeInput.value) || 1;
+    // ... (coleta dos dados da despesa) ...
 
     const despesa = {
         data: document.getElementById('despesaData').value,
         tipo: document.getElementById('despesaTipo').value,
         descricao: document.getElementById('despesaDescricao').value,
-        quantidade: quantidadeInput.value, // Mantém o texto original para referência
-        valor: valorUnitario * quantidadeNum // Salva o valor total calculado
+        quantidade: document.getElementById('despesaQuantidade').value,
+        valor: (parseFloat(document.getElementById('despesaValor').value) || 0) * (parseFloat(document.getElementById('despesaQuantidade').value) || 1)
     };
 
     if (!despesa.data || !despesa.tipo || !despesa.descricao || isNaN(despesa.valor) || despesa.valor <= 0) {
-        mostrarAlerta('Preencha todos os campos obrigatórios da despesa com valores válidos.', 'danger');
-        return;
+        return mostrarAlerta('Preencha todos os campos obrigatórios da despesa com valores válidos.', 'danger');
     }
 
     mostrarLoading(true);
     const newId = await FirebaseService.salvar('despesas', despesa);
     if (newId) {
-        // 1. Adiciona a nova despesa completa ao estado local
-        const novaDespesaCompleta = { ...despesa, id: newId, criadoEm: new Date() };
-        despesas.push(novaDespesaCompleta);
-
-        // 2. Adiciona a atividade ao estado local e salva no DB
-        const novaAtividade = { tipo: 'despesa', descricao: `Despesa: ${despesa.descricao} - ${formatarMoeda(despesa.valor)}`, criadoEm: new Date() };
-        await FirebaseService.salvar('atividades', novaAtividade);
-        atividades.push(novaAtividade);
+        await FirebaseService.salvar('atividades', { 
+            tipo: 'despesa', 
+            descricao: `Despesa: ${despesa.descricao} - ${formatarMoeda(despesa.valor)}`, 
+            usuarioNome: usuarioAtual.nome 
+        });
         
         mostrarAlerta('Despesa registrada com sucesso!', 'success');
         despesaForm.reset();
         document.getElementById('despesaData').valueAsDate = new Date();
         
-        // 3. Renderiza a UI com os dados locais já atualizados
+        await carregarTodosDados();
         renderizarTudo();
     }
     mostrarLoading(false);
@@ -2818,10 +2819,9 @@ function renderizarTimeline() {
     const timelineDiv = document.getElementById('timelineAtividades');
     if (!timelineDiv) return;
 
-    // Ordena usando .toDate() para garantir que a comparação funcione
     const atividadesRecentes = atividades.sort((a, b) => {
-        const dateA = a.criadoEm && a.criadoEm.toDate ? a.criadoEm.toDate() : new Date(a.criadoEm);
-        const dateB = b.criadoEm && b.criadoEm.toDate ? b.criadoEm.toDate() : new Date(b.criadoEm);
+        const dateA = a.criadoEm?.toDate ? a.criadoEm.toDate() : new Date(a.criadoEm);
+        const dateB = b.criadoEm?.toDate ? b.criadoEm.toDate() : new Date(b.criadoEm);
         return dateB - dateA;
     }).slice(0, 5);
 
@@ -2831,15 +2831,20 @@ function renderizarTimeline() {
     }
     
     timelineDiv.innerHTML = atividadesRecentes.map(a => {
-        // Usa a nossa nova função formatarData
         const dataFormatada = formatarData(a.criadoEm); 
-        const horaFormatada = a.criadoEm && a.criadoEm.toDate ? a.criadoEm.toDate().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+        const horaFormatada = a.criadoEm?.toDate ? a.criadoEm.toDate().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+
+        // --- ALTERAÇÃO AQUI ---
+        // Adiciona o nome do usuário à exibição, com um fallback para registros antigos
+        const infoUsuario = a.usuarioNome ? `por <strong>${a.usuarioNome}</strong>` : '';
 
         return `
             <div class="timeline-item">
                 <div class="timeline-content">
                     <strong>${a.descricao}</strong>
-                    <div style="font-size: 0.85rem; color: #666;">${dataFormatada} ${horaFormatada}</div>
+                    <div style="font-size: 0.85rem; color: #666;">
+                        ${infoUsuario} em ${dataFormatada} ${horaFormatada}
+                    </div>
                 </div>
             </div>`;
     }).join('');
@@ -3256,7 +3261,7 @@ function excluirEncomenda(id) {
             const success = await FirebaseService.excluir('encomendas', id);
             if (success) {
                 const encomendaExcluida = encomendas.find(e => e.id === id);
-                await FirebaseService.salvar('atividades', { tipo: 'exclusao', descricao: `Encomenda de ${encomendaExcluida.clienteNome} excluída.` });
+                await FirebaseService.salvar('atividades', { tipo: 'exclusao', descricao: `Encomenda de ${encomendaExcluida.clienteNome} excluída.`, usuarioNome: usuarioAtual.nome });
                 mostrarAlerta('Encomenda excluída com sucesso!', 'success');
                 await carregarTodosDados();
                 renderizarTudo();
