@@ -2919,10 +2919,17 @@ function abrirModalVendaRapida() {
         };
 
         // Simula o comportamento da função principal de adicionar venda
-        FirebaseService.salvar('vendas', venda).then(() => {
-            mostrarAlerta('Venda rápida registrada!', 'success');
-            carregarTodosDados().then(() => renderizarTudo());
+        FirebaseService.salvar('vendas', venda).then(async (newId) => {
+    if (newId) {
+        await FirebaseService.salvar('atividades', { 
+            tipo: 'venda', 
+            descricao: `Venda rápida: ${venda.produto} para ${venda.pessoa}`, 
+            usuarioNome: usuarioAtual.nome 
         });
+    }
+    mostrarAlerta('Venda rápida registrada!', 'success');
+    carregarTodosDados().then(() => renderizarTudo());
+});
         
         fecharModal('vendaRapidaModal');
     });
@@ -3312,18 +3319,31 @@ async function adicionarOuEditarEncomenda(event, encomendaId = null) {
         const success = await FirebaseService.atualizar('encomendas', encomendaId, dados);
         if (success) {
             encomendas[encomendaIndex] = { ...encomendaAntiga, ...dados }; // Atualiza estado local
+            await FirebaseService.salvar('atividades', { 
+                tipo: 'edicao', 
+                descricao: `Encomenda editada: ${dados.produtoDescricao} para ${dados.clienteNome}`, 
+                usuarioNome: usuarioAtual.nome 
+            });
             mostrarAlerta('Encomenda atualizada com sucesso!', 'success');
         }
     } else {
-        // MODO ADIÇÃO
-        const newId = await FirebaseService.salvar('encomendas', dados);
-        if (newId) {
-            await atualizarDadosCliente(dados.clienteNome, dados.valorTotal);
-            encomendas.push({ ...dados, id: newId }); // Atualiza estado local
-            mostrarAlerta('Encomenda agendada com sucesso!', 'success');
-        }
+    // MODO ADIÇÃO
+    const newId = await FirebaseService.salvar('encomendas', dados);
+    if (newId) {
+        // Atualizar dados do cliente
+        await atualizarDadosCliente(dados.clienteNome, dados.valorTotal);
+        
+        // Registrar atividade
+        await FirebaseService.salvar('atividades', { 
+            tipo: 'criacao', 
+            descricao: `Nova encomenda: ${dados.produtoDescricao} para ${dados.clienteNome}`, 
+            usuarioNome: usuarioAtual.nome 
+        });
+        
+        // Mostrar sucesso
+        mostrarAlerta('Encomenda criada com sucesso!', 'success');
     }
-
+}
     fecharModal('encomendaModal');
     renderizarTudo(); // Renderiza com os dados locais já atualizados
     mostrarLoading(false);
