@@ -1870,21 +1870,32 @@ async function adicionarVenda(e) {
     const newId = await FirebaseService.salvar('vendas', venda);
     
     if (newId) {
+        // --- INÍCIO DA CORREÇÃO ---
+        // 1. Adiciona o ID retornado pelo Firestore ao objeto da venda
+        const novaVendaCompleta = { ...venda, id: newId };
+        
+        // 2. Atualiza o array local de vendas, evitando uma nova leitura do banco.
+        vendas.push(novaVendaCompleta);
+        
         await atualizarDadosCliente(venda.pessoa, venda.valor * venda.quantidade);
         
         const novaAtividade = { 
             tipo: 'venda', 
             descricao: `Venda registrada: ${venda.quantidade}x ${venda.produto} para ${venda.pessoa}`, 
-            usuarioNome: usuarioAtual.nome, 
+            usuarioNome: usuarioAtual.nome,
+            criadoEm: new Date() // Adiciona data para ordenação imediata
         };
+        // Salva a atividade e também a adiciona ao estado local.
         await FirebaseService.salvar('atividades', novaAtividade);
+        atividades.push(novaAtividade);
         
         mostrarAlerta('Venda registrada com sucesso!', 'success');
         vendaForm.reset();
         document.getElementById('data').valueAsDate = new Date();
         
-        await carregarTodosDados();
+        // 3. Em vez de recarregar TUDO, apenas renderiza novamente a UI com os dados locais já atualizados.
         renderizarTudo();
+        // --- FIM DA CORREÇÃO ---
     }
     mostrarLoading(false);
 }
