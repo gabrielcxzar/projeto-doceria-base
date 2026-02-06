@@ -1,4 +1,21 @@
-// === CONFIGURAÇÃO FIREBASE ===
+const venda = {
+        data: document.getElementById('data').value,
+        pessoa: document.getElementById('pessoa').value,
+        produto: document.getElementById('produto').value,
+        quantidade: parseInt(document.getElementById('quantidade').value),
+        valor: parseFloat(document.getElementById('valor').value),
+        pagamento: document.getElementById('pagamento').value,
+        status: document.getElementById('status').value
+    };
+
+    if (!isValidDateInput(venda.data)) {
+        return mostrarAlerta('Data da venda inv?lida.', 'warning');
+    }
+    if (!venda.pessoa || !venda.produto || isNaN(venda.valor) || venda.valor <= 0 || isNaN(venda.quantidade) || venda.quantidade <= 0) {
+        return mostrarAlerta('Cliente, produto, quantidade e valor s?o obrigat?rios.', 'warning');
+    }
+
+    // === CONFIGURAÇÃO FIREBASE ===
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
 
 // Importa as funções de Autenticação que vamos usar
@@ -77,6 +94,15 @@ let materiaisUtilizados = [];
 const rowsPerPage = 10;
 
 // === FUNÇÕES DE FIRESTORE ===
+function formatarErroFirebase(error, fallback) {
+    const msg = (error && (error.message || error.code)) ? String(error.message || error.code) : '';
+    const isNetwork = /network|unavailable|offline|failed|timeout/i.test(msg);
+    if (isNetwork) {
+        return `${fallback} Verifique sua conexÃ£o com a internet e tente novamente.`;
+    }
+    return `${fallback} ${msg}`.trim();
+}
+
 class FirebaseService {
     // Salvar dados no Firestore
     static async salvar(colecao, dados) {
@@ -89,7 +115,7 @@ class FirebaseService {
             return docRef.id;
         } catch (error) {
             console.error(`Erro ao salvar em ${colecao}:`, error);
-            mostrarAlerta(`Erro ao salvar dados: ${error.message}`, 'danger');
+            mostrarAlerta(formatarErroFirebase(error, 'Erro ao salvar dados.'), 'danger');
             return null;
         }
     }
@@ -104,7 +130,7 @@ class FirebaseService {
             return true;
         } catch (error) {
             console.error(`Erro ao atualizar ${colecao}:`, error);
-            mostrarAlerta(`Erro ao atualizar dados: ${error.message}`, 'danger');
+            mostrarAlerta(formatarErroFirebase(error, 'Erro ao atualizar dados.'), 'danger');
             return false;
         }
     }
@@ -116,7 +142,7 @@ class FirebaseService {
             return true;
         } catch (error) {
             console.error(`Erro ao excluir de ${colecao}:`, error);
-            mostrarAlerta(`Erro ao excluir dados: ${error.message}`, 'danger');
+            mostrarAlerta(formatarErroFirebase(error, 'Erro ao excluir dados.'), 'danger');
             return false;
         }
     }
@@ -135,7 +161,7 @@ class FirebaseService {
             return dados;
         } catch (error) {
             console.error(`Erro ao carregar ${colecao}:`, error);
-            mostrarAlerta(`Erro ao carregar dados: ${error.message}`, 'danger');
+            mostrarAlerta(formatarErroFirebase(error, 'Erro ao carregar dados.'), 'danger');
             return [];
         }
     }
@@ -448,7 +474,7 @@ async function carregarTodosDados() {
         
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
-        mostrarAlerta(`Erro ao carregar dados: ${error.message}`, 'danger');
+        mostrarAlerta(formatarErroFirebase(error, 'Erro ao carregar dados.'), 'danger');
     }
 }
 
@@ -462,7 +488,7 @@ function renderizarTabelaMateriais() {
 
     tbody.innerHTML = materiaisOrdenados.map(mat => `
         <tr>
-            <td><strong>${mat.nome}</strong></td>
+            <td><strong>${escHtml(mat.nome)}</strong></td>
             <td>${formatarMoeda(mat.custo)}</td>
             <td class="actions">
                 <button class="btn btn-primary btn-sm requires-admin" onclick="editarMaterial('${mat.id}')" title="Editar">✏️</button>
@@ -720,7 +746,7 @@ function renderizarTabelaReceitas() {
 
     tbody.innerHTML = receitasOrdenadas.map(rec => `
         <tr>
-            <td><strong>${rec.titulo}</strong></td>
+            <td><strong>${escHtml(rec.titulo)}</strong></td>
             <td>${rec.rendimento} unid.</td>
             <td>${formatarMoeda(rec.custoTotal)}</td>
             <td>${formatarMoeda(rec.custoPorUnidade)} / unid.</td>
@@ -1125,8 +1151,8 @@ function renderizarTabelaVendas() {
     tbody.innerHTML = vendasPaginadas.map(v => `
         <tr>
             <td>${formatarData(v.data)}</td>
-            <td>${v.pessoa}</td>
-            <td>${v.produto}</td>
+            <td>${escHtml(v.pessoa)}</td>
+            <td>${escHtml(v.produto)}</td>
             <td>${v.quantidade}</td>
             <td><strong>${formatarMoeda(v.valor * v.quantidade)}</strong></td>
             <td>${getStatusBadge(v.status)}</td>
@@ -1167,13 +1193,19 @@ function preencherSelects() {
     const produtoReceitaSelect = document.getElementById('produtoReceitaSelect');
     const produtoMaterialSelect = document.getElementById('produtoMaterialSelect'); // Adicionado
 
-    const clientesOptions = clientes.sort((a,b) => a.nome.localeCompare(b.nome)).map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
-    const produtosOptions = produtos.sort((a,b) => a.nome.localeCompare(b.nome)).map(p => `<option value="${p.nome}">${p.nome}</option>`).join('');
+    const clientesOptions = clientes
+        .sort((a,b) => a.nome.localeCompare(b.nome))
+        .map(c => `<option value="${escHtml(c.nome)}">${escHtml(c.nome)}</option>`)
+        .join('');
+    const produtosOptions = produtos
+        .sort((a,b) => a.nome.localeCompare(b.nome))
+        .map(p => `<option value="${escHtml(p.nome)}">${escHtml(p.nome)}</option>`)
+        .join('');
     
     if (receitaIngredienteSelect) {
         const ingredientesOptions = ingredientes
             .sort((a,b) => a.nome.localeCompare(b.nome))
-            .map(ing => `<option value="${ing.id}">${ing.nome} (${formatarMoeda(ing.custoUnitarioPadrao)}/${ing.unidadePadrao})</option>`)
+            .map(ing => `<option value="${escHtml(ing.id)}">${escHtml(ing.nome)} (${formatarMoeda(ing.custoUnitarioPadrao)}/${escHtml(ing.unidadePadrao)})</option>`)
             .join('');
         receitaIngredienteSelect.innerHTML = `<option value="">Selecione...</option>${ingredientesOptions}`;
     }
@@ -1183,14 +1215,14 @@ function preencherSelects() {
     if (produtoReceitaSelect) {
         const receitasOptions = receitas
             .sort((a,b) => a.titulo.localeCompare(b.titulo))
-            .map(rec => `<option value="${rec.id}">${rec.titulo}</option>`)
+            .map(rec => `<option value="${escHtml(rec.id)}">${escHtml(rec.titulo)}</option>`)
             .join('');
         produtoReceitaSelect.innerHTML = `<option value="">-- Cadastrar sem receita (custo manual) --</option>${receitasOptions}`;
     }
     if (produtoMaterialSelect) {
         const materiaisOptions = materiais
             .sort((a,b) => a.nome.localeCompare(b.nome))
-            .map(mat => `<option value="${mat.id}">${mat.nome}</option>`)
+            .map(mat => `<option value="${escHtml(mat.id)}">${escHtml(mat.nome)}</option>`)
             .join('');
         produtoMaterialSelect.innerHTML = `<option value="">-- Selecione um material --</option>${materiaisOptions}`;
     }
@@ -1224,7 +1256,7 @@ function renderizarComposicaoProduto() {
     // Renderiza a lista de receitas adicionadas
     listaReceitasDiv.innerHTML = composicaoReceitas.map((rec, index) => `
         <div class="list-item">
-            <span>${rec.titulo}</span>
+            <span>${escHtml(rec.titulo)}</span>
             <button type="button" class="btn btn-danger btn-sm" onclick="removerItemDaComposicao('receita', ${index})">🗑️</button>
         </div>
     `).join('');
@@ -1232,7 +1264,7 @@ function renderizarComposicaoProduto() {
     // Renderiza a lista de materiais adicionados
     listaMateriaisDiv.innerHTML = materiaisUtilizados.map((mat, index) => `
         <div class="list-item">
-            <span>${mat.nome}</span>
+            <span>${escHtml(mat.nome)}</span>
             <button type="button" class="btn btn-danger btn-sm" onclick="removerItemDaComposicao('material', ${index})">🗑️</button>
         </div>
     `).join('');
@@ -1434,8 +1466,8 @@ function renderizarTabelaClientes() {
         
         return `
             <tr>
-                <td><strong>${c.nome}</strong></td>
-                <td>${c.contato || 'N/A'}</td>
+                <td><strong>${escHtml(c.nome)}</strong></td>
+                <td>${escHtml(c.contato || 'N/A')}</td>
                 <td>${ultimaCompra}</td>
                 <td><strong>${formatarMoeda(totalGasto)}</strong></td>
                 <td class="actions">
@@ -1638,8 +1670,8 @@ function renderizarTabelaProdutos() {
         
         return `
             <tr>
-                <td><strong>${p.nome}</strong></td>
-                <td>${p.categoria}</td>
+                <td><strong>${escHtml(p.nome)}</strong></td>
+                <td>${escHtml(p.categoria)}</td>
                 <td>${formatarMoeda(custoTotal)}</td>
                 <td><strong>${formatarMoeda(p.valor)}</strong></td>
                 <td>
@@ -1669,9 +1701,9 @@ function renderizarTabelaIngredientes() {
 
     tbody.innerHTML = ingredientesOrdenados.map(ing => `
         <tr>
-            <td><strong>${ing.nome}</strong></td>
-            <td>${ing.unidadeCompra} por ${formatarMoeda(ing.precoCompra)}</td>
-            <td><strong>${formatarMoeda(ing.custoUnitarioPadrao)} / ${ing.unidadePadrao}</strong></td>
+            <td><strong>${escHtml(ing.nome)}</strong></td>
+            <td>${escHtml(ing.unidadeCompra)} por ${formatarMoeda(ing.precoCompra)}</td>
+            <td><strong>${formatarMoeda(ing.custoUnitarioPadrao)} / ${escHtml(ing.unidadePadrao)}</strong></td>
             <td class="actions">
                 <button class="btn btn-primary btn-sm requires-admin" onclick="editarIngrediente('${ing.id}')" title="Editar">✏️</button>
                 <button class="btn btn-danger btn-sm requires-admin" onclick="excluirIngrediente('${ing.id}')" title="Excluir">🗑️</button>
@@ -2103,8 +2135,8 @@ function renderizarTabelaPendencias() {
 
         return `
             <tr>
-                <td><strong>${item.clienteNome}</strong></td>
-                <td>${item.descricao}</td>
+                <td><strong>${escHtml(item.clienteNome)}</strong></td>
+                <td>${escHtml(item.descricao)}</td>
                 <td>${formatarData(item.data)}</td>
                 <td><strong style="color: var(--danger-color);">${formatarMoeda(item.valorPendente)}</strong></td>
                 <td>${statusAtraso}</td>
@@ -2165,8 +2197,8 @@ function renderizarTabelaEncomendas() {
         return `
             <tr>
                 <td>${formatarData(enc.dataEntrega)}</td>
-                <td>${enc.clienteNome || ''}</td>
-                <td>${enc.produtoDescricao || ''}</td>
+                <td>${escHtml(enc.clienteNome || '')}</td>
+                <td>${escHtml(enc.produtoDescricao || '')}</td>
                 <td>${formatarMoeda(valorTotal)}</td>
                 <td>${formatarMoeda(valorEntrada)}</td>
                 <td><strong>${formatarMoeda(valorRestante)}</strong></td>
@@ -2195,6 +2227,9 @@ async function adicionarDespesa(e) {
         valor: (parseFloat(document.getElementById('despesaValor').value) || 0) * (parseFloat(document.getElementById('despesaQuantidade').value) || 1)
     };
 
+    if (!isValidDateInput(despesa.data)) {
+        return mostrarAlerta('Data da despesa inv?lida.', 'danger');
+    }
     if (!despesa.data || !despesa.tipo || !despesa.descricao || isNaN(despesa.valor) || despesa.valor <= 0) {
         return mostrarAlerta('Preencha todos os campos obrigatórios da despesa com valores válidos.', 'danger');
     }
@@ -2318,9 +2353,9 @@ function renderizarTabelaDespesas() {
     tbody.innerHTML = despesasPaginadas.map(d => `
         <tr>
             <td>${formatarData(d.data)}</td>
-            <td><span class="badge badge-info">${d.tipo}</span></td>
-            <td>${d.descricao}</td>
-            <td>${d.quantidade || '-'}</td>
+            <td><span class="badge badge-info">${escHtml(d.tipo)}</span></td>
+            <td>${escHtml(d.descricao)}</td>
+            <td>${escHtml(d.quantidade || '-')}</td>
             <td><strong>${formatarMoeda(d.valor)}</strong></td>
             <td class="actions">
                 <button class="btn btn-danger btn-sm requires-admin" onclick="excluirDespesa('${d.id}')">🗑️</button>
@@ -2900,12 +2935,12 @@ function renderizarTimeline() {
 
         // --- ALTERAÇÃO AQUI ---
         // Adiciona o nome do usuário à exibição, com um fallback para registros antigos
-        const infoUsuario = a.usuarioNome ? `por <strong>${a.usuarioNome}</strong>` : '';
+        const infoUsuario = a.usuarioNome ? `por <strong>${escHtml(a.usuarioNome)}</strong>` : '';
 
         return `
             <div class="timeline-item">
                 <div class="timeline-content">
-                    <strong>${a.descricao}</strong>
+                    <strong>${escHtml(a.descricao)}</strong>
                     <div style="font-size: 0.85rem; color: #666;">
                         ${infoUsuario} em ${dataFormatada} ${horaFormatada}
                     </div>
@@ -3269,7 +3304,7 @@ function abrirModalEncomenda(encomenda = null) {
     const isEdit = encomenda !== null;
     
     let clienteOptions = '<option value="">Selecione...</option>' + 
-        clientes.map(c => `<option value="${c.nome}" ${isEdit && c.nome === encomenda?.clienteNome ? 'selected' : ''}>${c.nome}</option>`).join('');
+        clientes.map(c => `<option value="${escHtml(c.nome)}" ${isEdit && c.nome === encomenda?.clienteNome ? 'selected' : ''}>${escHtml(c.nome)}</option>`).join('');
     
     modal.innerHTML = `
         <div class="modal-content">
@@ -3357,6 +3392,9 @@ async function adicionarOuEditarEncomenda(event, encomendaId = null) {
         status: encomendaId ? encomendas.find(e => e.id === encomendaId)?.status || 'Pendente' : 'Pendente'
     };
 
+    if (!isValidDateInput(dados.dataEntrega)) {
+        return mostrarAlerta('Data de entrega inv?lida.', 'danger');
+    }
     if (!dados.clienteNome || !dados.produtoDescricao || !dados.dataEntrega || dados.valorTotal <= 0) {
         return mostrarAlerta('Preencha todos os campos obrigatórios da encomenda.', 'danger');
     }
@@ -3433,6 +3471,24 @@ function formatarData(dataInput) {
     } catch (e) {
         return 'Data inválida';
     }
+}
+
+function escHtml(value) {
+    const str = String(value ?? '');
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/`/g, '&#96;');
+}
+
+function isValidDateInput(value) {
+    if (!value || typeof value !== 'string') return false;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const date = new Date(value);
+    return !isNaN(date.getTime());
 }
 
 function getStatusBadge(status) {
