@@ -53,12 +53,23 @@ let configuracoes = {
     ultimoBackup: null
 };
 
-let editandoId = null;
+const editState = {
+    materialId: null,
+    receitaId: null,
+    clienteId: null,
+    produtoId: null,
+    ingredienteId: null
+};
 let receitaTemporaria = [];
 let charts = {};
 let isLoading = false;
 let editandoReceitaProdutoId = null;
-let currentPage = 1;
+const pagination = {
+    vendas: 1,
+    clientes: 1,
+    produtos: 1,
+    despesas: 1
+};
 let receitas = [];
 let materiais = [];
 let composicaoReceitas = [];
@@ -474,8 +485,8 @@ async function adicionarOuEditarMaterial(e) {
 
     mostrarLoading(true);
 
-    if (editandoId) {
-        await FirebaseService.atualizar('materiais', editandoId, dados);
+    if (editState.materialId) {
+        await FirebaseService.atualizar('materiais', editState.materialId, dados);
         await FirebaseService.salvar('atividades', { tipo: 'edicao', descricao: `Material atualizado: ${dados.nome}`, usuarioNome: usuarioAtual.nome });
         mostrarAlerta('Material atualizado com sucesso!', 'success');
     } else {
@@ -483,7 +494,7 @@ async function adicionarOuEditarMaterial(e) {
         mostrarAlerta('Material salvo com sucesso!', 'success');
     }
     
-    editandoId = null;
+    editState.materialId = null;
     document.getElementById('materialForm').reset();
     document.querySelector('#materialForm button[type="submit"]').textContent = '➕ Salvar Material';
     
@@ -505,7 +516,7 @@ function editarMaterial(id) {
     if (materiaisSubTabButton) materiaisSubTabButton.click();
 
     // 2. AGORA, DEPOIS DE NAVEGAR, DEFINE O ID DE EDIÇÃO
-    editandoId = id;
+    editState.materialId = id;
 
     // 3. Preenche o formulário
     document.getElementById('materialNome').value = material.nome;
@@ -767,7 +778,7 @@ function editarReceita(id) {
     if (receitasSubTabButton) receitasSubTabButton.click();
     
     // 2. AGORA, DEPOIS DE NAVEGAR, DEFINE O ID DE EDIÇÃO
-    editandoId = id;
+    editState.receitaId = id;
 
     // 3. Preenche o formulário
     document.getElementById('receitaTitulo').value = receita.titulo;
@@ -833,16 +844,16 @@ async function adicionarOuEditarReceita(e) {
 
     mostrarLoading(true);
 
-    if (editandoId) { 
-        await FirebaseService.atualizar('receitas', editandoId, dadosReceita);
+    if (editState.receitaId) { 
+        await FirebaseService.atualizar('receitas', editState.receitaId, dadosReceita);
         await FirebaseService.salvar('atividades', { tipo: 'edicao', descricao: `Receita atualizada: ${dadosReceita.titulo}`, usuarioNome: usuarioAtual.nome });
         mostrarAlerta('Receita atualizada com sucesso!', 'success');
-    } else { 
+    } else {
         await FirebaseService.salvar('receitas', dadosReceita);
         mostrarAlerta('Receita salva com sucesso!', 'success');
     }
     
-    editandoId = null;
+    editState.receitaId = null;
     document.getElementById('receitaForm').reset();
     document.getElementById('receitaIngredientesTbody').innerHTML = '';
     atualizarCustoTotalReceita();
@@ -955,10 +966,22 @@ function configurarEventListeners() {
     safeAddEventListener('definirPrecoManual', 'change', alternarModoPrecificacao);
     
     // --- Filtros e buscas ---
-    safeAddEventListener('searchVendas', 'input', renderizarTabelaVendas);
-    safeAddEventListener('filtroVendasStatus', 'change', renderizarTabelaVendas);
-    safeAddEventListener('searchDespesas', 'input', renderizarTabelaDespesas);
-    safeAddEventListener('filtroDespesas', 'change', renderizarTabelaDespesas);
+    safeAddEventListener('searchVendas', 'input', () => {
+        setPage('vendas', 1);
+        renderizarTabelaVendas();
+    });
+    safeAddEventListener('filtroVendasStatus', 'change', () => {
+        setPage('vendas', 1);
+        renderizarTabelaVendas();
+    });
+    safeAddEventListener('searchDespesas', 'input', () => {
+        setPage('despesas', 1);
+        renderizarTabelaDespesas();
+    });
+    safeAddEventListener('filtroDespesas', 'change', () => {
+        setPage('despesas', 1);
+        renderizarTabelaDespesas();
+    });
     
     
     // --- Cobrança ---
@@ -992,7 +1015,7 @@ const filtroAno = document.getElementById('filtroAno');
 }
 // Substitua esta função em main.js
 function cancelarEdicaoReceita() {
-    editandoId = null;
+    editState.receitaId = null;
     document.getElementById('receitaForm').reset();
     document.getElementById('receitaIngredientesTbody').innerHTML = '';
     atualizarCustoTotalReceita();
@@ -1039,12 +1062,18 @@ function configurarThemeToggle() {
 // === LÓGICA DAS ABAS ===
 function openTab(evt, tabName) {
     // Reseta para a primeira página sempre que uma nova aba é aberta.
-    currentPage = 1;
+    Object.keys(pagination).forEach((key) => {
+        pagination[key] = 1;
+    });
 
     // --- INÍCIO DA CORREÇÃO ---
     // Reseta a variável de edição e a aparência dos formulários.
     // Isso garante que o sistema saia de qualquer "modo de edição" pendente.
-    editandoId = null;
+    editState.materialId = null;
+    editState.receitaId = null;
+    editState.clienteId = null;
+    editState.produtoId = null;
+    editState.ingredienteId = null;
     
     // Reseta o texto dos botões para o estado de "Adicionar"
     const clienteBtn = document.querySelector('#clienteForm button[type="submit"]');
@@ -1086,7 +1115,8 @@ function renderizarTabelaVendas() {
 
     // --- INÍCIO DA CORREÇÃO ---
     // Adicionamos a lógica para "fatiar" o array com base na página atual.
-    const startIndex = (currentPage - 1) * rowsPerPage;
+    const currentPage = getPage('vendas');
+    const startIndex = (getPage('produtos') - 1) * rowsPerPage;
     const endIndex = startIndex + rowsPerPage;
     const vendasPaginadas = vendasFiltradas.slice(startIndex, endIndex);
     // --- FIM DA CORREÇÃO ---
@@ -1108,7 +1138,7 @@ function renderizarTabelaVendas() {
     `).join('');
 
     // A função que desenha os botões de página agora recebe a lista completa para calcular o total de páginas corretamente.
-    renderizarControlesPaginacao(vendasFiltradas, 'paginacaoVendas', renderizarTabelaVendas);
+    renderizarControlesPaginacao(vendasFiltradas, 'paginacaoVendas', renderizarTabelaVendas, undefined, 'vendas');
 }
 
 
@@ -1272,8 +1302,8 @@ async function adicionarOuEditarCliente(e) {
 
     mostrarLoading(true);
 
-    if (editandoId) {
-        await FirebaseService.atualizar('clientes', editandoId, dados);
+    if (editState.clienteId) {
+        await FirebaseService.atualizar('clientes', editState.clienteId, dados);
         await FirebaseService.salvar('atividades', { tipo: 'edicao', descricao: `Cliente atualizado: ${dados.nome}`, usuarioNome: usuarioAtual.nome });
         mostrarAlerta('Cliente atualizado com sucesso!', 'success');
     } else {
@@ -1288,7 +1318,7 @@ async function adicionarOuEditarCliente(e) {
         }
     }
     
-    editandoId = null;
+    editState.clienteId = null;
     document.getElementById('clienteForm').reset();
     document.querySelector('#clienteForm button').textContent = '➕ Salvar Cliente';
     
@@ -1308,7 +1338,7 @@ function editarCliente(id) {
         if (clientesSubTabButton) clientesSubTabButton.click();
         
         // 2. AGORA, DEPOIS DE NAVEGAR, DEFINE O ID DE EDIÇÃO
-        editandoId = id;
+        editState.clienteId = id;
 
         // 3. Preenche o formulário
         document.getElementById('clienteNome').value = cliente.nome;
@@ -1393,7 +1423,7 @@ function renderizarTabelaClientes() {
 
     // --- CORREÇÃO APLICADA ---
     const TabelaClientesRowsPerPage = 5; // Limite específico para esta tabela
-    const startIndex = (currentPage - 1) * TabelaClientesRowsPerPage;
+    const startIndex = (getPage('clientes') - 1) * TabelaClientesRowsPerPage;
     const endIndex = startIndex + TabelaClientesRowsPerPage;
     const clientesPaginados = clientesOrdenados.slice(startIndex, endIndex);
     // --- FIM DA CORREÇÃO ---
@@ -1417,7 +1447,7 @@ function renderizarTabelaClientes() {
     }).join('');
 
     // Agora passamos o limite de 5 para a função de paginação.
-    renderizarControlesPaginacao(clientesOrdenados, 'paginacaoClientes', renderizarTabelaClientes, TabelaClientesRowsPerPage);
+    renderizarControlesPaginacao(clientesOrdenados, 'paginacaoClientes', renderizarTabelaClientes, TabelaClientesRowsPerPage, 'clientes');
 }
 
 
@@ -1490,9 +1520,9 @@ async function adicionarOuEditarProduto(e) {
 
     mostrarLoading(true);
 
-    if (editandoId) {
+    if (editState.produtoId) {
         // MODO EDIÇÃO: Atualiza o produto existente (Esta parte já está correta)
-        await FirebaseService.atualizar('produtos', editandoId, dadosProduto);
+        await FirebaseService.atualizar('produtos', editState.produtoId, dadosProduto);
         await FirebaseService.salvar('atividades', { tipo: 'edicao', descricao: `Produto atualizado: ${dadosProduto.nome}`, usuarioNome: usuarioAtual.nome });
         mostrarAlerta('Produto atualizado com sucesso!', 'success');
     } else {
@@ -1513,7 +1543,7 @@ async function adicionarOuEditarProduto(e) {
     }
 
     // 3. Limpa tudo para o próximo cadastro
-    editandoId = null;
+    editState.produtoId = null;
     composicaoReceitas = [];
     materiaisUtilizados = [];
     document.getElementById('produtoForm').reset(); // Limpa os campos do formulário
@@ -1537,7 +1567,7 @@ function editarProduto(id) {
     if (produtosSubTabButton) produtosSubTabButton.click();
 
     // 2. Define o modo de edição
-    editandoId = id;
+    editState.produtoId = id;
 
     // 3. Limpa os estados temporários e preenche o formulário básico
     composicaoReceitas = [];
@@ -1598,7 +1628,7 @@ function renderizarTabelaProdutos() {
     const produtosOrdenados = [...produtos].sort((a,b) => a.nome.localeCompare(b.nome));
 
     // --- LÓGICA DE PAGINAÇÃO APLICADA ---
-    const startIndex = (currentPage - 1) * rowsPerPage;
+    const startIndex = (getPage('despesas') - 1) * rowsPerPage;
     const endIndex = startIndex + rowsPerPage;
     const produtosPaginados = produtosOrdenados.slice(startIndex, endIndex);
 
@@ -1626,7 +1656,7 @@ function renderizarTabelaProdutos() {
     }).join('');
 
     // Adicionamos a chamada para criar os botões de paginação.
-    renderizarControlesPaginacao(produtosOrdenados, 'paginacaoProdutos', renderizarTabelaProdutos);
+    renderizarControlesPaginacao(produtosOrdenados, 'paginacaoProdutos', renderizarTabelaProdutos, undefined, 'produtos');
 }
 // === LÓGICA DE INGREDIENTES ===
 
@@ -1677,11 +1707,11 @@ async function adicionarOuEditarIngrediente(e) {
 
     mostrarLoading(true);
 
-    if (editandoId) {
+    if (editState.ingredienteId) {
         // MODO EDIÇÃO
-        const success = await FirebaseService.atualizar('ingredientes', editandoId, dados);
+        const success = await FirebaseService.atualizar('ingredientes', editState.ingredienteId, dados);
         if (success) {
-            const index = ingredientes.findIndex(i => i.id === editandoId);
+            const index = ingredientes.findIndex(i => i.id === editState.ingredienteId);
             if (index > -1) {
                 ingredientes[index] = { ...ingredientes[index], ...dados };
             }
@@ -1697,7 +1727,7 @@ async function adicionarOuEditarIngrediente(e) {
         }
     }
 
-    editandoId = null;
+    editState.ingredienteId = null;
     form.reset();
     document.querySelector('#ingredienteForm button').textContent = '➕ Salvar Ingrediente';
     renderizarTudo();
@@ -1714,7 +1744,7 @@ function editarIngrediente(id) {
         document.querySelector('.sub-tab-button[data-target="panel-ingredientes"]').click();
 
         // 3. Define o ID de edição APÓS a navegação
-        editandoId = id;
+        editState.ingredienteId = id;
 
         // 4. Preenche o formulário
         document.getElementById('ingredienteNome').value = ingrediente.nome;
@@ -2205,7 +2235,15 @@ await FirebaseService.salvar('atividades', { tipo: 'exclusao', descricao: `Despe
     });
 }
 
-function renderizarControlesPaginacao(items, containerId, renderFunction, customRowsPerPage) {
+function getPage(key) {
+    return pagination[key] || 1;
+}
+
+function setPage(key, value) {
+    pagination[key] = value;
+}
+
+function renderizarControlesPaginacao(items, containerId, renderFunction, customRowsPerPage, pageKey) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
@@ -2215,6 +2253,7 @@ function renderizarControlesPaginacao(items, containerId, renderFunction, custom
     const totalPages = Math.ceil(items.length / pageSize);
     // --- FIM DA CORREÇÃO ---
     
+    const currentPage = getPage(pageKey);
     container.innerHTML = '';
 
     if (totalPages <= 1) return;
@@ -2225,7 +2264,7 @@ function renderizarControlesPaginacao(items, containerId, renderFunction, custom
     prevButton.disabled = currentPage === 1;
     prevButton.onclick = () => {
         if (currentPage > 1) {
-            currentPage--;
+            setPage(pageKey, currentPage - 1);
             renderFunction();
         }
     };
@@ -2239,7 +2278,7 @@ function renderizarControlesPaginacao(items, containerId, renderFunction, custom
             pageButton.classList.add('active');
         }
         pageButton.onclick = () => {
-            currentPage = i;
+            setPage(pageKey, i);
             renderFunction();
         };
         container.appendChild(pageButton);
@@ -2251,7 +2290,7 @@ function renderizarControlesPaginacao(items, containerId, renderFunction, custom
     nextButton.disabled = currentPage === totalPages;
     nextButton.onclick = () => {
         if (currentPage < totalPages) {
-            currentPage++;
+            setPage(pageKey, currentPage + 1);
             renderFunction();
         }
     };
@@ -2272,7 +2311,7 @@ function renderizarTabelaDespesas() {
     despesasFiltradas.sort((a, b) => new Date(b.data) - new Date(a.data));
 
     // --- LÓGICA DE PAGINAÇÃO APLICADA ---
-    const startIndex = (currentPage - 1) * rowsPerPage;
+    const startIndex = (getPage('despesas') - 1) * rowsPerPage;
     const endIndex = startIndex + rowsPerPage;
     const despesasPaginadas = despesasFiltradas.slice(startIndex, endIndex);
 
@@ -2290,7 +2329,7 @@ function renderizarTabelaDespesas() {
     `).join('');
 
     // Chamada para renderizar os controles de paginação
-    renderizarControlesPaginacao(despesasFiltradas, 'paginacaoDespesas', renderizarTabelaDespesas);
+    renderizarControlesPaginacao(despesasFiltradas, 'paginacaoDespesas', renderizarTabelaDespesas, undefined, 'despesas');
 }
 
 
@@ -2393,14 +2432,18 @@ async function marcarPendenciaComoPaga(tipo, id) {
 
     if (tipo === 'venda') {
         item = vendas.find(v => v.id === id);
-        confirmText = `Deseja marcar a venda do produto "${item.produto}" para ${item.pessoa} como paga?`;
     } else { // tipo === 'encomenda'
         item = encomendas.find(e => e.id === id);
-        confirmText = `Deseja finalizar a encomenda de "${item.produtoDescricao}" para ${item.clienteNome}?`;
     }
 
     if (!item) {
         return mostrarAlerta('Erro: Item pendente não encontrado.', 'danger');
+    }
+
+    if (tipo === 'venda') {
+        confirmText = `Deseja marcar a venda do produto "${item.produto}" para ${item.pessoa} como paga?`;
+    } else { // tipo === 'encomenda'
+        confirmText = `Deseja finalizar a encomenda de "${item.produtoDescricao}" para ${item.clienteNome}?`;
     }
 
     showConfirm(confirmText, async (confirmado) => {
@@ -2647,28 +2690,34 @@ function renderizarGraficoVendasMensais() {
     });
 }
 function extrairDataDoItem(item) {
-    // CORREÇÃO: Procura em item.data (para vendas) OU em item.dataEntrega (para encomendas)
-    const dataString = item.data || item.dataEntrega;
-    
-    if (!dataString) {
-        // Se não encontrar data em nenhum dos dois campos, retorna nulo.
-        return null;
+    // Procura em item.data (vendas) ou item.dataEntrega (encomendas)
+    const dataInput = item.data || item.dataEntrega;
+    if (!dataInput) return null;
+
+    // Caso 1: string no formato AAAA-MM-DD
+    if (typeof dataInput === 'string') {
+        const partes = dataInput.split("-");
+        if (partes.length !== 3) return null;
+
+        const ano = parseInt(partes[0], 10);
+        const mes = parseInt(partes[1], 10) - 1; // ajusta para 0-11
+        const dia = parseInt(partes[2], 10);
+        if (isNaN(ano) || isNaN(mes) || isNaN(dia)) return null;
+        return { ano, mes, dia };
     }
 
-    // O resto da função continua igual, mas usando a dataString que encontramos.
-    const partes = dataString.split("-");
-    if (partes.length !== 3) return null;
-
-    const ano = parseInt(partes[0], 10);
-    const mes = parseInt(partes[1], 10) - 1; // ajusta para 0-11
-    const dia = parseInt(partes[2], 10);
-
-    // Garante que os valores são números válidos antes de retornar
-    if (isNaN(ano) || isNaN(mes) || isNaN(dia)) {
-        return null;
+    // Caso 2: Timestamp do Firebase
+    if (dataInput && typeof dataInput.toDate === 'function') {
+        const data = dataInput.toDate();
+        return { ano: data.getFullYear(), mes: data.getMonth(), dia: data.getDate() };
     }
 
-    return { ano, mes, dia };
+    // Caso 3: objeto Date
+    if (dataInput instanceof Date) {
+        return { ano: dataInput.getFullYear(), mes: dataInput.getMonth(), dia: dataInput.getDate() };
+    }
+
+    return null;
 }
 
 function criarFiltroData(anoDesejado, mesDesejado) {
@@ -2714,14 +2763,18 @@ function renderizarGraficoEvolucaoVendas() {
 
         // --- INÍCIO DA CORREÇÃO ---
 
-        // 1. Formatamos a data do dia para o formato 'AAAA-MM-DD' para uma comparação exata.
         const ano = dia.getFullYear();
-        const mes = String(dia.getMonth() + 1).padStart(2, '0'); // Mês é 0-11, então +1
-        const diaDoMes = String(dia.getDate()).padStart(2, '0');
-        const diaFormatado = `${ano}-${mes}-${diaDoMes}`;
+        const mes = dia.getMonth();
+        const diaDoMes = dia.getDate();
 
-        // 2. Filtra as vendas comparando texto com texto (venda.data), ignorando o fuso horário.
-        const vendasDoDia = vendas.filter(venda => venda.data === diaFormatado);
+        // Filtra as vendas por data usando o parser centralizado
+        const vendasDoDia = vendas.filter(venda => {
+            const dataExtraida = extrairDataDoItem(venda);
+            return dataExtraida &&
+                dataExtraida.ano === ano &&
+                dataExtraida.mes === mes &&
+                dataExtraida.dia === diaDoMes;
+        });
 
         // --- FIM DA CORREÇÃO ---
 
