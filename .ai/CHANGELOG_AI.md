@@ -8,6 +8,8 @@
 
 **Preservação:** nenhuma mudança de regras, domínio, serviço Firebase, dados ou faturamento. O PNG original é mantido byte a byte. **Evidências:** [feature 002](../specs/002-responsividade-identidade/checklists/requirements.md).
 
+**Entrega:** PR #3 integrada (`50b5086`), 103 testes aprovados no CI da PR e de `main`, deploy confirmado e verificação pública nas duas URLs Firebase. Este fechamento documental não altera o pacote publicado.
+
 ## 2026-10-23 — Adoção documental e Spec Kit
 
 **Agente:** Codex. **Objetivo:** aplicar Spec Kit e avaliar a precedência do AI Project Bootstrap local.

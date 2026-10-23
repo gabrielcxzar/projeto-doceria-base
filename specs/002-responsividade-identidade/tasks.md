@@ -9,4 +9,4 @@
 - [x] T007 [US1] [US2] Acrescentar testes de matriz e acesso aos controles em `tests/browser/`.
 - [x] T008 [US3] Validar hash original, ícones e PWA de produção.
 - [x] T009 Executar checks e cenários de integração/navegador aplicáveis; revisar capturas.
-- [ ] T010 Atualizar documentação/decisões, revisar diff e publicar pelo fluxo existente.
+- [x] T010 Atualizar documentação/decisões, revisar diff e publicar pelo fluxo existente.

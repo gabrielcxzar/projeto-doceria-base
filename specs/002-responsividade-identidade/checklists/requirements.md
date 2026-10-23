@@ -11,11 +11,11 @@
 ## Aceite de implementação
 
 - [x] Menu inteiro alcançável por rolagem, com fechamento e teclado funcionais.
-- [x] Todas as áreas e diálogos aprovados na matriz local, sem corte impeditivo; regressão final integral será repetida no CI.
+- [x] Todas as áreas e diálogos aprovados na matriz local e no CI, sem corte impeditivo.
 - [x] Logo visível e integral; favicon/ícone PWA usam o arquivo original intacto.
 - [x] Fluxos existentes, compilação e PWA aprovados localmente.
 - [x] Capturas revisadas e diff sem alterações de banco ou segredos.
-- [ ] CI integral, merge e publicação no endereço existente confirmados.
+- [x] CI integral, merge e publicação no endereço existente confirmados.
 
 ## Evidências
 
@@ -27,4 +27,6 @@
 - `npm run build` e `npm run test:pwa`: aprovados; manifesto com PNG original 1024×1024, instalação sem erros no Chromium e logo disponível no cache offline. Blob original preservado: `0b344d7417c4f20b811eb09ba2401c080cc64aa3`.
 - `npm audit --omit=dev`: nenhuma vulnerabilidade; `git diff --check`: sem erros. Serviço, domínio, regras, projeto Firebase e arquivo da logo sem alterações.
 - Cinco capturas intencionais com dados fictícios em [docs/design/responsividade](../../../docs/design/responsividade/), geradas com barras de rolagem habilitadas. Nenhuma validação em aparelho físico foi realizada; alturas pequenas simulam espaço reduzido, não o comportamento completo de teclados móveis.
-- Publicação: aguardando o pipeline da PR e o deploy de `main`.
+- [PR #3](https://github.com/gabrielcxzar/projeto-doceria-base/pull/3) integrada como `50b5086d0450d8cf652cff732ef78d08a494f5b0`. [CI da PR](https://github.com/gabrielcxzar/projeto-doceria-base/actions/runs/39972023515) e [CI/publicação da main](https://github.com/gabrielcxzar/projeto-doceria-base/actions/runs/39973400797) aprovados. Cada execução confirmou 103 testes: 58 responsivos, 11 de domínio, 10 de navegador, 12 de integração, 11 de regras e 1 PWA; tipos, build e auditoria também aprovados.
+- Deploy Firebase concluído em 2026-10-23 às 14:59:16 UTC. Verificação pública em `gestao-de-confeitaria.web.app` e `gestao-de-confeitaria.firebaseapp.com`: HTTP 200, bundle `/assets/index-CGbEzN-R.js`, favicon/manifesto corretos, PNG original de 1.554.486 bytes com hash histórico, nenhum erro de JavaScript e instalação Chromium sem erros.
+- Login público conferido em cinco dimensões (320×568, 390×844, 768×1024, 844×390 e 1366×600) em cada URL: logo inteira carregada, página sem overflow e entrada alcançável por rolagem. Fluxos autenticados foram validados nos emuladores, sem usar contas ou dados comerciais para testes.

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `fix/responsividade-identidade`
 **Created**: 2026-10-23
-**Status**: Implementada; validação local concluída, aguardando CI e publicação
+**Status**: Concluída e publicada em 2026-10-23
 **Input**: Revisar a responsividade do site inteiro, permitir acesso ao menu completo com rolagem e restaurar logo/favicon originais.
 
 ## User Scenarios & Testing
