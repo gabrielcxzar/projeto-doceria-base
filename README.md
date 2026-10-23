@@ -2,6 +2,13 @@
 
 Gestão interna da confeitaria, com React, TypeScript, Vite, Firebase Authentication e Firestore. PWA instalável para celular e computador. As gravações exigem internet; transações não são enfileiradas offline.
 
+## Documentação
+
+- [Índice da documentação](docs/README.md): arquitetura, modelo de dados, operação e decisões.
+- [Manual de uso](docs/manual-de-uso.md): rotina da equipe.
+- [Desenvolvimento com Bootstrap e Spec Kit](docs/desenvolvimento.md): especificações e manutenção do projeto.
+- [Entrada de agentes](AGENTS.md) e [constituição](.specify/memory/constitution.md).
+
 ## Executar
 
 Requer Node.js 22.12 ou superior (linha 22), npm e, para os emuladores, Java 21 ou superior.
@@ -25,6 +32,7 @@ npm run check
 npm run build
 npx playwright install chromium
 npm run test:e2e
+npm run test:pwa
 npm run test:rules
 npm run test:integration
 ```

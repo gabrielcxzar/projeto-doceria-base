@@ -1,0 +1,4 @@
+# Os manifests do Spec Kit registram hashes dos bytes oficiais.
+# Preserve LF nos artefatos da ferramenta, inclusive em checkouts Windows.
+.specify/** text eol=lf
+.agents/skills/** text eol=lf
