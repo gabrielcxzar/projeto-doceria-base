@@ -1,0 +1,22 @@
+config_version: 1
+
+framework:
+  applied_version: "1.0.0"
+  last_applied_at: "2026-10-23"
+  adoption_level: standard
+
+language:
+  policy: fixed
+  value: pt-BR
+  preserve_existing_document_language: true
+
+documentation:
+  documents:
+    AGENT_INSTRUCTIONS: AGENTS.md
+    GOVERNANCE: .ai/AI_CONVENTIONS.md
+    CHANGELOG_AI: .ai/CHANGELOG_AI.md
+
+x-speckit:
+  version: "1.2.3"
+  integration: codex
+  script: ps
