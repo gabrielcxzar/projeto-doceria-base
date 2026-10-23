@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lá Divino Sabor — Gestão da Doceria</title>
+<!-- Google Fonts: Playfair Display & Plus Jakarta Sans -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS with Forms and Container Queries -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "on-primary": "#ffffff",
+            "outline": "#827470",
+            "surface-tint": "#77574b",
+            "primary-fixed": "#ffdbcf",
+            "tertiary-fixed-dim": "#bccbb6",
+            "inverse-primary": "#e7bdaf",
+            "inverse-surface": "#31312d",
+            "primary-container": "#4b3026",
+            "tertiary-fixed": "#d8e7d1",
+            "on-background": "#1c1c18",
+            "error-container": "#ffdad6",
+            "on-tertiary-fixed": "#121e11",
+            "inverse-on-surface": "#f3f0ea",
+            "on-primary-fixed": "#2c160d",
+            "surface-container": "#f0eee8",
+            "on-surface": "#1c1c18",
+            "surface-bright": "#fcf9f3",
+            "surface-container-highest": "#e5e2dc",
+            "tertiary": "#182417",
+            "secondary-fixed-dim": "#f2bc92",
+            "on-error-container": "#93000a",
+            "on-tertiary-fixed-variant": "#3d4a3a",
+            "on-primary-container": "#be978a",
+            "on-tertiary-container": "#95a490",
+            "secondary-fixed": "#ffdcc3",
+            "surface-dim": "#dcdad4",
+            "on-error": "#ffffff",
+            "on-secondary-container": "#79512f",
+            "background": "#f8f5ef",
+            "primary": "#331b12",
+            "surface-container-high": "#ebe8e2",
+            "surface-variant": "#e5e2dc",
+            "on-secondary-fixed": "#2f1500",
+            "on-surface-variant": "#504440",
+            "primary-fixed-dim": "#e7bdaf",
+            "surface": "#fcf9f3",
+            "tertiary-container": "#2d3a2b",
+            "error": "#ba1a1a",
+            "on-secondary": "#ffffff",
+            "secondary": "#7e5533",
+            "surface-container-low": "#f6f3ed",
+            "surface-container-lowest": "#ffffff",
+            "secondary-container": "#fec79c",
+            "on-secondary-fixed-variant": "#633e1e",
+            "on-primary-fixed-variant": "#5d4035",
+            "on-tertiary": "#ffffff",
+            "outline-variant": "#ded4c6"
+          },
+          borderRadius: {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          spacing: {
+            "space-xxl": "3rem",
+            "gutter": "1rem",
+            "margin-md": "2rem",
+            "margin-lg": "3rem",
+            "space-md": "1rem",
+            "space-xl": "2rem",
+            "space-xs": "0.25rem",
+            "space-sm": "0.5rem",
+            "margin": "1rem",
+            "space-xxs": "0.125rem",
+            "space-lg": "1.5rem",
+            "gutter-md": "1.5rem"
+          },
+          fontFamily: {
+            "headline-md": ["Playfair Display", "serif"],
+            "body-md": ["Plus Jakarta Sans", "sans-serif"],
+            "headline-lg": ["Playfair Display", "serif"],
+            "headline-lg-mobile": ["Playfair Display", "serif"],
+            "display-lg-mobile": ["Playfair Display", "serif"],
+            "body-sm": ["Plus Jakarta Sans", "sans-serif"],
+            "display-lg": ["Playfair Display", "serif"],
+            "body-lg": ["Plus Jakarta Sans", "sans-serif"],
+            "title-md": ["Plus Jakarta Sans", "sans-serif"],
+            "label-lg": ["Plus Jakarta Sans", "sans-serif"],
+            "headline-sm": ["Playfair Display", "serif"],
+            "label-sm": ["Plus Jakarta Sans", "sans-serif"],
+            "label-md": ["Plus Jakarta Sans", "sans-serif"]
+          },
+          fontSize: {
+            "headline-md": ["22px", { lineHeight: "30px", fontWeight: "500" }],
+            "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }],
+            "headline-lg": ["28px", { lineHeight: "36px", letterSpacing: "-0.01em", fontWeight: "600" }],
+            "headline-lg-mobile": ["24px", { lineHeight: "32px", letterSpacing: "-0.005em", fontWeight: "600" }],
+            "display-lg-mobile": ["30px", { lineHeight: "38px", letterSpacing: "-0.01em", fontWeight: "600" }],
+            "body-sm": ["13px", { lineHeight: "18px", fontWeight: "400" }],
+            "display-lg": ["40px", { lineHeight: "48px", letterSpacing: "-0.01em", fontWeight: "600" }],
+            "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+            "title-md": ["16px", { lineHeight: "24px", fontWeight: "600" }],
+            "label-lg": ["14px", { lineHeight: "20px", letterSpacing: "0.01em", fontWeight: "600" }],
+            "headline-sm": ["18px", { lineHeight: "26px", fontWeight: "600" }],
+            "label-sm": ["11px", { lineHeight: "14px", letterSpacing: "0.04em", fontWeight: "700" }],
+            "label-md": ["12px", { lineHeight: "16px", letterSpacing: "0.02em", fontWeight: "600" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body {
+      background-color: #F8F5EF;
+      color: #331B12;
+      -webkit-font-smoothing: antialiased;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      font-size: 20px;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body class="bg-background min-h-screen text-on-surface font-body-md text-body-md antialiased selection:bg-secondary-container selection:text-primary">
+<!-- Left Sidebar (SideNavBar Anchor Executed) -->
+<aside class="fixed top-0 bottom-0 left-0 w-64 h-full bg-surface-container-lowest border-r border-outline-variant flex flex-col justify-between p-4 z-40 select-none">
+<!-- Brand Header -->
+<div class="flex flex-col gap-6">
+<div class="px-3 pt-2 pb-1 border-b border-outline-variant">
+<h1 class="font-headline-md text-headline-md font-semibold text-primary tracking-tight">
+          Lá Divino Sabor
+        </h1>
+<p class="font-body-sm text-body-sm text-outline mt-0.5 tracking-normal">
+          Confeitaria Artesanal
+        </p>
+</div>
+<!-- Navigation Tabs (JSON: Tab 0 "Visão geral" Active) -->
+<nav aria-label="Navegação Principal" class="flex flex-col gap-1">
+<!-- 1. Visão geral (Active) -->
+<a class="flex items-center gap-3 px-3 py-2 bg-surface-container text-primary font-semibold rounded-lg transition-transform duration-100 active:scale-[0.99] min-h-[44px]" href="#visao-geral">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-label-md text-label-md">Visão geral</span>
+</a>
+<!-- 2. Vendas -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-lg transition-colors duration-150 active:scale-[0.99] min-h-[44px]" href="#vendas">
+<span class="material-symbols-outlined text-outline">point_of_sale</span>
+<span class="font-label-md text-label-md">Vendas</span>
+</a>
+<!-- 3. Produtos -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-lg transition-colors duration-150 active:scale-[0.99] min-h-[44px]" href="#produtos">
+<span class="material-symbols-outlined text-outline">inventory_2</span>
+<span class="font-label-md text-label-md">Produtos</span>
+</a>
+<!-- 4. Insumos -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-lg transition-colors duration-150 active:scale-[0.99] min-h-[44px]" href="#insumos">
+<span class="material-symbols-outlined text-outline">egg</span>
+<span class="font-label-md text-label-md">Insumos</span>
+</a>
+<!-- 5. Receitas -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-lg transition-colors duration-150 active:scale-[0.99] min-h-[44px]" href="#receitas">
+<span class="material-symbols-outlined text-outline">menu_book</span>
+<span class="font-label-md text-label-md">Receitas</span>
+</a>
+<!-- 6. Produção -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-lg transition-colors duration-150 active:scale-[0.99] min-h-[44px]" href="#producao">
+<span class="material-symbols-outlined text-outline">skillet</span>
+<span class="font-label-md text-label-md">Produção</span>
+</a>
+<!-- 7. Custos e despesas -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-lg transition-colors duration-150 active:scale-[0.99] min-h-[44px]" href="#custos">
+<span class="material-symbols-outlined text-outline">receipt_long</span>
+<span class="font-label-md text-label-md">Custos e despesas</span>
+</a>
+<!-- 8. Relatórios -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-lg transition-colors duration-150 active:scale-[0.99] min-h-[44px]" href="#relatorios">
+<span class="material-symbols-outlined text-outline">bar_chart</span>
+<span class="font-label-md text-label-md">Relatórios</span>
+</a>
+</nav>
+</div>
+<!-- Bottom Sidebar (Footer Actions & User Profile) -->
+<div class="flex flex-col gap-2 pt-3 border-t border-outline-variant">
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-lg transition-colors duration-150 active:scale-[0.99] min-h-[44px]" href="#configuracoes">
+<span class="material-symbols-outlined text-outline">settings</span>
+<span class="font-label-md text-label-md">Configurações</span>
+</a>
+<!-- User row: Marina / Administração -->
+<div class="flex items-center gap-3 px-3 py-2 mt-1 rounded-lg border border-outline-variant bg-surface-container-low">
+<div class="w-8 h-8 rounded bg-primary-container text-on-primary flex items-center justify-center font-label-md text-label-md font-bold tracking-tight shrink-0">
+          M
+        </div>
+<div class="flex flex-col min-w-0 leading-tight">
+<span class="font-label-md text-label-md font-semibold text-primary truncate">Marina</span>
+<span class="font-label-sm text-label-sm text-outline truncate">Administração</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- Sticky TopNavBar Execution (JSON Anchor: max-w-[calc(100%-16rem)] ml-64) -->
+<header class="sticky top-0 right-0 w-full ml-64 max-w-[calc(100%-16rem)] h-16 bg-surface-container-lowest border-b border-outline-variant flex justify-between items-center px-8 z-30">
+<div class="flex items-center gap-3">
+<span class="font-headline-sm text-headline-sm font-semibold text-primary">Lá Divino Sabor</span>
+<span class="text-outline-variant">/</span>
+<span class="font-label-md text-label-md text-outline">Painel Operacional</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-1 text-on-surface-variant">
+<button aria-label="Visualizar calendário" class="w-11 h-11 flex items-center justify-center rounded hover:bg-surface-container-low text-primary transition-colors duration-150 active:scale-[0.98]" type="button">
+<span class="material-symbols-outlined">calendar_today</span>
+</button>
+<button aria-label="Notificações" class="w-11 h-11 flex items-center justify-center rounded hover:bg-surface-container-low text-primary transition-colors duration-150 relative active:scale-[0.98]" type="button">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2.5 right-2.5 w-2 h-2 bg-secondary rounded-full"></span>
+</button>
+</div>
+<div class="h-6 w-px bg-outline-variant"></div>
+<!-- Trailing Primary Action from JSON -->
+<button class="inline-flex items-center justify-center gap-2 px-5 min-h-[44px] bg-primary-container text-on-primary font-label-lg text-label-lg rounded-lg hover:bg-primary transition-colors duration-150 active:scale-[0.98] cursor-pointer" type="button">
+<span>+ Registrar venda</span>
+</button>
+</div>
+</header>
+<!-- Main Canvas Content Area -->
+<main class="ml-64 p-8 max-w-[1280px]">
+<!-- Greeting & Action Header -->
+<section class="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-outline-variant">
+<div>
+<p class="font-label-sm text-label-sm uppercase tracking-wider text-outline mb-1 font-semibold">
+          Gestão da doceria
+        </p>
+<h2 class="font-headline-lg text-headline-lg text-primary tracking-tight">
+          Bom dia, Marina
+        </h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">
+          Um olhar simples para o dia da sua doceria.
+        </p>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-2 px-3 py-2 border border-outline-variant rounded-lg bg-surface-container-lowest text-on-surface-variant font-label-md text-label-md min-h-[44px]">
+<span class="material-symbols-outlined text-outline">today</span>
+<span>23 de outubro</span>
+</div>
+</div>
+</section>
+<!-- Financial Overview Strip (3 unboxed metric columns separated by subtle vertical rules #DED4C6) -->
+<section class="my-8 bg-surface-container-lowest border border-outline-variant rounded-lg p-6">
+<div class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-outline-variant">
+<!-- Metric 1: Vendas de hoje -->
+<div class="py-4 md:py-0 md:pr-8 flex flex-col justify-between">
+<span class="font-label-md text-label-md text-outline font-medium">Vendas de hoje</span>
+<div class="mt-2 mb-1 flex items-baseline gap-2">
+<span class="font-display-lg text-display-lg font-semibold text-primary tracking-tight">R$ 286,00</span>
+</div>
+<span class="font-body-sm text-body-sm text-outline">8 vendas registradas</span>
+</div>
+<!-- Metric 2: Resultado estimado -->
+<div class="py-4 md:py-0 md:px-8 flex flex-col justify-between">
+<span class="font-label-md text-label-md text-outline font-medium">Resultado estimado</span>
+<div class="mt-2 mb-1 flex items-baseline gap-2">
+<span class="font-display-lg text-display-lg font-semibold text-primary tracking-tight">R$ 158,00</span>
+</div>
+<span class="font-body-sm text-body-sm text-outline">após custos cadastrados</span>
+</div>
+<!-- Metric 3: A receber -->
+<div class="py-4 md:py-0 md:pl-8 flex flex-col justify-between">
+<span class="font-label-md text-label-md text-outline font-medium">A receber</span>
+<div class="mt-2 mb-1 flex items-baseline gap-2">
+<span class="font-display-lg text-display-lg font-semibold text-secondary tracking-tight">R$ 72,00</span>
+</div>
+<span class="font-body-sm text-body-sm text-outline">2 pagamentos pendentes</span>
+</div>
+</div>
+</section>
+<!-- Two-Column Operations Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<!-- Left Column: Vendas recentes (~68% width on 12-col = 8 cols) -->
+<section class="lg:col-span-8 flex flex-col gap-4">
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
+<!-- Card Header Strip -->
+<div class="px-5 py-4 border-b border-outline-variant flex items-center justify-between bg-surface-container-low">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline">point_of_sale</span>
+<h3 class="font-title-md text-title-md text-primary font-semibold">Vendas recentes</h3>
+</div>
+<a class="font-label-md text-label-md text-secondary hover:text-primary underline underline-offset-4 font-semibold min-h-[44px] flex items-center transition-colors" href="#vendas">
+              Ver todas
+            </a>
+</div>
+<!-- Ledgers Table -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-outline-variant h-10">
+<th class="px-5 py-2 font-label-sm text-label-sm text-outline font-semibold uppercase tracking-wider w-20" scope="col">Horário</th>
+<th class="px-5 py-2 font-label-sm text-label-sm text-outline font-semibold uppercase tracking-wider" scope="col">Itens</th>
+<th class="px-5 py-2 font-label-sm text-label-sm text-outline font-semibold uppercase tracking-wider" scope="col">Pagamento</th>
+<th class="px-5 py-2 font-label-sm text-label-sm text-outline font-semibold uppercase tracking-wider text-right" scope="col">Total</th>
+<th class="px-5 py-2 font-label-sm text-label-sm text-outline font-semibold uppercase tracking-wider text-right" scope="col">Situação</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant font-body-sm text-body-sm">
+<!-- Row 1: 10:42 -->
+<tr class="hover:bg-background transition-colors min-h-[48px]">
+<td class="px-5 py-3.5 font-medium text-outline whitespace-nowrap">10:42</td>
+<td class="px-5 py-3.5 text-on-surface font-medium">2 brownies, 1 brigadeiro</td>
+<td class="px-5 py-3.5 text-on-surface-variant">Pix</td>
+<td class="px-5 py-3.5 text-right font-semibold text-primary tabular-nums">R$ 28,00</td>
+<td class="px-5 py-3.5 text-right whitespace-nowrap">
+<span class="inline-flex items-center justify-end gap-1.5 font-label-sm text-label-sm text-on-surface">
+<span class="w-2 h-2 rounded-full bg-[#6C7A68]"></span>
+<span>Pago</span>
+</span>
+</td>
+</tr>
+<!-- Row 2: 10:18 -->
+<tr class="hover:bg-background transition-colors min-h-[48px]">
+<td class="px-5 py-3.5 font-medium text-outline whitespace-nowrap">10:18</td>
+<td class="px-5 py-3.5 text-on-surface font-medium">1 bolo de pote</td>
+<td class="px-5 py-3.5 text-on-surface-variant">Dinheiro</td>
+<td class="px-5 py-3.5 text-right font-semibold text-primary tabular-nums">R$ 16,00</td>
+<td class="px-5 py-3.5 text-right whitespace-nowrap">
+<span class="inline-flex items-center justify-end gap-1.5 font-label-sm text-label-sm text-on-surface">
+<span class="w-2 h-2 rounded-full bg-[#6C7A68]"></span>
+<span>Pago</span>
+</span>
+</td>
+</tr>
+<!-- Row 3: 09:56 (Pendente) -->
+<tr class="hover:bg-background transition-colors min-h-[48px]">
+<td class="px-5 py-3.5 font-medium text-outline whitespace-nowrap">09:56</td>
+<td class="px-5 py-3.5 text-on-surface font-medium">12 brigadeiros</td>
+<td class="px-5 py-3.5 text-on-surface-variant">Pix</td>
+<td class="px-5 py-3.5 text-right font-semibold text-primary tabular-nums">R$ 60,00</td>
+<td class="px-5 py-3.5 text-right whitespace-nowrap">
+<span class="inline-flex items-center justify-end gap-1.5 font-label-sm text-label-sm text-secondary">
+<span class="w-2 h-2 rounded-full bg-[#C48434]"></span>
+<span>Pendente</span>
+</span>
+</td>
+</tr>
+<!-- Row 4: 09:30 -->
+<tr class="hover:bg-background transition-colors min-h-[48px]">
+<td class="px-5 py-3.5 font-medium text-outline whitespace-nowrap">09:30</td>
+<td class="px-5 py-3.5 text-on-surface font-medium">1 torta de limão fatia, 1 café</td>
+<td class="px-5 py-3.5 text-on-surface-variant">Cartão de débito</td>
+<td class="px-5 py-3.5 text-right font-semibold text-primary tabular-nums">R$ 22,00</td>
+<td class="px-5 py-3.5 text-right whitespace-nowrap">
+<span class="inline-flex items-center justify-end gap-1.5 font-label-sm text-label-sm text-on-surface">
+<span class="w-2 h-2 rounded-full bg-[#6C7A68]"></span>
+<span>Pago</span>
+</span>
+</td>
+</tr>
+<!-- Row 5: 09:05 -->
+<tr class="hover:bg-background transition-colors min-h-[48px]">
+<td class="px-5 py-3.5 font-medium text-outline whitespace-nowrap">09:05</td>
+<td class="px-5 py-3.5 text-on-surface font-medium">6 cookies de baunilha</td>
+<td class="px-5 py-3.5 text-on-surface-variant">Pix</td>
+<td class="px-5 py-3.5 text-right font-semibold text-primary tabular-nums">R$ 36,00</td>
+<td class="px-5 py-3.5 text-right whitespace-nowrap">
+<span class="inline-flex items-center justify-end gap-1.5 font-label-sm text-label-sm text-on-surface">
+<span class="w-2 h-2 rounded-full bg-[#6C7A68]"></span>
+<span>Pago</span>
+</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Bottom micro-actions inside card -->
+<div class="p-3 bg-surface-container-low border-t border-outline-variant flex justify-between items-center text-outline font-label-sm text-label-sm px-5">
+<span>Última sincronização do caixa às 10:45</span>
+<span class="font-medium text-primary">5 registros exibidos</span>
+</div>
+</div>
+<!-- Rapid Recipe Ledger Note (Domain Specific Ledger Strip) -->
+<div class="border border-outline-variant rounded-lg p-4 bg-surface-container-lowest flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-secondary">tips_and_updates</span>
+<div>
+<p class="font-label-md text-label-md font-semibold text-primary">Previsão para Encomendas do Fim de Semana</p>
+<p class="font-body-sm text-body-sm text-outline">3 bolos confeitados programados para entrega nesta sexta-feira.</p>
+</div>
+</div>
+<button class="font-label-md text-label-md px-3 py-2 border border-outline-variant rounded hover:bg-surface-container-low text-primary min-h-[44px] flex items-center" type="button">
+            Ver escala
+          </button>
+</div>
+</section>
+<!-- Right Column: Operational Widgets (~32% width = 4 cols) -->
+<section class="lg:col-span-4 flex flex-col gap-6">
+<!-- Card 1: Atenção ao estoque -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col justify-between">
+<div>
+<div class="px-5 py-3.5 border-b border-outline-variant flex items-center justify-between bg-surface-container-low">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline">warning</span>
+<h3 class="font-title-md text-title-md text-primary font-semibold">Atenção ao estoque</h3>
+</div>
+<span class="font-label-sm text-label-sm text-secondary bg-[#FAF3EC] border border-[#DFC9B4] px-2 py-0.5 rounded">3 alertas</span>
+</div>
+<!-- List of items -->
+<ul class="divide-y divide-outline-variant p-0 m-0">
+<!-- Item 1 -->
+<li class="px-5 py-3.5 flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-primary">Chocolate ao leite</span>
+<span class="font-label-sm text-label-sm text-error font-medium">Repor</span>
+</div>
+<div class="flex items-center justify-between font-body-sm text-body-sm text-on-surface-variant">
+<span class="text-error font-semibold">300 g</span>
+<span class="text-outline">mínimo 500 g</span>
+</div>
+<!-- Subtle hairline progress rule -->
+<div class="w-full bg-surface-container-high h-1.5 rounded-full overflow-hidden mt-0.5">
+<div class="bg-[#C48434] h-full w-[60%]"></div>
+</div>
+</li>
+<!-- Item 2 -->
+<li class="px-5 py-3.5 flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-primary">Embalagem brownie</span>
+<span class="font-label-sm text-label-sm text-error font-medium">Repor</span>
+</div>
+<div class="flex items-center justify-between font-body-sm text-body-sm text-on-surface-variant">
+<span class="text-error font-semibold">8 un</span>
+<span class="text-outline">mínimo 20 un</span>
+</div>
+<div class="w-full bg-surface-container-high h-1.5 rounded-full overflow-hidden mt-0.5">
+<div class="bg-[#C48434] h-full w-[40%]"></div>
+</div>
+</li>
+<!-- Item 3 -->
+<li class="px-5 py-3.5 flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-primary">Farinha de trigo especial</span>
+<span class="font-label-sm text-label-sm text-secondary font-medium">Atenção</span>
+</div>
+<div class="flex items-center justify-between font-body-sm text-body-sm text-on-surface-variant">
+<span class="text-primary font-semibold">1,2 kg</span>
+<span class="text-outline">mínimo 2,0 kg</span>
+</div>
+<div class="w-full bg-surface-container-high h-1.5 rounded-full overflow-hidden mt-0.5">
+<div class="bg-secondary h-full w-[60%]"></div>
+</div>
+</li>
+</ul>
+</div>
+<!-- Footer Link Action -->
+<div class="p-3 border-t border-outline-variant bg-surface-container-low">
+<a class="w-full flex items-center justify-between px-3 py-2 text-primary font-label-md text-label-md font-semibold hover:bg-surface-container rounded transition-colors min-h-[44px]" href="#insumos">
+<span>Conferir insumos</span>
+<span aria-hidden="true">→</span>
+</a>
+</div>
+</div>
+<!-- Card 2: Produção de hoje -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col justify-between">
+<div>
+<div class="px-5 py-3.5 border-b border-outline-variant flex items-center justify-between bg-surface-container-low">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline">skillet</span>
+<h3 class="font-title-md text-title-md text-primary font-semibold">Produção de hoje</h3>
+</div>
+<span class="font-label-sm text-label-sm text-outline">Fornada #04</span>
+</div>
+<!-- Recipe / Task Items -->
+<ul class="divide-y divide-outline-variant p-0 m-0">
+<!-- Task 1 -->
+<li class="px-5 py-3.5 flex items-center justify-between">
+<div>
+<h4 class="font-label-md text-label-md font-semibold text-primary">Brigadeiro tradicional</h4>
+<p class="font-body-sm text-body-sm text-outline">40 un planejadas</p>
+</div>
+<span class="inline-flex items-center px-2.5 py-1 rounded text-label-sm font-label-sm font-semibold bg-[#F6F2EE] text-[#A67853] border border-[#DFC9B4]">
+                  Em preparo
+                </span>
+</li>
+<!-- Task 2 -->
+<li class="px-5 py-3.5 flex items-center justify-between">
+<div>
+<h4 class="font-label-md text-label-md font-semibold text-primary">Brownie de chocolate</h4>
+<p class="font-body-sm text-body-sm text-outline">16 un cortadas</p>
+</div>
+<span class="inline-flex items-center px-2.5 py-1 rounded text-label-sm font-label-sm font-semibold bg-[#F2F5F2] text-[#6C7A68] border border-[#CAD4C8]">
+                  Concluído
+                </span>
+</li>
+<!-- Task 3 -->
+<li class="px-5 py-3.5 flex items-center justify-between">
+<div>
+<h4 class="font-label-md text-label-md font-semibold text-primary">Massa de pão de mel</h4>
+<p class="font-body-sm text-body-sm text-outline">24 un a assar</p>
+</div>
+<span class="inline-flex items-center px-2.5 py-1 rounded text-label-sm font-label-sm font-semibold bg-[#FDF8EE] text-[#C48434] border border-[#F0DEB4]">
+                  A iniciar
+                </span>
+</li>
+</ul>
+</div>
+<!-- Footer Link Action -->
+<div class="p-3 border-t border-outline-variant bg-surface-container-low">
+<a class="w-full flex items-center justify-between px-3 py-2 text-primary font-label-md text-label-md font-semibold hover:bg-surface-container rounded transition-colors min-h-[44px]" href="#producao">
+<span>Abrir produção</span>
+<span aria-hidden="true">→</span>
+</a>
+</div>
+</div>
+</section>
+</div>
+<!-- Page Footer Note -->
+<footer class="mt-12 pt-6 border-t border-outline-variant text-center pb-8">
+<p class="font-body-sm text-body-sm text-outline">
+        Valores ilustrativos para apresentação do novo visual • Lá Divino Sabor
+      </p>
+</footer>
+</main>
+</body></html>
