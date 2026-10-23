@@ -91,8 +91,11 @@ export function Modal({
   const id = useId();
   useEffect(() => {
     const previous = document.activeElement as HTMLElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     ref.current?.showModal();
     return () => {
+      document.body.style.overflow = previousOverflow;
       previous?.focus();
     };
   }, []);
@@ -156,7 +159,7 @@ export function Table({
       text="Tente outro filtro ou adicione um registro."
     />
   ) : (
-    <div className="table-scroll">
+    <div className="table-scroll" tabIndex={0} role="region" aria-label={`Tabela: ${headings.join(", ")}`}>
       <table>
         <thead>
           <tr>

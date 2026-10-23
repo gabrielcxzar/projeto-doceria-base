@@ -19,6 +19,7 @@ Comece pelo [README principal](../README.md) para instalar e executar.
 - [Reformulação e recuperação do Firebase](reformulacao.md): decisões e validações da mudança já entregue.
 - [Projeto do Stitch](https://stitch.withgoogle.com/projects/9508448770898154872), [painel gerado](design/stitch/painel-desktop.png) e [venda mobile gerada](design/stitch/registrar-venda-mobile.png).
 - [Painel implementado](design/aplicacao/painel-desktop.png), [venda mobile implementada](design/aplicacao/venda-celular.png) e [login implementado](design/aplicacao/login-desktop.png), com dados fictícios.
+- Correção de responsividade e identidade: [login atual](design/responsividade/login-celular.png), [painel atual](design/responsividade/painel-celular.png), [menu no celular](design/responsividade/menu-celular.png), [menu em notebook baixo](design/responsividade/menu-notebook.png) e [venda em paisagem](design/responsividade/venda-paisagem.png). Reprodução: `node scripts/capture-responsive.mjs` com o servidor local ativo; somente dados fictícios.
 
 Protótipos do Stitch não são contratos de funcionalidades: alertas de estoque e produção sugeridos nas imagens não foram implementados como módulos quantitativos.
 

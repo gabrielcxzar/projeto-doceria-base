@@ -100,6 +100,7 @@ textarea {
   padding: 11px 12px;
   min-height: 43px;
   width: 100%;
+  min-width: 0;
   font-size: 14px;
 }
 textarea {
@@ -129,6 +130,14 @@ fieldset {
 }
 fieldset:disabled .button {
   cursor: wait;
+}
+.brand-logo {
+  display: block;
+  width: 160px;
+  height: 160px;
+  max-width: 100%;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 .brand {
   font:
@@ -174,7 +183,8 @@ fieldset:disabled .button {
   border: 1px solid transparent;
   font-size: 13px;
   font-weight: 500;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
   transition: background 0.15s;
 }
 .button.primary {
@@ -249,15 +259,40 @@ fieldset:disabled .button {
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  padding: 30px 20px 20px;
+  padding: 20px 16px;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: #95683d #eee8de;
   z-index: 30;
+}
+.sidebar > * {
+  flex-shrink: 0;
+}
+.sidebar::-webkit-scrollbar {
+  width: 10px;
+}
+.sidebar::-webkit-scrollbar-track {
+  background: #eee8de;
+}
+.sidebar::-webkit-scrollbar-thumb {
+  background: #95683d;
+  border: 2px solid #eee8de;
+  border-radius: 8px;
+}
+.sidebar-close {
+  display: none;
 }
 .brand-block {
   display: flex;
   flex-direction: column;
   gap: 9px;
   text-decoration: none;
-  padding: 0 5px 27px;
+  padding: 0 5px 18px;
+  align-items: center;
   border-bottom: 1px solid var(--line);
   color: var(--chocolate);
 }
@@ -271,7 +306,7 @@ fieldset:disabled .button {
   text-transform: uppercase;
   letter-spacing: 1.8px;
   color: #a19285;
-  padding: 29px 15px 12px;
+  padding: 20px 15px 12px;
 }
 .sidebar nav {
   display: flex;
@@ -316,7 +351,8 @@ fieldset:disabled .button {
 }
 .sidebar-bottom > .button {
   justify-content: flex-start;
-  padding-left: 9px;
+  padding: 10px 9px;
+  text-align: left;
   font-size: 11px;
 }
 .profile-block {
@@ -328,6 +364,7 @@ fieldset:disabled .button {
   border-top: 1px solid var(--line);
 }
 .profile-block strong {
+  overflow-wrap: anywhere;
   font-size: 12px;
 }
 .profile-block small {
@@ -362,22 +399,33 @@ fieldset:disabled .button {
   gap: 18px;
 }
 .breadcrumb {
+  min-width: 0;
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 14px;
   font-size: 12px;
   color: var(--muted);
 }
-.breadcrumb > span:first-child {
+.breadcrumb-brand {
   font:
     600 19px Georgia,
     serif;
   color: var(--chocolate);
 }
-.breadcrumb > span:nth-child(2) {
+.breadcrumb-divider {
   color: #c8bcb1;
 }
+.breadcrumb .brand-logo {
+  width: 42px;
+  height: 42px;
+}
+.breadcrumb-brand,
+.breadcrumb-page {
+  overflow-wrap: anywhere;
+}
 .topbar-right {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 20px;
@@ -395,13 +443,13 @@ fieldset:disabled .button {
   font-size: 10px;
   color: var(--muted);
 }
-.connection > span {
+.connection > span:first-child {
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: #6e8666;
 }
-.connection.offline > span {
+.connection.offline > span:first-child {
   background: #b88135;
 }
 .mobile-menu {
@@ -450,6 +498,7 @@ main#conteudo {
   min-height: 34px;
 }
 .period-picker label {
+  min-width: 0;
   flex: 1;
 }
 .period-picker .icon-button {
@@ -487,6 +536,7 @@ main#conteudo {
 }
 .metric {
   min-width: 0;
+  container-type: inline-size;
   border-right: 1px solid var(--line);
   padding: 2px 25px;
   display: flex;
@@ -506,7 +556,7 @@ main#conteudo {
     serif;
   letter-spacing: -0.6px;
   font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 .metric.accent > strong {
   color: var(--caramel);
@@ -789,12 +839,13 @@ main#conteudo {
   padding: 0 12px;
   color: #8f8074;
   max-width: 290px;
+  min-width: 0;
 }
 .search input {
   border: 0;
   background: none;
   padding: 11px 0;
-  min-width: 120px;
+  min-width: 0;
 }
 .page-note {
   color: var(--muted);
@@ -807,6 +858,8 @@ main#conteudo {
   overflow: auto;
   max-width: 100%;
   overscroll-behavior-x: contain;
+  scrollbar-width: auto;
+  scrollbar-color: #95683d #eee8de;
 }
 table {
   width: 100%;
@@ -948,6 +1001,7 @@ dialog {
   width: min(680px, calc(100vw - 32px));
   max-height: 90dvh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   color: var(--ink);
   background: #fcfaf6;
 }
@@ -975,6 +1029,7 @@ dialog::backdrop {
 }
 .modal-footer {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
   padding-top: 23px;
@@ -1019,7 +1074,8 @@ dialog > p {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 12px;
+  flex-wrap: wrap;
   background: #f0eadd;
   border-radius: 5px;
   padding: 14px;
@@ -1059,7 +1115,7 @@ dialog > p {
 }
 .recipe-add {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-top: 14px;
 }
@@ -1342,20 +1398,6 @@ th {
     padding: 18px;
   }
 }
-@media (max-width: 600px) {
-  .form-sale {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 15px;
-  }
-  .form-sale > .field:nth-child(-n + 3),
-  .form-sale > .form-summary {
-    grid-column: 1/-1;
-  }
-  .form-sale select {
-    padding-left: 10px;
-    padding-right: 5px;
-  }
-}
 .login-layout {
   min-height: 100dvh;
   display: grid;
@@ -1452,8 +1494,8 @@ th {
   line-height: 1.9;
 }
 .login-main > footer {
-  position: absolute;
-  bottom: 28px;
+  margin-top: 32px;
+  text-align: center;
   font-size: 10px;
   color: #a19285;
 }
@@ -1532,7 +1574,7 @@ th {
   th {
     padding: 14px;
   }
-  .breadcrumb > span:first-child {
+  .breadcrumb-brand {
     font-size: 17px;
   }
   .welcome-strip h2 {
@@ -1551,9 +1593,16 @@ th {
 }
 @media (max-width: 900px) {
   .sidebar {
-    width: 220px;
+    width: min(290px, calc(100vw - 30px));
+    padding-top: 12px;
     transform: translateX(-100%);
     transition: transform 0.2s;
+  }
+  .sidebar-close {
+    display: flex;
+    align-self: flex-end;
+    min-width: 44px;
+    min-height: 44px;
   }
   .sidebar.open {
     transform: translateX(0);
@@ -1581,11 +1630,11 @@ th {
   .topbar-right {
     margin-left: auto;
   }
-  .breadcrumb > span:first-child {
+  .breadcrumb-brand {
     font-size: 17px;
   }
-  .breadcrumb > span:last-child,
-  .breadcrumb > span:nth-child(2) {
+  .breadcrumb-page,
+  .breadcrumb-divider {
     display: none;
   }
   main#conteudo {
@@ -1642,8 +1691,9 @@ th {
     max-width: 340px;
   }
   .period-picker {
-    min-width: 190px;
-    max-width: 250px;
+    min-width: 0;
+    width: 100%;
+    max-width: 290px;
     align-self: flex-start;
   }
   .welcome-strip {
@@ -1819,8 +1869,7 @@ th {
     margin-bottom: 24px;
   }
   .modal-footer {
-    position: sticky;
-    bottom: -22px;
+    position: static;
     background: #fcfaf6;
     padding: 18px 0 4px;
     gap: 10px;
@@ -1846,7 +1895,7 @@ th {
     font-size: 11px;
   }
   .recipe-add {
-    grid-template-columns: 1.4fr 1fr;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
   }
   .recipe-add > .field:first-child {
     grid-column: 1/-1;
@@ -1885,7 +1934,7 @@ th {
   .mobile-brand {
     display: block;
     font-size: 27px;
-    margin-bottom: 50px;
+    margin-bottom: 26px;
   }
   .login-card h2 {
     font-size: 29px;
@@ -1911,6 +1960,196 @@ th {
   .login-card .button {
     min-height: 47px;
   }
+}
+/* Content may shrink; scroll belongs to menus, tables and dialogs. */
+.page-heading > div,
+.welcome-strip > div,
+.panel-header > div,
+.simple-list > li > div,
+.activity-list li > div,
+.composition-list > li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.panel-header,
+.simple-list > li,
+.order-list > li,
+.composition-list > li,
+.update-banner,
+.error-banner,
+.app-footer {
+  flex-wrap: wrap;
+}
+.metric .product-highlight,
+.order-list strong,
+.simple-list strong,
+.toast span,
+.modal-header h2,
+dialog p {
+  overflow-wrap: anywhere;
+}
+.modal-header .icon-button {
+  flex-shrink: 0;
+}
+.section-tools > * {
+  max-width: 100%;
+}
+.login-main,
+.login-story,
+.login-card {
+  min-width: 0;
+}
+.login-story > .brand-logo {
+  width: 180px;
+  height: 180px;
+}
+.mobile-brand .brand-logo {
+  width: 160px;
+  height: 160px;
+}
+@media screen and (max-width: 1200px) {
+  .metric-grid,
+  .report-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0;
+  }
+  .metric, .report-metrics .metric {
+    padding: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .metric:nth-child(2n) {
+    border-right: 0;
+  }
+  .metric > strong, .report-metrics .metric strong {
+    font-size: clamp(22px, 3vw, 30px);
+  }
+}
+@media screen and (max-width: 1050px) {
+  .dashboard-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .page-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .page-heading p {
+    max-width: none;
+  }
+  .period-picker {
+    width: 290px;
+    max-width: 100%;
+  }
+}
+@media screen and (max-width: 900px) {
+  .login-layout {
+    display: block;
+  }
+  .login-story {
+    display: none;
+  }
+  .mobile-brand {
+    display: block;
+    margin-bottom: 26px;
+  }
+  .login-main {
+    min-height: 100dvh;
+    padding: 28px 24px;
+  }
+  .breadcrumb {
+    gap: 10px;
+  }
+  .breadcrumb-brand {
+    font-size: 17px;
+  }
+}
+@media screen and (max-width: 600px) {
+  .section-tools > .search {
+    flex-basis: 100%;
+  }
+  .form-sale {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 15px;
+  }
+  .form-sale > .field:nth-child(-n + 3),
+  .form-sale > .form-summary {
+    grid-column: 1/-1;
+  }
+  .form-sale select {
+    padding-left: 10px;
+    padding-right: 5px;
+  }
+  .connection-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .connection {
+    gap: 0;
+  }
+  .topbar {
+    gap: 8px;
+    padding-inline: 12px;
+  }
+  .topbar-right {
+    gap: 10px;
+  }
+  .breadcrumb-brand {
+    font-size: 15px;
+  }
+  .breadcrumb .brand-logo {
+    width: 38px;
+    height: 38px;
+  }
+  .metric > strong, .report-metrics .metric strong {
+    font-size: 23px;
+  }
+  .metric, .report-metrics .metric {
+    padding: 18px 13px;
+  }
+  .metric-grid.two .metric {
+    border-bottom: 0;
+  }
+  .activity-list {
+    grid-template-columns: 1fr;
+  }
+  .modal-footer > .button {
+    min-width: 0;
+  }
+  .order-list .badge {
+    white-space: normal;
+  }
+}
+@media screen and (max-width: 379px) {
+  .metric-grid, .metric-grid.two, .report-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .metric, .metric:nth-child(2n) {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .metric:last-child {
+    border-bottom: 0;
+  }
+  .metric > strong, .report-metrics .metric strong {
+    font-size: 28px;
+  }
+  .report-filters .field {
+    width: 100%;
+    flex-basis: 100%;
+  }
+  .form-sale {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .breadcrumb-brand {
+    font-size: 14px;
+  }
+}
+/* Larger totals keep all digits visible in narrow cards. */
+.metric > strong.long-amount {
+  font-size: clamp(18px, 9cqi, 25px);
+  overflow-wrap: anywhere;
 }
 @media (prefers-reduced-motion: reduce) {
   * {

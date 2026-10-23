@@ -31,6 +31,7 @@ Não copie valores dessas variáveis para documentos ou scripts versionados. O o
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | Documentação e Spec Kit    | Links locais, artefatos preenchidos, scripts de pré-requisitos/integração, diff e segredos; `npm run check` como sanidade do baseline |
 | Domínio/formulários        | `npm run check`, compilação e cenários de navegador afetados                                                                          |
+| Responsividade e identidade | `npm run test:responsive`, revisão visual das capturas e `npm run test:pwa` para ícones/cache |
 | Serviço Firebase ou regras | Checks anteriores + `npm run test:rules` e `npm run test:integration`                                                                 |
 | Cache/manifesto/assets PWA | `npm run build` e `npm run test:pwa`                                                                                                  |
 | Publicação de código       | Pipeline definido no workflow; não pular checks por conveniência                                                                      |
@@ -39,12 +40,15 @@ Não copie valores dessas variáveis para documentos ou scripts versionados. O o
 npm run check
 npm run build
 npm run test:e2e
+npm run test:responsive
 npm run test:pwa
 npm run test:rules
 npm run test:integration
 ```
 
 Execute os comandos de emuladores em sequência. As portas são 8080 e 9099; servidores Vite de teste usam 5173/5174 e a prévia compilada usa 4173. Se houver conflito, identifique o processo antes de encerrar; não mate um serviço desconhecido só pela porta.
+
+A matriz responsiva requer `npx playwright install chromium webkit` (Linux CI usa `--with-deps`). São 17 dimensões Chromium e celular/tablet WebKit, com login, navegação, temas e alcance dos controles dos diálogos. Um cenário adicional usa nome extenso e valor alto com dados fictícios. As alturas reduzidas simulam espaço disponível menor; não reproduzem integralmente os teclados de aparelhos físicos.
 
 ## Publicação e reversão
 
