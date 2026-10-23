@@ -61,7 +61,13 @@ O workflow de [CI](../.github/workflows/deploy.yml) instala pelo lockfile, verif
 
 ## PWA e disponibilidade
 
-`vite-plugin-pwa` gera manifesto e service worker. O usuário recebe aviso de atualização e confirma quando aplicá-la; a atualização fica indisponível enquanto há uma gravação em andamento. Ícones PNG 192/512 e SVG são assets locais.
+`vite-plugin-pwa` gera manifesto e service worker. O usuário recebe aviso de atualização e confirma quando aplicá-la; a atualização fica indisponível enquanto há uma gravação em andamento. Favicon, Apple touch icon e manifesto usam o PNG original de 1024×1024 em `public/images/logo.png`, sem recorte ou recoloração. O arquivo também entra no precache estático. O teste PWA compara seus bytes e hash histórico e consulta os erros de instalação do Chromium.
+
+## Layout e identidade
+
+`src/BrandLogo.tsx` concentra a referência à imagem original; login, carregamento, menu e cabeçalho a exibem com `object-fit: contain`. A barra lateral tem altura de viewport dinâmica e rolagem própria, incluindo marca, navegação e ações finais. Em até 900px, funciona como drawer com fechamento interno, Escape, foco contido e fundo inerte; a mudança para desktop libera o bloqueio de rolagem.
+
+Tabelas possuem região focável e rolagem local. Diálogos nativos rolam integralmente e mantêm ações no fluxo do conteúdo; a página de fundo fica bloqueada enquanto estão abertos. A matriz de regressão está em `playwright.responsive.config.ts` e cobre alturas pequenas e os limites dos breakpoints, além de WebKit em celular e tablet.
 
 O cache do service worker contém arquivos estáticos. Não há runtime cache de APIs, persistência Firestore em disco ou promessa de consulta após reabrir offline. Uma página já aberta pode conservar dados em memória, mas gravar continua exigindo conexão.
 

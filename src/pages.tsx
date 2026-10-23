@@ -420,10 +420,11 @@ function Metric({
   detail: string;
   accent?: boolean;
 }) {
+  const formatted = money(value);
   return (
     <section className={`metric ${accent ? "accent" : ""}`}>
       <span>{title}</span>
-      <strong>{money(value)}</strong>
+      <strong className={formatted.length > 14 ? "long-amount" : undefined}>{formatted}</strong>
       <small>{detail}</small>
     </section>
   );

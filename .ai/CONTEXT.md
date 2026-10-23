@@ -2,7 +2,7 @@
 
 ## Produto confirmado
 
-Aplicação interna de gestão de uma confeitaria. O usuário confirmou a preservação de todos os módulos atuais, acesso por administrador ou consulta, uso em celular/computador, PWA instalável e internet para gravar. A identidade visual é chocolate/creme. Não há loja pública ou pedido de cliente externo nesta versão.
+Aplicação interna de gestão de uma confeitaria. O usuário confirmou a preservação de todos os módulos atuais, acesso por administrador ou consulta, uso em celular/computador, PWA instalável e internet para gravar. A identidade visual é chocolate/creme, com a logo original `public/images/logo.png` preservada integralmente no layout, favicon e PWA (ADR-005). Não substituir a marca por texto ou ícone genérico. Não há loja pública ou pedido de cliente externo nesta versão.
 
 | Área        | Responsabilidade                                                                      |
 | ----------- | ------------------------------------------------------------------------------------- |

@@ -52,6 +52,7 @@ import {
   Sales,
 } from "./pages";
 import { Button, DownloadFile, Field, Modal } from "./ui";
+import { BrandLogo } from "./BrandLogo";
 
 const nav = [
   {
@@ -120,15 +121,54 @@ export default function App() {
   );
   const [period, setPeriod] = useState(today().slice(0, 7));
   const [menu, setMenu] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [compact, setCompact] = useState(
     () => matchMedia("(max-width: 900px)").matches,
   );
   useEffect(() => {
     const query = matchMedia("(max-width: 900px)");
-    const change = () => setCompact(query.matches);
+    const change = () => {
+      setCompact(query.matches);
+      setMenu(false);
+    };
     query.addEventListener("change", change);
     return () => query.removeEventListener("change", change);
   }, []);
+  useEffect(() => {
+    if (!compact || !menu) return;
+    const sidebar = sidebarRef.current;
+    if (!sidebar) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const controls = () => Array.from(sidebar.querySelectorAll<HTMLElement>(
+      'a[href], button:not(:disabled), [tabindex="0"]',
+    )).filter((element) => element.getClientRects().length > 0);
+    controls()[0]?.focus();
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMenu(false);
+      } else if (event.key === "Tab") {
+        const elements = controls();
+        const first = elements[0];
+        const last = elements.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      menuButtonRef.current?.focus({ preventScroll: true });
+    };
+  }, [compact, menu]);
   const [editor, setEditor] = useState<{
     kind: EditorKind;
     record?: Entity;
@@ -220,6 +260,7 @@ export default function App() {
       cleanup = [];
       setData(emptyData());
       setProfile(null);
+      setMenu(false);
       setDataLoading(false);
       setLoading(true);
       if (!user) {
@@ -376,6 +417,7 @@ export default function App() {
   }
   async function signOut() {
     if (busyRef.current) return;
+    setMenu(false);
     try {
       if (demoMode) {
         location.href = "/?demo=login";
@@ -387,7 +429,7 @@ export default function App() {
   if (loading)
     return (
       <div className="loading-screen" role="status">
-        <div className="brand">Lá Divino Sabor</div>
+        <BrandLogo />
         <p>Preparando seu espaço…</p>
       </div>
     );
@@ -431,19 +473,33 @@ export default function App() {
         <button
           className="sidebar-backdrop"
           aria-label="Fechar navegação"
+          tabIndex={-1}
+          aria-hidden="true"
           onClick={() => setMenu(false)}
         />
       )}
       <aside
+        ref={sidebarRef}
+        id="menu-principal"
+        role={compact && menu ? "dialog" : undefined}
+        aria-modal={compact && menu ? true : undefined}
+        aria-label="Menu principal"
         className={`sidebar ${menu ? "open" : ""}`}
         inert={compact && !menu}
       >
+        <button
+          className="icon-button sidebar-close"
+          aria-label="Fechar menu"
+          onClick={() => setMenu(false)}
+        >
+          <X size={22} />
+        </button>
         <a
           className="brand-block"
           href="#dashboard"
           onClick={() => navigate("dashboard")}
         >
-          <span className="brand">Lá Divino Sabor</span>
+          <BrandLogo />
           <span>Confeitaria artesanal</span>
         </a>
         <div className="sidebar-label">Seu negócio</div>
@@ -483,7 +539,10 @@ export default function App() {
             <Button
               variant="ghost"
               disabled={!canWrite}
-              onClick={() => setExporting(true)}
+              onClick={() => {
+                setMenu(false);
+                setExporting(true);
+              }}
             >
               <ArrowDownToLine size={17} /> Exportar arquivo completo
             </Button>
@@ -509,25 +568,28 @@ export default function App() {
           </div>
         </div>
       </aside>
-      <div className="workspace">
+      <div className="workspace" inert={compact && menu}>
         <header className="topbar">
           <button
             className="icon-button mobile-menu"
+            ref={menuButtonRef}
             aria-label="Abrir navegação"
             aria-expanded={menu}
+            aria-controls="menu-principal"
             onClick={() => setMenu(!menu)}
           >
             <Menu size={22} />
           </button>
           <div className="breadcrumb">
-            <span>Lá Divino Sabor</span>
-            <span>/</span>
-            <span>{current.title}</span>
+            <BrandLogo />
+            <span className="breadcrumb-brand">Lá Divino Sabor</span>
+            <span className="breadcrumb-divider">/</span>
+            <span className="breadcrumb-page">{current.title}</span>
           </div>
           <div className="topbar-right">
-            <span className={`connection ${online ? "" : "offline"}`}>
+            <span className={`connection ${online ? "" : "offline"}`} aria-label={online ? "Conectado" : "Sem conexão"}>
               <span />
-              {online ? "Conectado" : "Sem conexão"}
+              <span className="connection-label">{online ? "Conectado" : "Sem conexão"}</span>
             </span>
             <div className="avatar small-avatar">
               {profile.nome?.slice(0, 1)}
@@ -822,7 +884,7 @@ function Login({
   return (
     <div className="login-layout">
       <section className="login-story">
-        <div className="brand">Lá Divino Sabor</div>
+        <BrandLogo />
         <span className="eyebrow">Confeitaria artesanal</span>
         <div className="login-message">
           <span className="eyebrow">Do cuidado nasce o extraordinário</span>
@@ -844,7 +906,7 @@ function Login({
       </section>
       <main className="login-main">
         <div className="login-card">
-          <div className="mobile-brand brand">Lá Divino Sabor</div>
+          <div className="mobile-brand"><BrandLogo /></div>
           <span className="eyebrow">Seu espaço de gestão</span>
           <h2>Que bom ter você aqui.</h2>
           <p>Entre para cuidar do seu negócio.</p>

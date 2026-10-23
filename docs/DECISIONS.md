@@ -45,3 +45,17 @@ Não apagar decisões antigas. Uma substituição deve apontar para a decisão a
 **Consequência:** `.ai/` guarda contexto/convenções, `docs/` conhecimento técnico, `.meta/` auditoria, `.specify/` infraestrutura e `specs/` mudanças delimitadas. O README e o histórico não são movidos. Versionar adoção em `bootstrap.yaml` somente depois de validada.
 
 Referências: [auditoria](../.meta/AUDIT.md), [guia oficial para projetos existentes](https://github.github.io/spec-kit/guides/existing-projects.html) e [instalação oficial](https://github.github.io/spec-kit/installation.html).
+
+## ADR-005 — Marca original e rolagem acessível em toda a interface
+
+**Status:** aceita, 2026-10-23, conforme correção solicitada pelo mantenedor.
+
+**Contexto:** a reformulação substituiu a marca por texto e um ícone genérico, contrariando a preservação da identidade. O menu fixo também deixava ações fora da tela em janelas baixas.
+
+**Decisão:** usar o arquivo original `public/images/logo.png` integralmente no layout, favicon e PWA. O blob Git deve continuar `0b344d7417c4f20b811eb09ba2401c080cc64aa3`. Remover os ícones substitutos e seu gerador. Toda a lateral pode rolar; tabelas rolam localmente e ações dos modais permanecem no fluxo, sem rodapé sobreposto ao conteúdo.
+
+**Alternativas:** encolher toda a navegação, esconder ações ou recriar a marca. Não satisfariam acesso integral e preservação da identidade.
+
+**Consequência:** o PNG original de 1024×1024 é maior que os antigos ícones genéricos, mas é armazenado no cache estático. O teste de instalação no Chromium valida seu uso no manifesto. A regressão cobre sete áreas, cinco cadastros e diálogos em 17 dimensões, com WebKit adicional; não substitui uma sessão em aparelhos físicos.
+
+Requisitos e evidências: [feature 002](../specs/002-responsividade-identidade/spec.md) e [checklist](../specs/002-responsividade-identidade/checklists/requirements.md).

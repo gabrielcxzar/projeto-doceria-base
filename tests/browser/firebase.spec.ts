@@ -152,6 +152,8 @@ test("login real no emulador, venda, encomenda, despesa e saída", async ({
   await expect(
     page.getByRole("button", { name: "Entrar", exact: true }),
   ).toBeVisible();
+  // Sair pelo drawer não pode deixar o login com a rolagem bloqueada.
+  expect(await page.locator("body").evaluate((element) => element.style.overflow)).toBe("");
 });
 test("viewer consulta todas as áreas e regra nega gravação direta", async ({
   page,
