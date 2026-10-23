@@ -1,0 +1,14 @@
+{
+  "projectId": "9508448770898154872",
+  "projectUrl": "https://stitch.withgoogle.com/projects/9508448770898154872",
+  "screens": [
+    {
+      "id": "dee844f2ebb3410bb6aab3dd88d28791",
+      "name": "painel-desktop"
+    },
+    {
+      "id": "79137c68edc04e60a057eedeca1dc33e",
+      "name": "registrar-venda-mobile"
+    }
+  ]
+}

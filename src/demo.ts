@@ -1,0 +1,151 @@
+import { today } from "./domain";
+import type { DataStore } from "./types";
+export function demoData(): DataStore {
+  const date = today();
+  return {
+    usuarios: [{ id: "demo", nome: "Marina", role: "admin" }],
+    clientes: [
+      {
+        id: "c1",
+        nome: "ANA OLIVEIRA",
+        contato: "71999990001",
+        observacoes: "Dados fictícios para demonstração.",
+      },
+      { id: "c2", nome: "BEATRIZ LIMA", contato: "71999990002" },
+      { id: "c3", nome: "CARLOS SANTOS", contato: "71999990003" },
+    ],
+    ingredientes: [
+      {
+        id: "i1",
+        nome: "Chocolate meio amargo",
+        unidadeCompra: "Pacote 1 kg",
+        precoCompra: 48,
+        tamanhoCompra: 1000,
+        unidadePadrao: "g",
+        custoUnitarioPadrao: 0.048,
+      },
+    ],
+    receitas: [
+      {
+        id: "r1",
+        titulo: "Brigadeiro de chocolate",
+        rendimento: 25,
+        ingredientes: [
+          { ingredienteId: "i1", quantidade: 200, unidadeUso: "g", custo: 9.6 },
+        ],
+        custoTotal: 9.6,
+        custoPorUnidade: 0.384,
+      },
+    ],
+    materiais: [{ id: "m1", nome: "Caixa para bolo", custo: 4.5 }],
+    produtos: [
+      {
+        id: "p1",
+        nome: "BOLO DE CHOCOLATE",
+        categoria: "Bolos",
+        valor: 120,
+        custoMaterial: 32,
+        custoMaoObra: 18,
+        margem: 118.18,
+        custosInvisiveis: 10,
+        tempoPreparo: 90,
+        materiaisUtilizados: [{ id: "m1", nome: "Caixa para bolo" }],
+      },
+      {
+        id: "p2",
+        nome: "BRIGADEIRO GOURMET",
+        categoria: "Doces",
+        valor: 4.5,
+        custoMaterial: 1,
+        custoMaoObra: 0.5,
+        margem: 200,
+        custosInvisiveis: 0,
+        tempoPreparo: 40,
+        composicaoReceitas: [{ id: "r1", titulo: "Brigadeiro de chocolate" }],
+      },
+      {
+        id: "p3",
+        nome: "TORTA DE LIMÃO",
+        categoria: "Bolos",
+        valor: 85,
+        custoMaterial: 25,
+        custoMaoObra: 15,
+        margem: 112.5,
+        tempoPreparo: 60,
+      },
+    ],
+    vendas: [
+      {
+        id: "v1",
+        data: date,
+        pessoa: "ANA OLIVEIRA",
+        produto: "BOLO DE CHOCOLATE",
+        quantidade: 2,
+        valor: 120,
+        pagamento: "PIX",
+        status: "A",
+      },
+      {
+        id: "v2",
+        data: date,
+        pessoa: "BEATRIZ LIMA",
+        produto: "BRIGADEIRO GOURMET",
+        quantidade: 50,
+        valor: 4.5,
+        pagamento: "PIX",
+        status: "P",
+      },
+      {
+        id: "v3",
+        data: date,
+        pessoa: "CARLOS SANTOS",
+        produto: "TORTA DE LIMÃO",
+        quantidade: 1,
+        valor: 85,
+        pagamento: "Dinheiro",
+        status: "E",
+      },
+    ],
+    encomendas: [
+      {
+        id: "e1",
+        clienteNome: "ANA OLIVEIRA",
+        produtoDescricao: "Bolo de aniversário · chocolate e morango",
+        dataEntrega: date,
+        valorTotal: 280,
+        valorEntrada: 140,
+        status: "Em Produção",
+      },
+      {
+        id: "e2",
+        clienteNome: "BEATRIZ LIMA",
+        produtoDescricao: "100 brigadeiros para comemorar",
+        dataEntrega: date,
+        valorTotal: 400,
+        valorEntrada: 200,
+        status: "Pendente",
+      },
+    ],
+    despesas: [
+      {
+        id: "d1",
+        data: date,
+        tipo: "Material",
+        descricao: "Ingredientes da semana",
+        quantidade: "1 compra",
+        valor: 168,
+      },
+    ],
+    configuracoes: [{ id: "config", metaMensal: 5000, ultimoBackup: null }],
+    atividades: [
+      {
+        id: "a1",
+        tipo: "venda",
+        descricao: "Venda de bolo de chocolate registrada",
+        usuarioNome: "Marina",
+        criadoEm: new Date(),
+      },
+    ],
+    cobrancas: [],
+  };
+}

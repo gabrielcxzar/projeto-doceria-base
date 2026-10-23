@@ -1,0 +1,99 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function authorized() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.role in ['admin', 'viewer'];
+    }
+    function admin() {
+      return authorized() && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.role == 'admin';
+    }
+    function text(data, key) { return data[key] is string && data[key].size() > 0 && data[key].size() <= 1000; }
+    function nonnegative(data, key) { return data[key] is number && data[key] >= 0; }
+    function date(data, key) { return data[key] is string && data[key].matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'); }
+    match /usuarios/{uid} {
+      allow get: if request.auth != null && (request.auth.uid == uid || authorized());
+      allow list: if authorized();
+      allow create, update: if admin() && request.resource.data.role in ['admin', 'viewer'] && text(request.resource.data, 'nome');
+      allow delete: if admin() && request.auth.uid != uid;
+    }
+    match /vendas/{id} {
+      allow read: if authorized();
+      allow create, update: if admin() && date(request.resource.data, 'data')
+        && text(request.resource.data, 'pessoa') && text(request.resource.data, 'produto')
+        && request.resource.data.quantidade is int && request.resource.data.quantidade > 0
+        && request.resource.data.valor is number && request.resource.data.valor > 0
+        && request.resource.data.status in ['P', 'A', 'E']
+        && request.resource.data.pagamento in ['PIX', 'Dinheiro', 'Cartão', 'Transferência'];
+      allow delete: if admin();
+    }
+    match /encomendas/{id} {
+      allow read: if authorized();
+      allow create, update: if admin() && date(request.resource.data, 'dataEntrega')
+        && text(request.resource.data, 'clienteNome') && text(request.resource.data, 'produtoDescricao')
+        && request.resource.data.valorTotal is number && request.resource.data.valorTotal > 0
+        && nonnegative(request.resource.data, 'valorEntrada')
+        && request.resource.data.valorEntrada <= request.resource.data.valorTotal
+        && request.resource.data.status in ['Pendente', 'Em Produção', 'Finalizado']
+        && (request.resource.data.status != 'Finalizado' || request.resource.data.valorEntrada == request.resource.data.valorTotal);
+      allow delete: if admin();
+    }
+    match /clientes/{id} {
+      allow read: if authorized();
+      allow create, update: if admin() && text(request.resource.data, 'nome') && request.resource.data.contato is string;
+      allow delete: if false; // Arquivar preserva os vínculos históricos.
+    }
+    match /produtos/{id} {
+      allow read: if authorized();
+      allow create, update: if admin() && text(request.resource.data, 'nome')
+        && request.resource.data.valor is number && request.resource.data.valor > 0
+        && nonnegative(request.resource.data, 'custoMaterial') && nonnegative(request.resource.data, 'custoMaoObra');
+      allow delete: if false; // Arquivar preserva os vínculos históricos.
+    }
+    match /ingredientes/{id} {
+      allow read: if authorized();
+      allow create, update: if admin() && text(request.resource.data, 'nome')
+        && request.resource.data.precoCompra is number && request.resource.data.precoCompra > 0
+        && request.resource.data.tamanhoCompra is number && request.resource.data.tamanhoCompra > 0
+        && nonnegative(request.resource.data, 'custoUnitarioPadrao')
+        && request.resource.data.unidadePadrao in ['g', 'ml', 'unidade'];
+      allow delete: if false; // Arquivar preserva os vínculos históricos.
+    }
+    match /receitas/{id} {
+      allow read: if authorized();
+      allow create, update: if admin() && text(request.resource.data, 'titulo')
+        && request.resource.data.rendimento is number && request.resource.data.rendimento > 0
+        && request.resource.data.ingredientes is list && request.resource.data.ingredientes.size() > 0
+        && nonnegative(request.resource.data, 'custoTotal') && nonnegative(request.resource.data, 'custoPorUnidade');
+      allow delete: if false; // Arquivar preserva os vínculos históricos.
+    }
+    match /materiais/{id} {
+      allow read: if authorized();
+      allow create, update: if admin() && text(request.resource.data, 'nome') && nonnegative(request.resource.data, 'custo');
+      allow delete: if false; // Arquivar preserva os vínculos históricos.
+    }
+    match /despesas/{id} {
+      allow read: if authorized();
+      allow create, update: if admin() && date(request.resource.data, 'data') && text(request.resource.data, 'descricao')
+        && request.resource.data.tipo in ['Material', 'Equipamento', 'Marketing', 'Transporte', 'Outros']
+        && request.resource.data.valor is number && request.resource.data.valor > 0;
+      allow delete: if admin();
+    }
+    match /configuracoes/{id} {
+      allow read: if authorized();
+      allow create, update: if admin() && nonnegative(request.resource.data, 'metaMensal');
+      allow delete: if admin();
+    }
+    match /atividades/{id} {
+      allow read: if authorized();
+      allow create: if admin() && text(request.resource.data, 'descricao') && text(request.resource.data, 'usuarioNome');
+      allow update, delete: if false;
+    }
+    match /cobrancas/{id} {
+      allow read: if authorized();
+      allow create, update: if admin() && text(request.resource.data, 'clienteNome') && request.resource.data.data is timestamp;
+      allow delete: if admin();
+    }
+  }
+}

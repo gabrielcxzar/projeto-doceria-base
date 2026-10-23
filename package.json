@@ -1,0 +1,39 @@
+{
+  "name": "la-divino-sabor",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "vitest run src/domain.test.ts",
+    "test:rules": "firebase emulators:exec --project demo-doceria --only firestore \"vitest run tests/rules.test.ts\"",
+    "test:integration": "firebase emulators:exec --project demo-doceria --only auth,firestore \"playwright test --config playwright.integration.config.ts\"",
+    "test:e2e": "playwright test",
+    "test:pwa": "playwright test --config playwright.pwa.config.ts",
+    "check": "tsc -b && npm test"
+  },
+  "dependencies": {
+    "firebase": "^12.0.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "firebase-tools": "^15.34.1",
+    "typescript": "~5.9.0",
+    "vite": "^8.3.5",
+    "vite-plugin-pwa": "^1.0.0",
+    "vitest": "^5.0.5"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.6"
+  }
+}

@@ -64,6 +64,13 @@ node_modules/
 
 # dotenv environment variables file
 .env
+.env.*
+!.env.example
+dist/
+*.tsbuildinfo
+test-results/
+playwright-report/
+ui-debug.log
 
 # dataconnect generated files
 .dataconnect
