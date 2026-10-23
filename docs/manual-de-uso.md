@@ -10,6 +10,8 @@ Use **Sair** em dispositivos compartilhados. O tema claro/escuro fica salvo no d
 
 No celular e tablet, abra a navegação pelo botão de menu e feche pelo **X**, tocando fora do menu ou pressionando Escape. A lateral tem rolagem própria: em telas baixas, role dentro dela para alcançar relatórios, exportação e saída. Tabelas largas também rolam horizontalmente dentro do quadro; as ações ficam nas últimas colunas. Formulários longos rolam dentro da janela até **Cancelar** e **Salvar**.
 
+No computador, o botão de menu no cabeçalho permite **Ocultar menu lateral** e **Mostrar menu lateral**. Ao ocultar, o conteúdo aproveita o espaço liberado. A escolha fica salva neste navegador, inclusive após recarregar a página, e não altera o comportamento do menu no celular.
+
 ## Visão geral
 
 Escolha mês, ano ou todo o histórico. O painel distingue total vendido, já recebido, saldo a receber e despesas. Entregas futuras e últimas vendas ajudam a acompanhar a operação. A meta é mensal; ao consultar ano/todo o histórico, não interprete a comparação como uma meta anual.

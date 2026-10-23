@@ -46,6 +46,60 @@ test("navega em todas as áreas e mantém layout dentro da tela", async ({
   ).toBe(true);
   expect(errors).toEqual([]);
 });
+test("lateral recolhida persiste, respeita celular e tolera armazenamento bloqueado", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/?demo=1");
+  const side = page.locator(".sidebar");
+  const show = page.getByRole("button", { name: "Mostrar menu lateral", exact: true });
+  const hide = page.getByRole("button", { name: "Ocultar menu lateral", exact: true });
+  await hide.click();
+  await expect(side).toBeHidden();
+  await expect(show).toBeFocused();
+  await page.evaluate(() => { location.hash = "vendas"; });
+  await expect(page.getByRole("heading", { name: "Vendas", exact: true })).toBeVisible();
+  await expect(side).toBeHidden();
+  await page.reload();
+  await expect(show).toHaveAttribute("aria-expanded", "false");
+  await expect(side).toBeHidden();
+  await expect(page.locator(".workspace")).toHaveCSS("margin-left", "0px");
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobile = page.getByRole("button", { name: "Abrir navegação", exact: true });
+  await mobile.click();
+  await expect(side).toHaveAttribute("role", "dialog");
+  await page.keyboard.press("Escape");
+  await expect(mobile).toBeFocused();
+  await mobile.click();
+  await page.setViewportSize({ width: 901, height: 600 });
+  await expect(show).toBeVisible();
+  await expect(side).toBeHidden();
+  expect(await page.locator("body").evaluate((element) => element.style.overflow)).toBe("");
+  await expect(page.locator(".topbar .brand-logo")).toBeVisible();
+  await show.focus();
+  await page.keyboard.press("Enter");
+  await expect(side).toBeVisible();
+  await page.reload();
+  await expect(hide).toHaveAttribute("aria-expanded", "true");
+  await page.addInitScript(() => {
+    const get = Storage.prototype.getItem;
+    const set = Storage.prototype.setItem;
+    Storage.prototype.getItem = function (key) {
+      if (key === "sidebar-collapsed") throw new DOMException("Storage indisponível", "SecurityError");
+      return get.call(this, key);
+    };
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "sidebar-collapsed") throw new DOMException("Storage indisponível", "SecurityError");
+      return set.call(this, key, value);
+    };
+  });
+  await page.reload();
+  await hide.click();
+  await expect(side).toBeHidden();
+  await expect(show).toBeVisible();
+  await page.reload();
+  await expect(hide).toBeVisible();
+  await expect(side).toBeVisible();
+});
+
 test("registra venda e encomenda e atualiza os registros sem recarregar", async ({
   page,
 }) => {

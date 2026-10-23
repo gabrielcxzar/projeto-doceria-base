@@ -452,8 +452,11 @@ fieldset:disabled .button {
 .connection.offline > span:first-child {
   background: #b88135;
 }
-.mobile-menu {
-  display: none;
+.sidebar-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
 }
 main#conteudo {
   max-width: 1700px;
@@ -1618,9 +1621,6 @@ th {
   .workspace {
     margin-left: 0;
   }
-  .mobile-menu {
-    display: flex;
-  }
   .topbar {
     height: 64px;
     padding: 0 22px;
@@ -2150,6 +2150,14 @@ dialog p {
 .metric > strong.long-amount {
   font-size: clamp(18px, 9cqi, 25px);
   overflow-wrap: anywhere;
+}
+@media screen and (min-width: 901px) {
+  .sidebar.collapsed {
+    display: none;
+  }
+  .workspace.expanded {
+    margin-left: 0;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   * {

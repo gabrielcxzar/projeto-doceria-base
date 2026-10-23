@@ -121,6 +121,25 @@ test("menu rola até o fim e drawer controla foco, Escape e fundo", async ({ pag
     expect(await page.locator("body").evaluate((element) => element.style.overflow)).toBe("");
     await page.setViewportSize(viewport);
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  } else {
+    const workspace = page.locator(".workspace");
+    const initialMargin = await workspace.evaluate((element) => element.getBoundingClientRect().x);
+    const collapse = page.getByRole("button", { name: "Ocultar menu lateral", exact: true });
+    await collapse.focus();
+    await page.keyboard.press("Enter");
+    await expect(side).toBeHidden();
+    expect(await side.evaluate((element) => element.inert)).toBe(true);
+    await expect(workspace).toHaveCSS("margin-left", "0px");
+    expect(initialMargin).toBeGreaterThan(200);
+    const expand = page.getByRole("button", { name: "Mostrar menu lateral", exact: true });
+    await expect(expand).toBeFocused();
+    await expect(expand).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator(".topbar .brand-logo")).toBeVisible();
+    await fits(page);
+    await page.keyboard.press("Enter");
+    await expect(side).toBeVisible();
+    await expect(collapse).toHaveAttribute("aria-expanded", "true");
+    expect(await workspace.evaluate((element) => element.getBoundingClientRect().x)).toBe(initialMargin);
   }
   await navigate(page, "Relatórios");
 });
