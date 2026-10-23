@@ -59,3 +59,11 @@ Referências: [auditoria](../.meta/AUDIT.md), [guia oficial para projetos existe
 **Consequência:** o PNG original de 1024×1024 é maior que os antigos ícones genéricos, mas é armazenado no cache estático. O teste de instalação no Chromium valida seu uso no manifesto. A regressão cobre sete áreas, cinco cadastros e diálogos em 17 dimensões, com WebKit adicional; não substitui uma sessão em aparelhos físicos.
 
 Requisitos e evidências: [feature 002](../specs/002-responsividade-identidade/spec.md) e [checklist](../specs/002-responsividade-identidade/checklists/requirements.md).
+
+## ADR-006 — Permitir ocultar toda a lateral no computador
+
+**Status:** aceita, 2026-10-23, por pedido do mantenedor.
+
+**Decisão:** controle permanente no cabeçalho para ocultar/reabrir a lateral e liberar a largura da área de trabalho. Guardar a preferência somente neste navegador, sem relação com o estado temporário do drawer móvel. A marca original continua no cabeçalho e a navegação oculta não recebe foco.
+
+**Consequência:** o usuário reabre a lateral pelo mesmo botão para escolher os módulos. Armazenamento bloqueado perde apenas a persistência da escolha, sem impedir o controle. Não há alteração no Firebase. Aceite em [feature 003](../specs/003-menu-lateral-recolhivel/spec.md).

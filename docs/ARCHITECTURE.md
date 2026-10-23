@@ -67,6 +67,8 @@ O workflow de [CI](../.github/workflows/deploy.yml) instala pelo lockfile, verif
 
 `src/BrandLogo.tsx` concentra a referência à imagem original; login, carregamento, menu e cabeçalho a exibem com `object-fit: contain`. A barra lateral tem altura de viewport dinâmica e rolagem própria, incluindo marca, navegação e ações finais. Em até 900px, funciona como drawer com fechamento interno, Escape, foco contido e fundo inerte; a mudança para desktop libera o bloqueio de rolagem.
 
+No computador, o botão do cabeçalho oculta e reabre toda a lateral. Quando recolhida, ela fica inerte e não ocupa espaço; a área de trabalho perde a margem lateral. A preferência `sidebar-collapsed` é local ao navegador e independente do drawer móvel. Falhas de acesso ao armazenamento não impedem o uso. A logo do cabeçalho continua visível.
+
 Tabelas possuem região focável e rolagem local. Diálogos nativos rolam integralmente e mantêm ações no fluxo do conteúdo; a página de fundo fica bloqueada enquanto estão abertos. A matriz de regressão está em `playwright.responsive.config.ts` e cobre alturas pequenas e os limites dos breakpoints, além de WebKit em celular e tablet.
 
 O cache do service worker contém arquivos estáticos. Não há runtime cache de APIs, persistência Firestore em disco ou promessa de consulta após reabrir offline. Uma página já aberta pode conservar dados em memória, mas gravar continua exigindo conexão.

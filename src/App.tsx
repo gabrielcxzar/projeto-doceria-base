@@ -12,6 +12,8 @@ import {
   Menu,
   Moon,
   Package,
+  PanelLeftClose,
+  PanelLeftOpen,
   ReceiptText,
   ShoppingBag,
   Sun,
@@ -121,6 +123,20 @@ export default function App() {
   );
   const [period, setPeriod] = useState(today().slice(0, 7));
   const [menu, setMenu] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("sidebar-collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("sidebar-collapsed", String(sidebarCollapsed));
+    } catch {
+      /* A preferência não deve impedir a navegação. */
+    }
+  }, [sidebarCollapsed]);
   const sidebarRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [compact, setCompact] = useState(
@@ -449,6 +465,11 @@ export default function App() {
     data.encomendas.filter(
       (o) => o.status !== "Finalizado" && o.valorTotal > o.valorEntrada,
     ).length;
+  const menuLabel = compact
+    ? "Abrir navegação"
+    : sidebarCollapsed
+      ? "Mostrar menu lateral"
+      : "Ocultar menu lateral";
   return (
     <BusinessContext.Provider
       value={{
@@ -484,8 +505,8 @@ export default function App() {
         role={compact && menu ? "dialog" : undefined}
         aria-modal={compact && menu ? true : undefined}
         aria-label="Menu principal"
-        className={`sidebar ${menu ? "open" : ""}`}
-        inert={compact && !menu}
+        className={`sidebar ${menu ? "open" : ""} ${!compact && sidebarCollapsed ? "collapsed" : ""}`}
+        inert={compact ? !menu : sidebarCollapsed}
       >
         <button
           className="icon-button sidebar-close"
@@ -568,17 +589,30 @@ export default function App() {
           </div>
         </div>
       </aside>
-      <div className="workspace" inert={compact && menu}>
+      <div
+        className={`workspace ${!compact && sidebarCollapsed ? "expanded" : ""}`}
+        inert={compact && menu}
+      >
         <header className="topbar">
           <button
-            className="icon-button mobile-menu"
+            className="icon-button sidebar-toggle"
             ref={menuButtonRef}
-            aria-label="Abrir navegação"
-            aria-expanded={menu}
+            aria-label={menuLabel}
+            title={menuLabel}
+            aria-expanded={compact ? menu : !sidebarCollapsed}
             aria-controls="menu-principal"
-            onClick={() => setMenu(!menu)}
+            onClick={() => {
+              if (compact) setMenu(!menu);
+              else setSidebarCollapsed(!sidebarCollapsed);
+            }}
           >
-            <Menu size={22} />
+            {compact ? (
+              <Menu size={22} />
+            ) : sidebarCollapsed ? (
+              <PanelLeftOpen size={22} />
+            ) : (
+              <PanelLeftClose size={22} />
+            )}
           </button>
           <div className="breadcrumb">
             <BrandLogo />
