@@ -2,7 +2,7 @@
 
 **Feature Branch**: `feat/menu-lateral-recolhivel`
 **Created**: 2026-10-23
-**Status**: Implementada e validada localmente; aguardando CI e publicação
+**Status**: Concluída e publicada em 2026-10-23
 **Input**: Deve ser possível ocultar o menu lateral.
 
 ## User Scenarios & Testing

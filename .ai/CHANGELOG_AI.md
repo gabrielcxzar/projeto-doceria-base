@@ -6,6 +6,8 @@
 
 **Mudanças:** controle no cabeçalho, expansão do conteúdo e preferência local persistente, independente do drawer móvel. Logo original e demais fluxos preservados; nenhum serviço, dado ou regra Firebase alterado. **Evidências:** [feature 003](../specs/003-menu-lateral-recolhivel/checklists/requirements.md).
 
+**Entrega:** PR #4 integrada (`1c5d6d5`), 105 testes aprovados na PR e em `main`, deploy confirmado e código novo verificado nas duas URLs públicas. O fechamento documental não altera o pacote publicado.
+
 ## 2026-10-23 — Responsividade e restauração da identidade
 
 **Agente:** Codex. **Objetivo:** corrigir menu cortado, revisar telas e restaurar a marca original solicitada pelo mantenedor.
