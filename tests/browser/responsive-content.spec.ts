@@ -29,7 +29,7 @@ test("nomes extensos e valores altos não cortam campos, totais ou ações", asy
   await expect(action).toBeInViewport();
   await page.getByRole("button", { name: "Abrir navegação", exact: true }).click();
   await page.getByRole("navigation").getByRole("button", { name: "Visão geral", exact: true }).click();
-  for (const area of ["Visão geral", "Financeiro", "Relatórios"]) {
+  for (const area of ["Visão geral", "Financeiro", "Estoque", "Relatórios"]) {
     const toggle = page.getByRole("button", { name: "Abrir navegação", exact: true });
     if (await toggle.isVisible()) await toggle.click();
     await page.getByRole("navigation").getByRole("button", { name: area, exact: true }).click();

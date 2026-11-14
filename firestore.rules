@@ -25,7 +25,17 @@ service cloud.firestore {
         && request.resource.data.quantidade is int && request.resource.data.quantidade > 0
         && request.resource.data.valor is number && request.resource.data.valor > 0
         && request.resource.data.status in ['P', 'A', 'E']
-        && request.resource.data.pagamento in ['PIX', 'Dinheiro', 'Cartão', 'Transferência'];
+        && request.resource.data.pagamento in ['PIX', 'Dinheiro', 'Cartão', 'Transferência']
+        && (!('valorPago' in request.resource.data) || (
+          request.resource.data.valorPago is number
+          && request.resource.data.valorPago >= 0
+          && request.resource.data.valorPago <= request.resource.data.valor * request.resource.data.quantidade + 0.01
+        ))
+        && (
+          request.resource.data.status == 'P'
+          || !('valorPago' in request.resource.data)
+          || request.resource.data.valorPago >= request.resource.data.valor * request.resource.data.quantidade - 0.01
+        );
       allow delete: if admin();
     }
     match /encomendas/{id} {
@@ -57,7 +67,9 @@ service cloud.firestore {
         && request.resource.data.precoCompra is number && request.resource.data.precoCompra > 0
         && request.resource.data.tamanhoCompra is number && request.resource.data.tamanhoCompra > 0
         && nonnegative(request.resource.data, 'custoUnitarioPadrao')
-        && request.resource.data.unidadePadrao in ['g', 'ml', 'unidade'];
+        && request.resource.data.unidadePadrao in ['g', 'ml', 'unidade']
+        && (!('estoqueAtual' in request.resource.data) || nonnegative(request.resource.data, 'estoqueAtual'))
+        && (!('estoqueMinimo' in request.resource.data) || nonnegative(request.resource.data, 'estoqueMinimo'));
       allow delete: if false; // Arquivar preserva os vínculos históricos.
     }
     match /receitas/{id} {
@@ -70,7 +82,10 @@ service cloud.firestore {
     }
     match /materiais/{id} {
       allow read: if authorized();
-      allow create, update: if admin() && text(request.resource.data, 'nome') && nonnegative(request.resource.data, 'custo');
+      allow create, update: if admin() && text(request.resource.data, 'nome')
+        && nonnegative(request.resource.data, 'custo')
+        && (!('estoqueAtual' in request.resource.data) || nonnegative(request.resource.data, 'estoqueAtual'))
+        && (!('estoqueMinimo' in request.resource.data) || nonnegative(request.resource.data, 'estoqueMinimo'));
       allow delete: if false; // Arquivar preserva os vínculos históricos.
     }
     match /despesas/{id} {
@@ -78,6 +93,36 @@ service cloud.firestore {
       allow create, update: if admin() && date(request.resource.data, 'data') && text(request.resource.data, 'descricao')
         && request.resource.data.tipo in ['Material', 'Equipamento', 'Marketing', 'Transporte', 'Outros']
         && request.resource.data.valor is number && request.resource.data.valor > 0;
+      allow delete: if admin();
+    }
+    match /recebimentos/{id} {
+      allow read: if authorized();
+      allow create: if admin() && date(request.resource.data, 'data')
+        && request.resource.data.valor is number && request.resource.data.valor > 0
+        && request.resource.data.origemTipo in ['venda', 'encomenda', 'pedido_venda']
+        && text(request.resource.data, 'origemId')
+        && text(request.resource.data, 'clienteNome')
+        && text(request.resource.data, 'descricao')
+        && request.resource.data.pagamento in ['PIX', 'Dinheiro', 'Cartão', 'Transferência'];
+      allow update: if false;
+      allow delete: if admin();
+    }
+    match /movimentacoes_estoque/{id} {
+      allow read: if authorized();
+      allow create: if admin() && date(request.resource.data, 'data')
+        && request.resource.data.itemTipo in ['ingrediente', 'material']
+        && text(request.resource.data, 'itemId')
+        && text(request.resource.data, 'itemNome')
+        && request.resource.data.tipo in ['saldo_inicial', 'entrada', 'saida', 'ajuste']
+        && request.resource.data.direcao in ['entrada', 'saida']
+        && nonnegative(request.resource.data, 'quantidade')
+        && nonnegative(request.resource.data, 'quantidadePadrao')
+        && request.resource.data.deltaPadrao is number
+        && (request.resource.data.tipo == 'saldo_inicial' || (request.resource.data.quantidade > 0 && request.resource.data.deltaPadrao != 0))
+        && nonnegative(request.resource.data, 'saldoPosterior')
+        && request.resource.data.unidadePadrao in ['g', 'ml', 'unidade']
+        && text(request.resource.data, 'motivo');
+      allow update: if false;
       allow delete: if admin();
     }
     match /configuracoes/{id} {

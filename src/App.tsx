@@ -5,6 +5,7 @@ import { registerSW } from "virtual:pwa-register";
 import {
   ArrowDownToLine,
   BarChart3,
+  Boxes,
   CalendarDays,
   Download,
   LayoutDashboard,
@@ -38,10 +39,17 @@ import type {
   CollectionName,
   DataStore,
   Entity,
+  Expense,
   Mutation,
   UserProfile,
 } from "./types";
-import { encodeBackup, today, versionOf } from "./domain";
+import {
+  buildExpenseDeletionMutations,
+  collectPendingLaunches,
+  encodeBackup,
+  today,
+  versionOf,
+} from "./domain";
 import { demoData } from "./demo";
 import Editor from "./editors";
 import {
@@ -53,6 +61,7 @@ import {
   Reports,
   Sales,
 } from "./pages";
+import { Stock } from "./stock";
 import { Button, DownloadFile, Field, Modal } from "./ui";
 import { BrandLogo } from "./BrandLogo";
 
@@ -80,6 +89,12 @@ const nav = [
     title: "Financeiro",
     icon: Wallet,
     subtitle: "Entradas, despesas e o movimento do seu caixa.",
+  },
+  {
+    id: "estoque",
+    title: "Estoque",
+    icon: Boxes,
+    subtitle: "Saldos, entradas por compras, saídas e movimentações.",
   },
   {
     id: "cadastros",
@@ -344,9 +359,14 @@ export default function App() {
             const index = change.id
               ? records.findIndex((r) => r.id === change.id)
               : -1;
+            if (change.createOnly && index >= 0) {
+              throw new Error(
+                "Esta operação já foi registrada anteriormente. Atualize a tela para conferir.",
+              );
+            }
             if (change.remove) {
               if (index >= 0) records.splice(index, 1);
-            } else if (index >= 0)
+            } else if (!change.createOnly && index >= 0)
               records[index] = {
                 ...records[index],
                 ...change.data,
@@ -355,7 +375,7 @@ export default function App() {
             else
               records.push({
                 ...change.data,
-                id: crypto.randomUUID(),
+                id: change.id || crypto.randomUUID(),
                 criadoEm: new Date(),
                 atualizadoEm: new Date(),
               } as Entity);
@@ -377,9 +397,10 @@ export default function App() {
       } else
         await mutate(
           changes.map((change) => {
-            const current = change.id
-              ? data[change.collection].find((r) => r.id === change.id)
-              : undefined;
+            const current =
+              change.id && !change.createOnly
+                ? data[change.collection].find((r) => r.id === change.id)
+                : undefined;
             return {
               ...change,
               expectedUpdatedAt:
@@ -456,15 +477,12 @@ export default function App() {
     vendas: <Sales />,
     encomendas: <Orders />,
     financeiro: <Finance />,
+    estoque: <Stock />,
     cadastros: <Catalog />,
     cobrancas: <Charges />,
     relatorios: <Reports />,
   };
-  const pending =
-    data.vendas.filter((s) => s.status === "P").length +
-    data.encomendas.filter(
-      (o) => o.status !== "Finalizado" && o.valorTotal > o.valorEntrada,
-    ).length;
+  const pending = collectPendingLaunches(data).length;
   const menuLabel = compact
     ? "Abrir navegação"
     : sidebarCollapsed
@@ -675,7 +693,7 @@ export default function App() {
               </h1>
               <p>{current.subtitle}</p>
             </div>
-            {!["encomendas", "cadastros", "cobrancas", "relatorios"].includes(
+            {!["encomendas", "estoque", "cadastros", "cobrancas", "relatorios"].includes(
               page,
             ) && (
               <div className="period-picker">
@@ -716,7 +734,7 @@ export default function App() {
             )}
           </div>
           {!period &&
-            !["encomendas", "cadastros", "cobrancas", "relatorios"].includes(
+            !["encomendas", "estoque", "cadastros", "cobrancas", "relatorios"].includes(
               page,
             ) && (
               <p className="page-note">
@@ -776,7 +794,14 @@ export default function App() {
               "materiais",
             ].includes(deleting.collection)
               ? "O cadastro será arquivado e continuará preservado no histórico. Você poderá reativá-lo em Cadastros."
-              : "O registro será removido do banco. Essa ação não tem desfazer."}
+              : deleting.collection === "despesas" &&
+                  (data.movimentacoes_estoque || []).some(
+                    (m) =>
+                      m.origemId === deleting.record.id &&
+                      m.origemTipo !== "correcao_nota",
+                  )
+                ? "Esta despesa/nota movimentou o estoque. Ao confirmar, a entrada disponível será estornada atomicamente (bloqueado se o item já tiver sido consumido)."
+                : "O registro será removido do banco. Essa ação não tem desfazer."}
           </p>
           <footer className="modal-footer">
             <Button
@@ -790,27 +815,67 @@ export default function App() {
               variant="danger"
               disabled={!canWrite}
               onClick={() => {
-                void save(
-                  [
-                    {
-                      collection: deleting.collection,
-                      id: deleting.record.id,
-                      expectedUpdatedAt: versionOf(deleting.record),
-                      ...([
-                        "clientes",
-                        "produtos",
-                        "ingredientes",
-                        "receitas",
-                        "materiais",
-                      ].includes(deleting.collection)
-                        ? { data: { arquivado: true } }
-                        : { remove: true }),
-                    },
-                  ],
-                  `Exclusão: ${deleting.description}`,
-                )
-                  .then(() => setDeleting(null))
-                  .catch((e) => notify((e as Error).message, true));
+                try {
+                  let mutations: Mutation[];
+                  if (deleting.collection === "despesas") {
+                    mutations = buildExpenseDeletionMutations(
+                      deleting.record as Expense,
+                      data,
+                    );
+                  } else if (
+                    [
+                      "clientes",
+                      "produtos",
+                      "ingredientes",
+                      "receitas",
+                      "materiais",
+                    ].includes(deleting.collection)
+                  ) {
+                    mutations = [
+                      {
+                        collection: deleting.collection,
+                        id: deleting.record.id,
+                        expectedUpdatedAt: versionOf(deleting.record),
+                        data: { arquivado: true },
+                      },
+                    ];
+                  } else {
+                    const linkedReceipts =
+                      deleting.collection === "vendas" ||
+                      deleting.collection === "encomendas"
+                        ? (data.recebimentos || [])
+                            .filter(
+                              (r) =>
+                                (deleting.collection === "vendas" &&
+                                  r.origemTipo === "venda" &&
+                                  r.origemId === deleting.record.id) ||
+                                (deleting.collection === "encomendas" &&
+                                  r.origemTipo === "encomenda" &&
+                                  r.origemId === deleting.record.id),
+                            )
+                            .map((r) => ({
+                              collection: "recebimentos" as const,
+                              id: r.id,
+                              expectedUpdatedAt: versionOf(r),
+                              remove: true,
+                            }))
+                        : [];
+                    mutations = [
+                      ...linkedReceipts,
+                      {
+                        collection: deleting.collection,
+                        id: deleting.record.id,
+                        expectedUpdatedAt: versionOf(deleting.record),
+                        remove: true,
+                      },
+                    ];
+                  }
+                  void save(mutations, `Exclusão: ${deleting.description}`)
+                    .then(() => setDeleting(null))
+                    .catch((e) => notify((e as Error).message, true));
+                } catch (e) {
+                  notify((e as Error).message, true);
+                }
               }}
             >
               {busy

@@ -30,7 +30,7 @@ Depois de alterar o preço de um ingrediente, revise e salve suas receitas e pro
 
 ## Venda avulsa
 
-Em **Vendas**, escolha **Registrar venda**, cliente, data e produto. Confira quantidade, preço unitário, forma de pagamento e situação. O formulário mostra o total antes de salvar.
+Em **Vendas**, escolha **Registrar venda**, cliente, data e produto. Confira quantidade, preço unitário, forma de pagamento e situação. O formulário mostra o total antes de salvar. Para lançar vários itens para o mesmo cliente na mesma compra, use **Salvar e continuar** mantendo cliente e dados do pedido; na listagem, compras com mais de um produto diferente exibem o marcador **N produtos** e **Ver detalhes**.
 
 - **Pendente**: ainda precisa receber.
 - **Pago**: recebimento confirmado.
@@ -40,31 +40,33 @@ Use a ação de situação para corrigir o estado de uma venda. Confirme recebim
 
 ## Encomenda
 
-Em **Encomendas**, informe cliente, descrição do preparo, entrega, total e valor já recebido. O saldo é calculado. O andamento pode ser pendente, em produção ou finalizado. Para finalizar, confirme o recebimento total; a entrada não pode exceder o valor da encomenda.
+Em **Encomendas**, selecione cliente, data de entrega (lista ordenada das mais recentes/futuras para as mais antigas, com opção de alternar) e adicione os produtos cadastrados desejados, ajustando quantidades e preço negociado se necessário. Opcionalmente, adicione pratos, embalagens e acessórios marcando **Cobrar separadamente** (soma no total) ou **Uso interno / já incluso** (apenas registrado para preparo), além de observações de personalização e valor já recebido.
 
-A agenda inclui todas as entregas, mesmo fora do período escolhido no painel. No financeiro, o período de uma encomenda é sua entrega, não necessariamente o dia em que cada entrada foi recebida.
+A agenda inclui todas as entregas, mesmo fora do período escolhido no painel, agrupando visualmente pedidos de um mesmo cliente na mesma data sem fundir seus saldos nem situações individuais. No financeiro, entradas registradas com data em `recebimentos` contam pela data efetiva do pagamento.
 
-## Despesas e caixa
+## Despesas, notas fiscais e estoque
 
-Em **Financeiro**, registre a categoria, descrição e **total pago**. A quantidade é uma observação: escrever `5 kg` não multiplica o valor.
+Em **Financeiro**, use **Registrar despesa** para gastos simples (com opção de vincular entrada no estoque para um ingrediente/material) ou **Registrar nota fiscal** para lançar vários itens comprados em um único documento financeiro com fornecedor, número da nota e quantidades rápidas. Itens vinculados a ingredientes ou materiais atualizam automaticamente os saldos na aba **Estoque**. Excluir uma nota fiscal estorna as entradas correspondentes, desde que parte daquele saldo ainda não tenha sido consumida.
+
+Na tela **Estoque**, inicie manualmente os saldos atuais existentes (**Iniciar saldo**, sem inventar estoque retroativo), registre **Saída**, faça **Ajuste**, defina **Estoque mínimo** para alertas e acompanhe o **Histórico de movimentações**.
 
 O resultado de caixa é recebido menos despesas. O custo estimado de produção das vendas é informativo. Esse painel não constitui uma apuração contábil de lucro.
 
 ## Cobranças
 
-- Veja pendências de vendas e encomendas agrupadas por cliente.
+- Veja pendências de vendas e encomendas agrupadas por cliente em ordem alfabética.
 - **Mensagem** prepara o texto com o saldo; confira-o antes de copiar ou abrir o WhatsApp. O envio é feito por você.
 - **Registrar contato realizado** grava o histórico de contato; não marca a dívida como paga.
-- **Baixar lançamento** quita apenas a pendência escolhida.
-- **Quitar** pede confirmação para quitar todas as pendências daquele cliente.
+- **Baixar lançamento** inicia com a opção **Quitar saldo restante (pagamento total)** desmarcada para evitar quitação acidental: informe manualmente o valor recebido para registrar pagamento parcial, ou marque a opção para preencher automaticamente o saldo restante (somente leitura) e concluir com **Confirmar recebimento**, mantendo o histórico auditável em **Histórico de recebimentos**.
+- **Quitar** na tabela por cliente exibe explicitamente quantos lançamentos em aberto serão quitados antes da confirmação.
 
 A data de referência é a venda ou entrega. Não existe vencimento contratual de cobrança cadastrado nesta versão.
 
 ## Relatórios e cópias de dados
 
-Em **Relatórios**, filtre o intervalo, cliente e forma de pagamento. O relatório é de vendas avulsas, incluindo pendentes; encomendas continuam na agenda e no financeiro. Há resumo por cliente/produto, CSV e impressão.
+Em **Relatórios**, filtre o intervalo, cliente (ordenado A–Z) e forma de pagamento. Além das vendas avulsas (incluindo status parcial), o relatório consolida encomendas por entrega, recebimentos efetivos por data do pagamento e compras com saldos atuais de estoque. Há resumo por cliente/produto, CSV e impressão.
 
-Administradores podem usar **Exportar arquivo completo** para baixar um JSON das 12 coleções conhecidas. Guarde em local privado, fora do repositório. Esse arquivo não contém senhas ou infraestrutura e não realiza restauração automática. A exportação não configura uma rotina agendada.
+Administradores podem usar **Exportar arquivo completo** para baixar um JSON das 14 coleções conhecidas. Guarde em local privado, fora do repositório. Esse arquivo não contém senhas ou infraestrutura e não realiza restauração automática. A exportação não configura uma rotina agendada.
 
 ## Problemas comuns
 

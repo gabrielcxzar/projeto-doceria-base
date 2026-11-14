@@ -4,15 +4,16 @@
 
 Aplicação interna de gestão de uma confeitaria. O usuário confirmou a preservação de todos os módulos atuais, acesso por administrador ou consulta, uso em celular/computador, PWA instalável e internet para gravar. A identidade visual é chocolate/creme, com a logo original `public/images/logo.png` preservada integralmente no layout, favicon e PWA (ADR-005). Não substituir a marca por texto ou ícone genérico. Não há loja pública ou pedido de cliente externo nesta versão.
 
-| Área        | Responsabilidade                                                                      |
-| ----------- | ------------------------------------------------------------------------------------- |
-| Visão geral | Vendas, recebimentos, despesas, pendências, metas, entregas e atividades              |
-| Vendas      | Registrar venda avulsa, preço unitário, quantidade, pagamento e situação              |
-| Encomendas  | Cliente, descrição, entrega, entrada, saldo e andamento                               |
-| Financeiro  | Despesas e resultado de caixa do período                                              |
-| Cadastros   | Clientes, produtos, ingredientes, receitas e materiais; arquivamento e reativação     |
-| Cobranças   | Pendências por cliente/lançamento, quitação e mensagem aberta manualmente no WhatsApp |
-| Relatórios  | Vendas por intervalo, cliente e pagamento; agrupamentos, CSV e impressão              |
+| Área        | Responsabilidade                                                                                  |
+| ----------- | ------------------------------------------------------------------------------------------------- |
+| Visão geral | Vendas agrupadas, recebimentos datados, despesas, pendências, metas, entregas e atividades        |
+| Vendas      | Venda avulsa com `Salvar e continuar` (`pedidoId`), agrupamento com indicador multi-produto       |
+| Encomendas  | Cliente, produtos cadastrados, acessórios cobrados/inclusos, entrega decrescente, entrada e saldo |
+| Financeiro  | Despesa simples ou Nota Fiscal com múltiplos itens e vinculação opcional/automática ao estoque    |
+| Estoque     | Saldo inicial, entradas por compra, saídas manuais, ajustes, mínimos e histórico auditável        |
+| Cadastros   | Clientes, produtos, ingredientes, receitas e materiais em ordem alfabética A–Z e arquivamento     |
+| Cobranças   | Pendências por cliente/lançamento, baixa parcial sucessiva, `recebimentos` e WhatsApp             |
+| Relatórios  | Vendas, encomendas, recebimentos por data real, compras/estoque, CSV e impressão                  |
 
 O manual de operação está em [docs/manual-de-uso.md](../docs/manual-de-uso.md). Regras e campos implementados estão no [modelo de dados](../docs/modelo-de-dados.md).
 
@@ -36,10 +37,10 @@ O [registro da reformulação](../docs/reformulacao.md) contém histórico e evi
 
 ## Limites conhecidos
 
-- Não há checkout, estoque quantitativo, pagamento automático, multiempresa ou gestão de contas na interface.
-- Resultado de caixa não é lucro contábil. Encomendas são filtradas pela entrega, pois o legado não possui um livro de recebimentos datados.
+- Não há checkout, pagamento automático, multiempresa ou gestão de contas na interface; também não há baixa automática de estoque na produção/venda nesta versão (ver proposta futura em ADR-007).
+- Resultado de caixa não é lucro contábil. Recebimentos recentes possuem data efetiva em `recebimentos`; parcelas legadas sem registro datado continuam filtradas pela venda/entrega sem inventar histórico anterior.
 - Receitas e produtos guardam custos calculados ao salvar; alterar um insumo não atualiza automaticamente toda a cadeia.
-- Exportação JSON não é restauração automática, backup do Authentication ou rotina agendada.
+- Exportação JSON (14 coleções) não é restauração automática, backup do Authentication ou rotina agendada.
 - A PWA mantém assets estáticos; não oferece promessa de dados disponíveis após reabrir offline.
 
 Não há decisão humana pendente que impeça trabalhar na documentação ou manter o sistema. Novas funcionalidades, custos e mudanças de contrato devem ser tratadas no pedido correspondente.
