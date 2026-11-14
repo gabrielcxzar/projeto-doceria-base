@@ -189,6 +189,8 @@ test("todas as áreas, cadastros e diálogos mantêm controles acessíveis", asy
   await inspectDialog(page);
   await page.getByRole("button", { name: "Quitar", exact: true }).first().click();
   await inspectDialog(page);
+  await page.getByRole("button", { name: "Baixar lançamento", exact: true }).first().click();
+  await inspectDialog(page);
   await navigate(page, "Relatórios");
   await inspectTables(page);
   const toggle = page.getByRole("button", { name: "Abrir navegação", exact: true });

@@ -4,20 +4,37 @@ import { Plus, Trash2 } from "lucide-react";
 import { useBusiness } from "./context";
 import type { EditorKind } from "./context";
 import type {
+  BaseUnit,
   CollectionName,
   Entity,
+  Expense,
+  ExpenseInvoiceItem,
+  Ingredient,
+  Material,
+  Mutation,
+  Order,
+  OrderAccessory,
+  OrderItem,
   Product,
   Recipe,
   RecipeItem,
+  Sale,
 } from "./types";
 import {
+  compatibleUnits,
+  computeOrderTotal,
+  formatStock,
   ingredientCost,
   money,
+  normalizeStockQuantity,
   positive,
   priceFor,
   productCost,
   recipeCost,
   round,
+  roundStock,
+  sortByTextPtBr,
+  summarizeOrderItems,
   today,
   validDate,
   validateOrder,
@@ -30,6 +47,7 @@ const titles: Record<EditorKind, string> = {
   sale: "Registrar venda",
   order: "Encomenda",
   expense: "Despesa",
+  invoice: "Registrar nota fiscal",
   customer: "Cliente",
   product: "Produto",
   ingredient: "Ingrediente",
@@ -41,6 +59,7 @@ const targets: Record<EditorKind, CollectionName> = {
   sale: "vendas",
   order: "encomendas",
   expense: "despesas",
+  invoice: "despesas",
   customer: "clientes",
   product: "produtos",
   ingredient: "ingredientes",
@@ -56,8 +75,9 @@ const defaultValues: Record<EditorKind, Record<string, string>> = {
     pagamento: "PIX",
     valor: "",
   },
-  order: { dataEntrega: today(), valorEntrada: "0", status: "Pendente" },
+  order: { dataEntrega: today(), valorEntrada: "0", status: "Pendente", valorTotal: "0" },
   expense: { data: today(), tipo: "Material", quantidade: "" },
+  invoice: { data: today(), tipo: "Material", fornecedor: "", numeroNota: "", observacoes: "" },
   customer: {},
   ingredient: { unidadePadrao: "g" },
   material: {},
@@ -73,6 +93,7 @@ const defaultValues: Record<EditorKind, Record<string, string>> = {
     valor: "0",
   },
 };
+
 export default function Editor({
   kind,
   record,
@@ -86,7 +107,8 @@ export default function Editor({
   const source = record as unknown as Record<string, unknown> | undefined;
   const [values, setValues] = useState<Record<string, string>>(() => {
     const result = { ...defaultValues[kind] };
-    if (kind === "sale" || kind === "expense") result.data = today();
+    if (kind === "sale" || kind === "expense" || kind === "invoice")
+      result.data = today();
     if (kind === "order") result.dataEntrega = today();
     for (const [k, v] of Object.entries(source || {}))
       if (["string", "number"].includes(typeof v)) result[k] = String(v);
@@ -100,12 +122,36 @@ export default function Editor({
           )?.id ||
           "",
       );
+    if (kind === "sale" && record) {
+      const s = record as Sale;
+      result.clienteId = String(
+        s.clienteId ||
+          data.clientes.find(
+            (c) => c.nome === s.pessoa || c.nomesAnteriores?.includes(s.pessoa),
+          )?.id ||
+          "",
+      );
+      result.produtoId = String(
+        s.produtoId ||
+          data.produtos.find(
+            (p) => p.nome === s.produto || p.nomesAnteriores?.includes(s.produto),
+          )?.id ||
+          "",
+      );
+    }
     return result;
   });
   const [error, setError] = useState("");
+
+  // Receita
   const [items, setItems] = useState<RecipeItem[]>(
     kind === "recipe" ? (record as Recipe)?.ingredientes || [] : [],
   );
+  const [ingredientId, setIngredientId] = useState("");
+  const [amount, setAmount] = useState("");
+  const [unit, setUnit] = useState("g");
+
+  // Produto
   const [recipes, setRecipes] = useState<string[]>(
     kind === "product"
       ? (record as Product)?.composicaoReceitas?.map((r) => r.id) || []
@@ -117,13 +163,60 @@ export default function Editor({
       : [],
   );
   const [priceMode, setPriceMode] = useState<"manual" | "automatic">("manual");
-  const [ingredientId, setIngredientId] = useState("");
-  const [amount, setAmount] = useState("");
-  const [unit, setUnit] = useState("g");
+
+  // Venda: Salvar e continuar
+  const [salePedidoId] = useState(() =>
+    kind === "sale" && record && (record as Sale).pedidoId
+      ? (record as Sale).pedidoId!
+      : crypto.randomUUID(),
+  );
+  const [saleSessionItems, setSaleSessionItems] = useState<
+    { id: string; produto: string; quantidade: number; valor: number; subtotal: number }[]
+  >([]);
+
+  // Encomenda estruturada + acessórios
+  const [orderItems, setOrderItems] = useState<OrderItem[]>(
+    kind === "order" ? (record as Order)?.itens || [] : [],
+  );
+  const [orderAccessories, setOrderAccessories] = useState<OrderAccessory[]>(
+    kind === "order" ? (record as Order)?.acessorios || [] : [],
+  );
+  const [orderProdId, setOrderProdId] = useState("");
+  const [orderProdQty, setOrderProdQty] = useState("1");
+  const [orderProdPrice, setOrderProdPrice] = useState("");
+  const [accSourceType, setAccSourceType] = useState<"material" | "manual">("material");
+  const [accMatId, setAccMatId] = useState("");
+  const [accDesc, setAccDesc] = useState("");
+  const [accCharged, setAccCharged] = useState<"charged" | "internal">("charged");
+  const [accQty, setAccQty] = useState("1");
+  const [accPrice, setAccPrice] = useState("0");
+
+  // Despesa simples com entrada opcional no estoque
+  const [expAddStock, setExpAddStock] = useState(false);
+  const [expStockType, setExpStockType] = useState<"ingrediente" | "material">("ingrediente");
+  const [expStockId, setExpStockId] = useState("");
+  const [expStockQty, setExpStockQty] = useState("");
+  const [expStockUnit, setExpStockUnit] = useState("g");
+
+  // Nota fiscal multi-item
+  const [invoiceItems, setInvoiceItems] = useState<ExpenseInvoiceItem[]>([]);
+  const [invType, setInvType] = useState<"ingrediente" | "material" | "outro">("ingrediente");
+  const [invSearch, setInvSearch] = useState("");
+  const [invItemId, setInvItemId] = useState("");
+  const [invCustomName, setInvCustomName] = useState("");
+  const [invQuickQty, setInvQuickQty] = useState<"1" | "2" | "3" | "other">("1");
+  const [invQty, setInvQty] = useState("1");
+  const [invUnit, setInvUnit] = useState("g");
+  const [invUnitPrice, setInvUnitPrice] = useState("");
+
+  const sortedCustomers = sortByTextPtBr(data.clientes, (c) => c.nome, (c) => c.id);
+  const sortedProducts = sortByTextPtBr(data.produtos, (p) => p.nome, (p) => p.id);
+  const sortedIngredients = sortByTextPtBr(data.ingredientes, (i) => i.nome, (i) => i.id);
+  const sortedMaterials = sortByTextPtBr(data.materiais, (m) => m.nome, (m) => m.id);
+  const sortedRecipes = sortByTextPtBr(data.receitas, (r) => r.titulo, (r) => r.id);
+
   const liveItems = items.map((item) => {
-    const ingredient = data.ingredientes.find(
-      (i) => i.id === item.ingredienteId,
-    );
+    const ingredient = data.ingredientes.find((i) => i.id === item.ingredienteId);
     try {
       return {
         ...item,
@@ -140,6 +233,7 @@ export default function Editor({
   const v = (name: string) => values[name] ?? "";
   const n = (name: string, label: string, zero = false) =>
     positive(v(name), label, zero);
+
   const field = (
     name: string,
     label: string,
@@ -159,8 +253,7 @@ export default function Editor({
               set(
                 "valor",
                 String(
-                  data.produtos.find((p) => p.id === e.target.value)?.valor ??
-                    "",
+                  data.produtos.find((p) => p.id === e.target.value)?.valor ?? "",
                 ),
               );
           }}
@@ -189,16 +282,20 @@ export default function Editor({
       )}
     </Field>
   );
-  const customerOptions = data.clientes
+
+  const customerOptions = sortedCustomers
     .filter((c) => !c.arquivado || c.id === v("clienteId"))
     .map((c) => ({ value: c.id, label: c.nome }));
+  const productOptions = sortedProducts
+    .filter((p) => !p.arquivado || p.id === v("produtoId"))
+    .map((p) => ({ value: p.id, label: p.nome }));
+
   const baseCost =
     recipes.length || materials.length
       ? round(
           recipes.reduce(
             (sum, id) =>
-              sum +
-              (data.receitas.find((r) => r.id === id)?.custoPorUnidade || 0),
+              sum + (data.receitas.find((r) => r.id === id)?.custoPorUnidade || 0),
             0,
           ) +
             materials.reduce(
@@ -217,6 +314,12 @@ export default function Editor({
     priceMode === "automatic"
       ? priceFor(cost, Number(v("margem")) || 0)
       : Number(v("valor")) || 0;
+
+  const orderHasStructured = orderItems.length > 0 || orderAccessories.length > 0;
+  const orderCalculatedTotal = orderHasStructured
+    ? computeOrderTotal(orderItems, orderAccessories)
+    : Number(v("valorTotal")) || 0;
+
   const nameUnique = (
     name: string,
     list: { id: string; nome: string; nomesAnteriores?: string[] }[],
@@ -227,71 +330,539 @@ export default function Editor({
         (i) =>
           i.id !== record?.id &&
           [i.nome, ...(i.nomesAnteriores || [])].some(
-            (n) => n.toUpperCase() === name.toUpperCase(),
+            (x) => x.toUpperCase() === name.toUpperCase(),
           ),
       )
     )
       throw new Error("Já existe um cadastro com esse nome.");
   };
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+
+  function addOrderProduct() {
+    try {
+      const prod = data.produtos.find((p) => p.id === orderProdId);
+      if (!prod) throw new Error("Selecione um produto cadastrado.");
+      const qty = positive(orderProdQty, "Quantidade do produto");
+      if (!Number.isInteger(qty))
+        throw new Error("Quantidade do produto deve ser inteira.");
+      const unitPrice = positive(orderProdPrice, "Preço unitário");
+      setOrderItems([
+        ...orderItems,
+        {
+          produtoId: prod.id,
+          produtoNome: prod.nome,
+          quantidade: qty,
+          valorUnitario: round(unitPrice),
+          valorCadastro: prod.valor,
+          subtotal: round(qty * unitPrice),
+          custoUnitario: productCost(prod),
+        },
+      ]);
+      setOrderProdId("");
+      setOrderProdQty("1");
+      setOrderProdPrice("");
+      setError("");
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  function addOrderAccessory() {
+    try {
+      const mat =
+        accSourceType === "material"
+          ? data.materiais.find((m) => m.id === accMatId)
+          : undefined;
+      const desc =
+        accSourceType === "material" ? mat?.nome || "" : accDesc.trim();
+      if (!desc) throw new Error("Selecione um material ou informe o acessório.");
+      const qty = positive(accQty, "Quantidade do acessório");
+      const charged = accCharged === "charged";
+      const unitPrice = positive(
+        accPrice || "0",
+        charged ? "Valor cobrado" : "Custo interno",
+        !charged,
+      );
+      setOrderAccessories([
+        ...orderAccessories,
+        {
+          ...(mat ? { materialId: mat.id } : {}),
+          descricao: desc,
+          quantidade: qty,
+          unidade: "unidade",
+          cobradoCliente: charged,
+          valorUnitario: round(unitPrice),
+          subtotal: round(qty * unitPrice),
+        },
+      ]);
+      setAccMatId("");
+      setAccDesc("");
+      setAccQty("1");
+      setAccPrice("0");
+      setError("");
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  function addInvoiceItem() {
+    try {
+      const qty = positive(invQty, "Quantidade");
+      const unitPrice = positive(invUnitPrice, "Valor unitário");
+      if (invType === "outro") {
+        const name = invCustomName.trim();
+        if (!name) throw new Error("Informe a descrição do item.");
+        setInvoiceItems([
+          ...invoiceItems,
+          {
+            id: crypto.randomUUID(),
+            itemTipo: "outro",
+            itemNome: name,
+            quantidade: qty,
+            unidade: invUnit.trim() || "unidade",
+            valorUnitario: round(unitPrice),
+            subtotal: round(qty * unitPrice),
+            geraEstoque: false,
+          },
+        ]);
+      } else {
+        const item =
+          invType === "ingrediente"
+            ? data.ingredientes.find((i) => i.id === invItemId)
+            : data.materiais.find((m) => m.id === invItemId);
+        if (!item) throw new Error("Selecione um item cadastrado.");
+        const expectedBase: BaseUnit =
+          invType === "ingrediente"
+            ? ((item as Ingredient).unidadePadrao as BaseUnit)
+            : "unidade";
+        const { quantidadePadrao, unidadePadrao } = normalizeStockQuantity(
+          qty,
+          invUnit,
+          expectedBase,
+        );
+        setInvoiceItems([
+          ...invoiceItems,
+          {
+            id: crypto.randomUUID(),
+            itemTipo: invType,
+            itemId: item.id,
+            itemNome: item.nome,
+            quantidade: qty,
+            unidade: invUnit,
+            quantidadePadrao,
+            unidadePadrao,
+            valorUnitario: round(unitPrice),
+            subtotal: round(qty * unitPrice),
+            geraEstoque: true,
+          },
+        ]);
+      }
+      setInvItemId("");
+      setInvCustomName("");
+      setInvQuickQty("1");
+      setInvQty("1");
+      setInvUnitPrice("");
+      setError("");
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function saveSaleItem(continueAdding: boolean) {
     setError("");
     try {
       if (!canWrite)
         throw new Error(
           "Seu perfil permite somente consulta ou a conexão está indisponível.",
         );
+      if (!continueAdding && saleSessionItems.length > 0 && !v("produtoId")) {
+        onClose();
+        return;
+      }
+      const customer = data.clientes.find((c) => c.id === v("clienteId"));
+      const product = data.produtos.find((p) => p.id === v("produtoId"));
+      if (!customer || !product)
+        throw new Error("Selecione cliente e produto cadastrados.");
+
+      const existingSale = record as Sale | undefined;
+      const qty = n("quantidade", "Quantidade");
+      const price = n("valor", "Preço");
+      const status = v("status") as "P" | "A" | "E";
+      const total = round(qty * price);
+      const prevPaid = existingSale?.valorPago;
+      const nextPaid =
+        status !== "P"
+          ? total
+          : prevPaid !== undefined
+            ? Math.min(total, prevPaid)
+            : 0;
+
+      const salePayload: Omit<Sale, "id"> = {
+        data: v("data"),
+        pessoa: customer.nome,
+        clienteId: customer.id,
+        produto: product.nome,
+        produtoId: product.id,
+        quantidade: qty,
+        valor: round(price),
+        custoUnitario: existingSale?.custoUnitario ?? productCost(product),
+        pagamento: v("pagamento"),
+        status,
+        pedidoId: existingSale ? existingSale.pedidoId : salePedidoId,
+        ...(nextPaid > 0 || existingSale?.valorPago !== undefined
+          ? { valorPago: nextPaid }
+          : {}),
+      };
+      validateSale(salePayload);
+
+      const newId = existingSale?.id || crypto.randomUUID();
+      const mutations: Mutation[] = [
+        {
+          collection: "vendas",
+          id: newId,
+          createOnly: !existingSale,
+          expectedUpdatedAt: existingSale ? versionOf(existingSale) : undefined,
+          data: salePayload as unknown as Record<string, unknown>,
+        },
+      ];
+      if (!existingSale && status !== "P") {
+        mutations.push({
+          collection: "recebimentos",
+          id: `venda_${newId}`,
+          createOnly: true,
+          data: {
+            data: salePayload.data,
+            valor: total,
+            origemTipo: "venda",
+            origemId: newId,
+            vendaIds: [newId],
+            clienteId: customer.id,
+            clienteNome: customer.nome,
+            descricao: `${qty} × ${product.nome}`,
+            pagamento: salePayload.pagamento,
+            tipoBaixa: "venda_avista",
+          },
+        });
+      }
+
+      await save(
+        mutations,
+        `${existingSale ? "Atualização" : "Cadastro"}: venda (${customer.nome} · ${product.nome})`,
+      );
+
+      if (continueAdding) {
+        setSaleSessionItems((prev) => [
+          ...prev,
+          {
+            id: newId,
+            produto: product.nome,
+            quantidade: qty,
+            valor: round(price),
+            subtotal: total,
+          },
+        ]);
+        setValues((prev) => ({
+          ...prev,
+          produtoId: "",
+          quantidade: "1",
+          valor: "",
+        }));
+      } else {
+        onClose();
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível salvar.");
+    }
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (kind === "sale") {
+      await saveSaleItem(false);
+      return;
+    }
+    setError("");
+    try {
+      if (!canWrite)
+        throw new Error(
+          "Seu perfil permite somente consulta ou a conexão está indisponível.",
+        );
+
+      const extraMutations: Mutation[] = [];
+      let mainId = record?.id;
+      let createOnly = false;
       let payload: Record<string, unknown> = {};
-      if (kind === "sale") {
-        const customer = data.clientes.find((c) => c.id === v("clienteId"));
-        const product = data.produtos.find((p) => p.id === v("produtoId"));
-        if (!customer || !product)
-          throw new Error("Selecione cliente e produto cadastrados.");
-        const sale = {
-          data: v("data"),
-          pessoa: customer.nome,
-          clienteId: customer.id,
-          produto: product.nome,
-          produtoId: product.id,
-          quantidade: n("quantidade", "Quantidade"),
-          valor: n("valor", "Preço"),
-          custoUnitario: productCost(product),
-          pagamento: v("pagamento"),
-          status: v("status") as "P" | "A" | "E",
-        };
-        validateSale(sale);
-        payload = sale;
-      } else if (kind === "order") {
+
+      if (kind === "order") {
         const customer = data.clientes.find((c) => c.id === v("clienteId"));
         if (!customer) throw new Error("Selecione um cliente cadastrado.");
-        const order = {
+        const existingOrder = record as Order | undefined;
+        const hasItems = orderItems.length > 0 || orderAccessories.length > 0;
+        const computedTotal = hasItems
+          ? computeOrderTotal(orderItems, orderAccessories)
+          : n("valorTotal", "Total");
+        const desc = hasItems
+          ? summarizeOrderItems(orderItems, orderAccessories, v("observacoes"))
+          : v("produtoDescricao").trim();
+        if (!desc)
+          throw new Error(
+            "Adicione pelo menos um produto cadastrado à encomenda.",
+          );
+        const entrada = n("valorEntrada", "Valor já recebido", true);
+        const orderObj: Omit<Order, "id"> = {
           clienteNome: customer.nome,
           clienteId: customer.id,
-          produtoDescricao: v("produtoDescricao").trim(),
+          produtoDescricao: desc,
+          ...(orderItems.length ? { itens: orderItems } : {}),
+          ...(orderAccessories.length ? { acessorios: orderAccessories } : {}),
+          ...(v("observacoes").trim() ? { observacoes: v("observacoes").trim() } : {}),
           dataEntrega: v("dataEntrega"),
-          valorTotal: n("valorTotal", "Total"),
-          valorEntrada: n("valorEntrada", "Entrada", true),
-          status: v("status") as "Pendente" | "Em Produção" | "Finalizado",
+          valorTotal: round(computedTotal),
+          valorEntrada: round(entrada),
+          status: v("status") as Order["status"],
         };
-        validateOrder(order);
+        validateOrder(orderObj);
         if (
-          order.status === "Finalizado" &&
-          order.valorEntrada !== order.valorTotal
+          orderObj.status === "Finalizado" &&
+          orderObj.valorEntrada !== orderObj.valorTotal
         )
           throw new Error(
-            "Para finalizar, confirme o recebimento total preenchendo a entrada igual ao total.",
+            "Para finalizar, confirme o recebimento total preenchendo o valor já recebido igual ao total.",
           );
-        payload = order;
+        if (!existingOrder) {
+          mainId = crypto.randomUUID();
+          createOnly = true;
+          if (orderObj.valorEntrada > 0) {
+            extraMutations.push({
+              collection: "recebimentos",
+              id: `enc_ent_${mainId}`,
+              createOnly: true,
+              data: {
+                data: today(),
+                valor: orderObj.valorEntrada,
+                origemTipo: "encomenda",
+                origemId: mainId,
+                clienteId: customer.id,
+                clienteNome: customer.nome,
+                descricao: desc.slice(0, 900),
+                pagamento: "PIX",
+                tipoBaixa: "entrada_encomenda",
+              },
+            });
+          }
+        } else {
+          const diff = round(orderObj.valorEntrada - (existingOrder.valorEntrada || 0));
+          if (diff > 0) {
+            extraMutations.push({
+              collection: "recebimentos",
+              data: {
+                data: today(),
+                valor: diff,
+                origemTipo: "encomenda",
+                origemId: existingOrder.id,
+                clienteId: customer.id,
+                clienteNome: customer.nome,
+                descricao: desc.slice(0, 900),
+                pagamento: "PIX",
+                tipoBaixa:
+                  orderObj.valorEntrada >= orderObj.valorTotal
+                    ? "integral"
+                    : "parcial",
+              },
+            });
+          }
+        }
+        payload = orderObj as unknown as Record<string, unknown>;
       } else if (kind === "expense") {
         if (!validDate(v("data"))) throw new Error("Informe uma data válida.");
         if (!v("descricao").trim()) throw new Error("Informe a descrição.");
-        payload = {
+        const existingExp = record as Expense | undefined;
+        const expVal = n("valor", "Total da despesa");
+        const expData: Record<string, unknown> = {
           data: v("data"),
           tipo: v("tipo"),
           descricao: v("descricao").trim(),
           quantidade: v("quantidade"),
-          valor: n("valor", "Total da despesa"),
+          valor: round(expVal),
         };
+        if (existingExp?.isNotaFiscal) {
+          expData.isNotaFiscal = true;
+          if (existingExp.fornecedor) expData.fornecedor = v("fornecedor").trim();
+          if (existingExp.numeroNota) expData.numeroNota = v("numeroNota").trim();
+          if (existingExp.observacoes !== undefined)
+            expData.observacoes = v("observacoes").trim();
+        }
+        if (!existingExp && expAddStock) {
+          const target =
+            expStockType === "ingrediente"
+              ? data.ingredientes.find((i) => i.id === expStockId)
+              : data.materiais.find((m) => m.id === expStockId);
+          if (!target)
+            throw new Error("Selecione o ingrediente ou material para o estoque.");
+          const q = positive(expStockQty, "Quantidade de entrada no estoque");
+          const expectedBase: BaseUnit =
+            expStockType === "ingrediente"
+              ? ((target as Ingredient).unidadePadrao as BaseUnit)
+              : "unidade";
+          const { quantidadePadrao, unidadePadrao } = normalizeStockQuantity(
+            q,
+            expStockUnit,
+            expectedBase,
+          );
+          mainId = crypto.randomUUID();
+          createOnly = true;
+          const movId = `desp_${mainId}`;
+          const prevBal = target.estoqueAtual ?? 0;
+          const nextBal = roundStock(prevBal + quantidadePadrao);
+          expData.entradaEstoque = {
+            itemTipo: expStockType,
+            itemId: target.id,
+            itemNome: target.nome,
+            quantidade: q,
+            unidade: expStockUnit,
+            quantidadePadrao,
+            unidadePadrao,
+            movimentoId: movId,
+          };
+          extraMutations.push({
+            collection: expStockType === "ingrediente" ? "ingredientes" : "materiais",
+            id: target.id,
+            expectedUpdatedAt: versionOf(target),
+            data: { estoqueAtual: nextBal, estoqueIniciado: true },
+          });
+          extraMutations.push({
+            collection: "movimentacoes_estoque",
+            id: movId,
+            createOnly: true,
+            data: {
+              data: v("data"),
+              itemTipo: expStockType,
+              itemId: target.id,
+              itemNome: target.nome,
+              tipo: "entrada",
+              direcao: "entrada",
+              quantidade: q,
+              unidade: expStockUnit,
+              quantidadePadrao,
+              deltaPadrao: quantidadePadrao,
+              unidadePadrao,
+              saldoAnterior: target.estoqueIniciado ? prevBal : null,
+              saldoPosterior: nextBal,
+              motivo: `Compra em despesa: ${v("descricao").trim()}`,
+              origemTipo: "despesa",
+              origemId: mainId,
+              custoUnitario: round(expVal / q),
+            },
+          });
+        }
+        payload = expData;
+      } else if (kind === "invoice") {
+        if (!validDate(v("data"))) throw new Error("Informe uma data válida.");
+        if (!invoiceItems.length)
+          throw new Error("Adicione pelo menos um item à nota fiscal.");
+        const totalNota = round(
+          invoiceItems.reduce((sum, item) => sum + item.subtotal, 0),
+        );
+        if (totalNota <= 0)
+          throw new Error("O total da nota fiscal deve ser maior que zero.");
+
+        mainId = crypto.randomUUID();
+        createOnly = true;
+        const fornecedor = v("fornecedor").trim();
+        const numeroNota = v("numeroNota").trim();
+        const observacoes = v("observacoes").trim();
+        const headerDescParts = [
+          numeroNota ? `NF ${numeroNota}` : "Nota fiscal",
+          fornecedor || undefined,
+          `(${invoiceItems.length} ${invoiceItems.length === 1 ? "item" : "itens"})`,
+        ].filter(Boolean);
+
+        payload = {
+          data: v("data"),
+          tipo: v("tipo"),
+          descricao: headerDescParts.join(" · "),
+          quantidade: `${invoiceItems.length} ${invoiceItems.length === 1 ? "item" : "itens"}`,
+          valor: totalNota,
+          isNotaFiscal: true,
+          ...(fornecedor ? { fornecedor } : {}),
+          ...(numeroNota ? { numeroNota } : {}),
+          ...(observacoes ? { observacoes } : {}),
+          itensNota: invoiceItems,
+        };
+
+        // Agrupa movimentações de estoque por item para atualizar cada documento uma única vez na transação.
+        const runningBalances = new Map<
+          string,
+          {
+            collection: "ingredientes" | "materiais";
+            record: Ingredient | Material;
+            balance: number;
+            hadInit: boolean;
+          }
+        >();
+
+        for (const item of invoiceItems) {
+          if (!item.geraEstoque || !item.itemId || !item.quantidadePadrao || !item.unidadePadrao)
+            continue;
+          const mapKey = `${item.itemTipo}:${item.itemId}`;
+          let state = runningBalances.get(mapKey);
+          if (!state) {
+            const target =
+              item.itemTipo === "ingrediente"
+                ? data.ingredientes.find((i) => i.id === item.itemId)
+                : data.materiais.find((m) => m.id === item.itemId);
+            if (!target)
+              throw new Error(`Item "${item.itemNome}" não encontrado no cadastro.`);
+            state = {
+              collection: item.itemTipo === "ingrediente" ? "ingredientes" : "materiais",
+              record: target,
+              balance: target.estoqueAtual ?? 0,
+              hadInit: !!target.estoqueIniciado,
+            };
+            runningBalances.set(mapKey, state);
+          }
+          const prevBal = state.balance;
+          const nextBal = roundStock(prevBal + item.quantidadePadrao);
+          state.balance = nextBal;
+
+          extraMutations.push({
+            collection: "movimentacoes_estoque",
+            id: `nf_${mainId}_${item.id}`,
+            createOnly: true,
+            data: {
+              data: v("data"),
+              itemTipo: item.itemTipo,
+              itemId: item.itemId,
+              itemNome: item.itemNome,
+              tipo: "entrada",
+              direcao: "entrada",
+              quantidade: item.quantidade,
+              unidade: item.unidade,
+              quantidadePadrao: item.quantidadePadrao,
+              deltaPadrao: item.quantidadePadrao,
+              unidadePadrao: item.unidadePadrao,
+              saldoAnterior: state.hadInit ? prevBal : null,
+              saldoPosterior: nextBal,
+              motivo: `Nota fiscal${numeroNota ? ` #${numeroNota}` : ""}${fornecedor ? ` · ${fornecedor}` : ""}`,
+              origemTipo: "nota_fiscal",
+              origemId: mainId,
+              origemItemId: item.id,
+              custoUnitario: item.valorUnitario,
+            },
+          });
+          state.hadInit = true;
+        }
+
+        for (const state of runningBalances.values()) {
+          extraMutations.push({
+            collection: state.collection,
+            id: state.record.id,
+            expectedUpdatedAt: versionOf(state.record),
+            data: {
+              estoqueAtual: state.balance,
+              estoqueIniciado: true,
+            },
+          });
+        }
       } else if (kind === "customer") {
         const nome = v("nome").trim().toUpperCase();
         nameUnique(nome, data.clientes);
@@ -325,6 +896,7 @@ export default function Editor({
           throw new Error(
             "Este ingrediente está em receitas. Preserve a unidade padrão ou cadastre outro ingrediente.",
           );
+        const minStockRaw = v("estoqueMinimo").trim();
         payload = {
           nome,
           unidadeCompra: v("unidadeCompra").trim(),
@@ -332,11 +904,21 @@ export default function Editor({
           tamanhoCompra,
           unidadePadrao: v("unidadePadrao"),
           custoUnitarioPadrao: precoCompra / tamanhoCompra,
+          ...(minStockRaw !== ""
+            ? { estoqueMinimo: positive(minStockRaw, "Estoque mínimo", true) }
+            : {}),
         };
       } else if (kind === "material") {
         const nome = v("nome").trim();
         nameUnique(nome, data.materiais);
-        payload = { nome, custo: n("custo", "Custo", true) };
+        const minStockRaw = v("estoqueMinimo").trim();
+        payload = {
+          nome,
+          custo: n("custo", "Custo", true),
+          ...(minStockRaw !== ""
+            ? { estoqueMinimo: positive(minStockRaw, "Estoque mínimo", true) }
+            : {}),
+        };
       } else if (kind === "recipe") {
         if (!v("titulo").trim()) throw new Error("Informe o título.");
         if (
@@ -414,14 +996,17 @@ export default function Editor({
       } else if (kind === "goal") {
         payload = { metaMensal: n("metaMensal", "Meta", true) };
       }
+
       await save(
         [
           {
             collection: targets[kind],
-            id: record?.id,
+            id: mainId,
+            createOnly,
             expectedUpdatedAt: record ? versionOf(record) : undefined,
             data: payload,
           },
+          ...extraMutations,
         ],
         `${record ? "Atualização" : "Cadastro"}: ${titles[kind].toLowerCase()}`,
       );
@@ -432,6 +1017,7 @@ export default function Editor({
       );
     }
   }
+
   function addIngredient() {
     try {
       const ingredient = data.ingredientes.find((i) => i.id === ingredientId);
@@ -452,11 +1038,44 @@ export default function Editor({
       setError((e as Error).message);
     }
   }
+
+  const invFilteredOptions = (
+    invType === "ingrediente"
+      ? sortedIngredients.filter((i) => !i.arquivado)
+      : sortedMaterials.filter((m) => !m.arquivado)
+  ).filter((item) =>
+    !invSearch.trim() ||
+    item.nome.toLocaleLowerCase("pt-BR").includes(invSearch.toLocaleLowerCase("pt-BR")),
+  );
+  const selectedInvIngredient =
+    invType === "ingrediente"
+      ? data.ingredientes.find((i) => i.id === invItemId)
+      : undefined;
+  const invAvailableUnits =
+    invType === "ingrediente" && selectedInvIngredient
+      ? compatibleUnits(selectedInvIngredient.unidadePadrao as BaseUnit)
+      : invType === "material"
+        ? (["unidade"] as const)
+        : (["unidade", "kg", "g", "l", "ml"] as const);
+
+  const selectedExpTarget =
+    expStockType === "ingrediente"
+      ? data.ingredientes.find((i) => i.id === expStockId)
+      : data.materiais.find((m) => m.id === expStockId);
+  const expAvailableUnits =
+    expStockType === "ingrediente" && selectedExpTarget
+      ? compatibleUnits((selectedExpTarget as Ingredient).unidadePadrao as BaseUnit)
+      : (["unidade"] as const);
+
   return (
     <Modal
       title={`${record ? "Editar " : ""}${titles[kind]}`}
       subtitle={
-        kind === "sale" ? "Uma venda simples, com tudo no lugar." : undefined
+        kind === "sale"
+          ? "Registre um ou mais produtos para a mesma compra."
+          : kind === "invoice"
+            ? "Cadastre os itens da nota em um único lançamento financeiro."
+            : undefined
       }
       onClose={onClose}
       busy={busy}
@@ -470,16 +1089,9 @@ export default function Editor({
             <>
               {field("clienteId", "Cliente", "text", customerOptions)}
               {field("data", "Data da venda", "date")}
-              {field(
-                "produtoId",
-                "Produto",
-                "text",
-                data.produtos
-                  .filter((p) => !p.arquivado)
-                  .map((p) => ({ value: p.id, label: p.nome })),
-              )}
-              {field("quantidade", "Quantidade", "number")}
-              {field("valor", "Preço unitário (R$)", "number")}
+              {field("produtoId", "Produto", "text", productOptions, undefined, saleSessionItems.length === 0)}
+              {field("quantidade", "Quantidade", "number", undefined, undefined, saleSessionItems.length === 0 || !!v("produtoId"))}
+              {field("valor", "Preço unitário (R$)", "number", undefined, undefined, saleSessionItems.length === 0 || !!v("produtoId"))}
               {field("pagamento", "Pagamento", "text", [
                 "PIX",
                 "Dinheiro",
@@ -492,23 +1104,306 @@ export default function Editor({
                 { value: "E", label: "Entregue e pago" },
               ])}
               <div className="form-summary">
-                <span>Total da venda</span>
+                <span>Total deste item</span>
                 <strong>
                   {money(
                     (Number(v("quantidade")) || 0) * (Number(v("valor")) || 0),
                   )}
                 </strong>
               </div>
+              {saleSessionItems.length > 0 && (
+                <div className="span-2 session-box">
+                  <h3>Itens já salvos nesta compra ({saleSessionItems.length})</h3>
+                  <ul className="composition-list">
+                    {saleSessionItems.map((it) => (
+                      <li key={it.id}>
+                        <span>
+                          {it.quantidade} × {it.produto}
+                          <small>{money(it.valor)} un.</small>
+                        </span>
+                        <strong>{money(it.subtotal)}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="form-note">
+                    Total acumulado salvo:{" "}
+                    <strong>
+                      {money(saleSessionItems.reduce((s, i) => s + i.subtotal, 0))}
+                    </strong>
+                    . Os itens já confirmados permanecem registrados mesmo se você cancelar este próximo item.
+                  </p>
+                </div>
+              )}
             </>
           )}
           {kind === "order" && (
             <>
               {field("clienteId", "Cliente", "text", customerOptions)}
               {field("dataEntrega", "Entrega", "date")}
-              <div className="span-2">
-                {field("produtoDescricao", "O que vamos preparar?")}
+              <div className="span-2 ingredient-builder">
+                <h3>Produtos da encomenda</h3>
+                <div className="order-item-add">
+                  <Field label="Produto cadastrado">
+                    <select
+                      value={orderProdId}
+                      onChange={(e) => {
+                        setOrderProdId(e.target.value);
+                        const prod = data.produtos.find((p) => p.id === e.target.value);
+                        if (prod) setOrderProdPrice(String(prod.valor));
+                      }}
+                    >
+                      <option value="">Selecione…</option>
+                      {sortedProducts
+                        .filter((p) => !p.arquivado)
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.nome} · {money(p.valor)}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                  <Field label="Quantidade">
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={orderProdQty}
+                      onChange={(e) => setOrderProdQty(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Preço unitário (R$)">
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={orderProdPrice}
+                      onChange={(e) => setOrderProdPrice(e.target.value)}
+                    />
+                  </Field>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={addOrderProduct}
+                  >
+                    <Plus size={17} /> Adicionar produto
+                  </Button>
+                </div>
+                {orderItems.length > 0 && (
+                  <ul className="composition-list">
+                    {orderItems.map((item, idx) => (
+                      <li key={`${item.produtoId}-${idx}`}>
+                        <span>
+                          <strong>{item.produtoNome}</strong>
+                          <small>
+                            {item.quantidade} × {money(item.valorUnitario)}
+                            {item.valorCadastro !== undefined &&
+                            item.valorCadastro !== item.valorUnitario
+                              ? ` (cadastro: ${money(item.valorCadastro)})`
+                              : ""}
+                          </small>
+                        </span>
+                        <div className="inline-edit-controls">
+                          <input
+                            aria-label={`Quantidade de ${item.produtoNome}`}
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={item.quantidade}
+                            onChange={(e) => {
+                              const q = Math.max(1, Number(e.target.value) || 1);
+                              setOrderItems(
+                                orderItems.map((it, i) =>
+                                  i === idx
+                                    ? { ...it, quantidade: q, subtotal: round(q * it.valorUnitario) }
+                                    : it,
+                                ),
+                              );
+                            }}
+                          />
+                          <input
+                            aria-label={`Preço unitário de ${item.produtoNome}`}
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={item.valorUnitario}
+                            onChange={(e) => {
+                              const p = Math.max(0, Number(e.target.value) || 0);
+                              setOrderItems(
+                                orderItems.map((it, i) =>
+                                  i === idx
+                                    ? { ...it, valorUnitario: p, subtotal: round(it.quantidade * p) }
+                                    : it,
+                                ),
+                              );
+                            }}
+                          />
+                        </div>
+                        <span>{money(item.subtotal)}</span>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          aria-label={`Remover produto ${item.produtoNome}`}
+                          onClick={() =>
+                            setOrderItems(orderItems.filter((_, i) => i !== idx))
+                          }
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-              {field("valorTotal", "Total (R$)", "number")}
+
+              <div className="span-2 ingredient-builder">
+                <h3>Pratos, embalagens e acessórios (opcional)</h3>
+                <p className="form-note">
+                  Itens cobrados separadamente somam no total ao cliente. Uso interno serve apenas para registro sem aumentar o preço cobrado.
+                </p>
+                <div className="order-item-add">
+                  <Field label="Origem do acessório">
+                    <select
+                      value={accSourceType}
+                      onChange={(e) =>
+                        setAccSourceType(e.target.value as "material" | "manual")
+                      }
+                    >
+                      <option value="material">Material cadastrado</option>
+                      <option value="manual">Descrição manual</option>
+                    </select>
+                  </Field>
+                  {accSourceType === "material" ? (
+                    <Field label="Material">
+                      <select
+                        value={accMatId}
+                        onChange={(e) => {
+                          setAccMatId(e.target.value);
+                          const mat = data.materiais.find((m) => m.id === e.target.value);
+                          if (mat && accCharged === "charged")
+                            setAccPrice(String(mat.custo));
+                        }}
+                      >
+                        <option value="">Selecione…</option>
+                        {sortedMaterials
+                          .filter((m) => !m.arquivado)
+                          .map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.nome} · custo {money(m.custo)}
+                            </option>
+                          ))}
+                      </select>
+                    </Field>
+                  ) : (
+                    <Field label="Descrição do acessório">
+                      <input
+                        value={accDesc}
+                        onChange={(e) => setAccDesc(e.target.value)}
+                        placeholder="Ex.: Prato dourado 30cm"
+                      />
+                    </Field>
+                  )}
+                  <Field label="Cobrança ao cliente">
+                    <select
+                      value={accCharged}
+                      onChange={(e) => {
+                        const mode = e.target.value as "charged" | "internal";
+                        setAccCharged(mode);
+                        if (mode === "internal") setAccPrice("0");
+                      }}
+                    >
+                      <option value="charged">Cobrar separadamente</option>
+                      <option value="internal">Uso interno / já incluso</option>
+                    </select>
+                  </Field>
+                  <Field label="Qtd.">
+                    <input
+                      type="number"
+                      min="1"
+                      step="any"
+                      value={accQty}
+                      onChange={(e) => setAccQty(e.target.value)}
+                    />
+                  </Field>
+                  <Field
+                    label={
+                      accCharged === "charged"
+                        ? "Valor cobrado (R$)"
+                        : "Custo extra (R$)"
+                    }
+                  >
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={accPrice}
+                      onChange={(e) => setAccPrice(e.target.value)}
+                    />
+                  </Field>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={addOrderAccessory}
+                  >
+                    <Plus size={17} /> Adicionar acessório
+                  </Button>
+                </div>
+                {orderAccessories.length > 0 && (
+                  <ul className="composition-list">
+                    {orderAccessories.map((acc, idx) => (
+                      <li key={idx}>
+                        <span>
+                          <strong>{acc.descricao}</strong>
+                          <small>
+                            {acc.quantidade} un. ·{" "}
+                            {acc.cobradoCliente
+                              ? "Cobrado ao cliente"
+                              : "Uso interno / incluso (não soma no total)"}
+                          </small>
+                        </span>
+                        <span>
+                          {acc.cobradoCliente ? money(acc.subtotal) : "Incluso"}
+                        </span>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          aria-label={`Remover acessório ${acc.descricao}`}
+                          onClick={() =>
+                            setOrderAccessories(
+                              orderAccessories.filter((_, i) => i !== idx),
+                            )
+                          }
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {!orderHasStructured && record && (
+                <div className="span-2">
+                  {field("produtoDescricao", "Descrição registrada (legado)")}
+                </div>
+              )}
+              <div className="span-2">
+                {field(
+                  "observacoes",
+                  "Observações de preparo, sabor, tamanho e personalização",
+                  "text",
+                  undefined,
+                  undefined,
+                  false,
+                )}
+              </div>
+              {orderHasStructured ? (
+                <div className="form-summary">
+                  <span>Total calculado da encomenda</span>
+                  <strong>{money(orderCalculatedTotal)}</strong>
+                </div>
+              ) : (
+                field("valorTotal", "Total (R$)", "number")
+              )}
               {field("valorEntrada", "Valor já recebido (R$)", "number")}
               {field("status", "Situação", "text", [
                 "Pendente",
@@ -521,7 +1416,7 @@ export default function Editor({
                   {money(
                     Math.max(
                       0,
-                      Number(v("valorTotal")) - Number(v("valorEntrada")) || 0,
+                      orderCalculatedTotal - (Number(v("valorEntrada")) || 0),
                     ),
                   )}
                 </strong>
@@ -554,6 +1449,328 @@ export default function Editor({
                 undefined,
                 "Informe o total da despesa, não o preço por unidade.",
               )}
+              {!record && (
+                <div className="span-2 ingredient-builder">
+                  <label className="checkbox">
+                    <input
+                      type="checkbox"
+                      checked={expAddStock}
+                      onChange={(e) => setExpAddStock(e.target.checked)}
+                    />
+                    Registrar entrada no estoque para esta despesa
+                  </label>
+                  {expAddStock && (
+                    <div className="recipe-add">
+                      <Field label="Tipo de item">
+                        <select
+                          value={expStockType}
+                          onChange={(e) => {
+                            const nextType = e.target.value as "ingrediente" | "material";
+                            setExpStockType(nextType);
+                            setExpStockId("");
+                            setExpStockUnit(nextType === "material" ? "unidade" : "g");
+                          }}
+                        >
+                          <option value="ingrediente">Ingrediente</option>
+                          <option value="material">Material</option>
+                        </select>
+                      </Field>
+                      <Field label="Item cadastrado">
+                        <select
+                          value={expStockId}
+                          onChange={(e) => {
+                            setExpStockId(e.target.value);
+                            if (expStockType === "ingrediente") {
+                              const ing = data.ingredientes.find(
+                                (i) => i.id === e.target.value,
+                              );
+                              if (ing) setExpStockUnit(ing.unidadePadrao);
+                            } else {
+                              setExpStockUnit("unidade");
+                            }
+                          }}
+                        >
+                          <option value="">Selecione…</option>
+                          {(expStockType === "ingrediente"
+                            ? sortedIngredients
+                            : sortedMaterials
+                          )
+                            .filter((x) => !x.arquivado)
+                            .map((x) => (
+                              <option key={x.id} value={x.id}>
+                                {x.nome}
+                              </option>
+                            ))}
+                        </select>
+                      </Field>
+                      <Field label="Quantidade para o estoque">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={expStockQty}
+                          onChange={(e) => setExpStockQty(e.target.value)}
+                        />
+                      </Field>
+                      <Field label="Unidade">
+                        <select
+                          value={expStockUnit}
+                          onChange={(e) => setExpStockUnit(e.target.value)}
+                        >
+                          {expAvailableUnits.map((u) => (
+                            <option key={u} value={u}>
+                              {u}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+          {kind === "invoice" && (
+            <>
+              {field("data", "Data da compra", "date")}
+              {field("tipo", "Categoria", "text", [
+                "Material",
+                "Equipamento",
+                "Marketing",
+                "Transporte",
+                "Outros",
+              ])}
+              {field("fornecedor", "Fornecedor (opcional)", "text", undefined, undefined, false)}
+              {field("numeroNota", "Número da nota (opcional)", "text", undefined, undefined, false)}
+              <div className="span-2">
+                {field("observacoes", "Observações (opcional)", "text", undefined, undefined, false)}
+              </div>
+              <div className="span-2 ingredient-builder">
+                <h3>Itens da nota fiscal</h3>
+                <div className="invoice-item-builder">
+                  <Field label="Tipo do item">
+                    <select
+                      value={invType}
+                      onChange={(e) => {
+                        const next = e.target.value as "ingrediente" | "material" | "outro";
+                        setInvType(next);
+                        setInvItemId("");
+                        setInvSearch("");
+                        setInvUnit(next === "ingrediente" ? "g" : "unidade");
+                      }}
+                    >
+                      <option value="ingrediente">Ingrediente</option>
+                      <option value="material">Material</option>
+                      <option value="outro">Outro (sem estoque)</option>
+                    </select>
+                  </Field>
+                  {invType !== "outro" ? (
+                    <>
+                      <Field label="Filtrar item">
+                        <input
+                          placeholder="Buscar por nome…"
+                          value={invSearch}
+                          onChange={(e) => setInvSearch(e.target.value)}
+                        />
+                      </Field>
+                      <Field label="Item cadastrado">
+                        <select
+                          value={invItemId}
+                          onChange={(e) => {
+                            setInvItemId(e.target.value);
+                            if (invType === "ingrediente") {
+                              const ing = data.ingredientes.find(
+                                (i) => i.id === e.target.value,
+                              );
+                              if (ing) setInvUnit(ing.unidadePadrao);
+                            } else {
+                              setInvUnit("unidade");
+                            }
+                          }}
+                        >
+                          <option value="">Selecione…</option>
+                          {invFilteredOptions.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.nome}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </>
+                  ) : (
+                    <Field label="Descrição do item">
+                      <input
+                        value={invCustomName}
+                        onChange={(e) => setInvCustomName(e.target.value)}
+                        placeholder="Ex.: Frete ou taxa da compra"
+                      />
+                    </Field>
+                  )}
+                  <div className="field">
+                    <label>Seleção rápida</label>
+                    <div className="quick-qty">
+                      {(["1", "2", "3"] as const).map((q) => (
+                        <button
+                          key={q}
+                          type="button"
+                          className={`button secondary ${invQuickQty === q ? "active-pill" : ""}`}
+                          onClick={() => {
+                            setInvQuickQty(q);
+                            setInvQty(q);
+                          }}
+                        >
+                          {q}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className={`button secondary ${invQuickQty === "other" ? "active-pill" : ""}`}
+                        onClick={() => setInvQuickQty("other")}
+                      >
+                        Outro
+                      </button>
+                    </div>
+                  </div>
+                  <Field label="Quantidade">
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={invQty}
+                      onChange={(e) => {
+                        setInvQty(e.target.value);
+                        setInvQuickQty("other");
+                      }}
+                    />
+                  </Field>
+                  <Field label="Unidade">
+                    <select
+                      value={invUnit}
+                      onChange={(e) => setInvUnit(e.target.value)}
+                    >
+                      {invAvailableUnits.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Valor unitário (R$)">
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={invUnitPrice}
+                      onChange={(e) => setInvUnitPrice(e.target.value)}
+                    />
+                  </Field>
+                  <div className="form-summary">
+                    <span>Subtotal do item</span>
+                    <strong>
+                      {money((Number(invQty) || 0) * (Number(invUnitPrice) || 0))}
+                    </strong>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={addInvoiceItem}
+                  >
+                    <Plus size={17} /> Adicionar item
+                  </Button>
+                </div>
+
+                {invoiceItems.length > 0 && (
+                  <ul className="composition-list">
+                    {invoiceItems.map((item, idx) => (
+                      <li key={item.id}>
+                        <span>
+                          <strong>{item.itemNome}</strong>
+                          <small>
+                            {item.itemTipo === "ingrediente"
+                              ? "Ingrediente"
+                              : item.itemTipo === "material"
+                                ? "Material"
+                                : "Sem estoque"}{" "}
+                            · {item.quantidade} {item.unidade}
+                            {item.quantidadePadrao && item.unidadePadrao
+                              ? ` (${formatStock(item.quantidadePadrao, item.unidadePadrao)})`
+                              : ""}
+                          </small>
+                        </span>
+                        <div className="inline-edit-controls">
+                          <input
+                            aria-label={`Quantidade de ${item.itemNome}`}
+                            type="number"
+                            min="0.001"
+                            step="any"
+                            value={item.quantidade}
+                            onChange={(e) => {
+                              const nextQty = Math.max(0.001, Number(e.target.value) || 0);
+                              setInvoiceItems(
+                                invoiceItems.map((it, i) => {
+                                  if (i !== idx) return it;
+                                  let qtdPadrao = it.quantidadePadrao;
+                                  if (it.geraEstoque && it.unidadePadrao) {
+                                    qtdPadrao = normalizeStockQuantity(
+                                      nextQty,
+                                      it.unidade,
+                                      it.unidadePadrao,
+                                    ).quantidadePadrao;
+                                  }
+                                  return {
+                                    ...it,
+                                    quantidade: nextQty,
+                                    quantidadePadrao: qtdPadrao,
+                                    subtotal: round(nextQty * it.valorUnitario),
+                                  };
+                                }),
+                              );
+                            }}
+                          />
+                          <input
+                            aria-label={`Valor unitário de ${item.itemNome}`}
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={item.valorUnitario}
+                            onChange={(e) => {
+                              const nextPrice = Math.max(0, Number(e.target.value) || 0);
+                              setInvoiceItems(
+                                invoiceItems.map((it, i) =>
+                                  i === idx
+                                    ? {
+                                        ...it,
+                                        valorUnitario: nextPrice,
+                                        subtotal: round(it.quantidade * nextPrice),
+                                      }
+                                    : it,
+                                ),
+                              );
+                            }}
+                          />
+                        </div>
+                        <strong>{money(item.subtotal)}</strong>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          aria-label={`Remover ${item.itemNome}`}
+                          onClick={() =>
+                            setInvoiceItems(invoiceItems.filter((_, i) => i !== idx))
+                          }
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="form-summary">
+                  <span>Total da nota fiscal ({invoiceItems.length} itens)</span>
+                  <strong>
+                    {money(invoiceItems.reduce((s, i) => s + i.subtotal, 0))}
+                  </strong>
+                </div>
+              </div>
             </>
           )}
           {kind === "customer" && (
@@ -611,6 +1828,14 @@ export default function Editor({
                 undefined,
                 "Ex.: um pacote de 1 kg corresponde a 1000 g.",
               )}
+              {field(
+                "estoqueMinimo",
+                `Estoque mínimo (${v("unidadePadrao") || "g"})`,
+                "number",
+                undefined,
+                "Opcional: alerta quando o saldo ficar igual ou abaixo.",
+                false,
+              )}
               <p className="form-note span-2">
                 As receitas guardam o custo no momento do cadastro. Após mudar
                 um ingrediente, revise e salve as receitas e os produtos que o
@@ -622,6 +1847,14 @@ export default function Editor({
             <>
               {field("nome", "Nome")}
               {field("custo", "Custo por unidade (R$)", "number")}
+              {field(
+                "estoqueMinimo",
+                "Estoque mínimo (unidades)",
+                "number",
+                undefined,
+                "Opcional: alerta quando o saldo ficar igual ou abaixo.",
+                false,
+              )}
             </>
           )}
           {kind === "goal" && (
@@ -651,7 +1884,7 @@ export default function Editor({
                       }}
                     >
                       <option value="">Selecione…</option>
-                      {data.ingredientes
+                      {sortedIngredients
                         .filter((i) => !i.arquivado)
                         .map((i) => (
                           <option key={i.id} value={i.id}>
@@ -737,7 +1970,7 @@ export default function Editor({
                   Cada seleção inclui uma unidade da receita ou do material.
                 </p>
                 <div className="check-grid">
-                  {data.receitas
+                  {sortedRecipes
                     .filter((r) => !r.arquivado || recipes.includes(r.id))
                     .map((r) => (
                       <label key={r.id} className="checkbox">
@@ -755,7 +1988,7 @@ export default function Editor({
                         {r.titulo} · {money(r.custoPorUnidade)}
                       </label>
                     ))}
-                  {data.materiais
+                  {sortedMaterials
                     .filter((m) => !m.arquivado || materials.includes(m.id))
                     .map((m) => (
                       <label key={m.id} className="checkbox">
@@ -831,8 +2064,24 @@ export default function Editor({
           >
             Cancelar
           </Button>
+          {kind === "sale" && !record && (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={busy || !canWrite}
+              onClick={() => void saveSaleItem(true)}
+            >
+              Salvar e continuar
+            </Button>
+          )}
           <Button type="submit" disabled={busy || !canWrite}>
-            {busy ? "Aguardando confirmação…" : "Salvar"}
+            {busy
+              ? "Aguardando confirmação…"
+              : kind === "invoice"
+                ? "Salvar nota fiscal"
+                : kind === "sale" && saleSessionItems.length > 0 && !v("produtoId")
+                  ? "Concluir compra"
+                  : "Salvar"}
           </Button>
         </footer>
       </form>

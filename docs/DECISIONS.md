@@ -67,3 +67,24 @@ Requisitos e evidências: [feature 002](../specs/002-responsividade-identidade/s
 **Decisão:** controle permanente no cabeçalho para ocultar/reabrir a lateral e liberar a largura da área de trabalho. Guardar a preferência somente neste navegador, sem relação com o estado temporário do drawer móvel. A marca original continua no cabeçalho e a navegação oculta não recebe foco.
 
 **Consequência:** o usuário reabre a lateral pelo mesmo botão para escolher os módulos. Armazenamento bloqueado perde apenas a persistência da escolha, sem impedir o controle. Não há alteração no Firebase. Aceite em [feature 003](../specs/003-menu-lateral-recolhivel/spec.md).
+
+## ADR-007 — Evolução operacional, recebimentos datados, notas fiscais e estoque quantitativo sem baixa automática de produção
+
+**Status:** aceita, 2026-11-13 (implementada para homologação em branch dedicada `feat/evolucao-operacional-estoque`).
+
+**Contexto:** a operação real demandou ordenação alfabética brasileira nos cadastros/seletores, registro sequencial de múltiplos itens em vendas (`Salvar e continuar` + `pedidoId`), recebimentos parciais auditáveis com data real de caixa, lançamento de notas fiscais com vários itens em um único documento de despesa, encomendas baseadas em produtos cadastrados com acessórios opcionais e controle real de estoque com base nas compras.
+
+**Decisão:**
+1. Preservar todos os documentos legados sem inventar saldos iniciais retroativos ou datas históricas de pagamentos anteriores; usar `Intl.Collator("pt-BR", { sensitivity: "base", numeric: true })` somente em memória antes da paginação.
+2. Criar coleções imutáveis após escrita (`update: if false`) para `recebimentos` e `movimentacoes_estoque`, com `createOnly` transacional para evitar duplicação e proteger `despesas` com estorno seguro de estoque.
+3. Desacoplar a quitação financeira em `encomendas` (`valorEntrada = valorTotal`) da conclusão de produção (`status = "Finalizado"`), pois quitar não significa que o pedido já foi produzido/entregue (decisão já documentada para validação final da equipe).
+4. Não realizar baixa automática de ingredientes/materiais ao registrar vendas ou encomendas nesta entrega, mantendo o estoque rigoroso por entradas de compra, saldo inicial, saídas manuais e ajustes explícitos.
+
+**Consequência:** nenhuma coleção existente sofreu migração destrutiva; relatórios de caixa contam `recebimentos` pela data efetiva sem contagem dupla sobre registros legados. Consulte [feature 004](../specs/004-evolucao-operacional-estoque/spec.md).
+
+### Proposta futura separada — Baixa automática por ficha técnica na produção/venda
+
+Como evolução independente futura (pendente de aprovação da operação após o uso estável do estoque atual):
+1. **Rendimento e frações:** usar a composição de `produtos` (`composicaoReceitas` e `materiaisUtilizados`) e dividir os insumos de cada receita pelo `rendimento`, multiplicando pelas quantidades produzidas/vendidas, com validação de incompatibilidade entre produtos com base apenas manual (`custoMaterial`) e conversões (`kg`/`g`, `l`/`ml`, `unidade`).
+2. **Gatilho configurável:** definir por decisão de negócio se a baixa ocorre ao registrar a `venda`, ao mover uma `encomenda` para `"Em Produção"` / `"Finalizado"`, ou por confirmação explícita ("Dar baixa da produção") para evitar duplicidade caso a confeitaria produza em lotes antecipados.
+3. **Estorno e divergência:** prever estorno/reversão em cancelamentos, perdas operacionais e alertas claros caso o produto ainda não tenha ficha técnica vinculada ou o saldo em estoque esteja insuficiente ou não iniciado.

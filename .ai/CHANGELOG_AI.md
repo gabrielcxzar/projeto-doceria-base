@@ -1,5 +1,11 @@
 # Mudanças relevantes por IA
 
+## 2026-11-13 — Evolução operacional, financeira, agrupamentos e estoque quantitativo
+
+**Agente:** Antigravity. **Objetivo:** implementar ordenação alfabética A–Z em cadastros/seletores, vendas com **Salvar e continuar** e agrupamento por pedido, cobranças com recebimentos parciais auditáveis (`recebimentos`), lançamento de notas fiscais com múltiplos itens em Financeiro, encomendas baseadas em produtos cadastrados com acessórios/ordenação por entrega e controle quantitativo de **Estoque** (`movimentacoes_estoque`).
+
+**Mudanças:** contratos compatíveis em `src/types.ts`, transações idempotentes (`createOnly`) em `src/firebase.ts` e `src/App.tsx`, regras em `firestore.rules`, regras de cálculo/agrupamento/estoque em `src/domain.ts`, módulo `src/stock.tsx`, formulários em `src/editors.tsx`, listagens/detalhes em `src/pages.tsx` (incluindo flag **Quitar saldo restante (pagamento total)** e botão único **Confirmar recebimento** no modal individual `PartialPaymentDialog`) e estilos responsivos em `src/styles.css`. Testes atualizados/ampliados em `src/domain.test.ts`, `tests/rules.test.ts`, `tests/browser/preview.spec.ts`, `tests/browser/firebase.spec.ts`, `tests/browser/responsive.spec.ts` e `tests/browser/responsive-content.spec.ts`. Documentação técnica e proposta separada de baixa automática futura registradas em `docs/`. **Evidências:** [feature 004](../specs/004-evolucao-operacional-estoque/spec.md) e [tasks](../specs/004-evolucao-operacional-estoque/tasks.md). **Observação:** alterações mantidas na branch `feat/evolucao-operacional-estoque` sem push em `main`.
+
 ## 2026-10-23 — Menu lateral recolhível
 
 **Agente:** Codex. **Objetivo:** permitir ocultar e reabrir o menu lateral no computador.

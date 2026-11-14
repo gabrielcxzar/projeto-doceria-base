@@ -31,6 +31,7 @@ test("navega em todas as áreas e mantém layout dentro da tela", async ({
     "Vendas",
     "Encomendas",
     "Financeiro",
+    "Estoque",
     "Cadastros",
     "Cobranças",
     "Relatórios",
@@ -120,15 +121,21 @@ test("registra venda e encomenda e atualiza os registros sem recarregar", async 
   await page.getByRole("button", { name: "Nova encomenda" }).click();
   dialog = page.getByRole("dialog");
   await dialog.getByLabel("Cliente", { exact: true }).selectOption("c2");
+  await dialog.getByLabel("Produto cadastrado").selectOption("p1");
+  await dialog.getByRole("button", { name: "Adicionar produto" }).click();
   await dialog
-    .getByLabel("O que vamos preparar?")
+    .getByLabel("Observações de preparo, sabor, tamanho e personalização")
     .fill("Encomenda de teste com entrada");
-  await dialog.getByLabel("Total (R$)", { exact: true }).fill("100");
   await dialog.getByLabel("Valor já recebido (R$)").fill("30");
   await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
-  await expect(
-    page.getByText("Encomenda de teste com entrada", { exact: true }),
-  ).toBeVisible();
+  await expect(dialog).not.toBeVisible();
+  const orderRow = page
+    .getByRole("row")
+    .filter({ hasText: "BEATRIZ LIMA" })
+    .filter({ hasText: "BOLO DE CHOCOLATE" });
+  await expect(orderRow).toBeVisible();
+  await orderRow.getByRole("button", { name: "Ver detalhes" }).click();
+  await expect(page.getByText("Obs.: Encomenda de teste com entrada")).toBeVisible();
 });
 test("viewer e dispositivo offline não oferecem gravações", async ({
   page,
@@ -160,7 +167,7 @@ test("exporta todas as coleções e IDs em JSON", async ({ page }) => {
   const chunks: Buffer[] = [];
   for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
   const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-  expect(Object.keys(parsed.collections)).toHaveLength(12);
+  expect(Object.keys(parsed.collections)).toHaveLength(14);
   expect(parsed.collections.clientes[0].id).toBe("c1");
 });
 
@@ -179,4 +186,144 @@ test("novo formulário usa a data atual após a PWA atravessar meia-noite", asyn
   await expect(page.getByLabel("Data da venda", { exact: true })).toHaveValue(
     "2026-10-24",
   );
+});
+
+test("cadastros mantêm ordem alfabética A-Z após novo registro", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1#cadastros");
+  await page.getByRole("button", { name: "Cadastrar cliente" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Nome", { exact: true }).fill("AARON ÁVILA");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  const firstCustomer = await page
+    .locator("tbody tr")
+    .first()
+    .locator("td")
+    .first()
+    .innerText();
+  expect(firstCustomer).toContain("AARON ÁVILA");
+});
+
+test("vendas com Salvar e continuar agrupam produtos diferentes no pedido", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1#vendas");
+  await page
+    .getByRole("button", { name: "Registrar venda", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Cliente", { exact: true }).selectOption("c1");
+  await dialog.getByLabel("Produto", { exact: true }).selectOption("p1");
+  await dialog.getByLabel("Quantidade", { exact: true }).fill("1");
+  await dialog.getByRole("button", { name: "Salvar e continuar" }).click();
+  await expect(dialog.getByText("Itens já salvos nesta compra (1)")).toBeVisible();
+  await dialog.getByLabel("Produto", { exact: true }).selectOption("p2");
+  await dialog.getByLabel("Quantidade", { exact: true }).fill("2");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByText("2 produtos")).toBeVisible();
+  await page.getByRole("button", { name: "Ver detalhes" }).first().click();
+  await expect(page.getByText("Itens deste pedido (2)")).toBeVisible();
+});
+
+test("cobranças suporta recebimento parcial sucessivo e quitação do saldo", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1#cobrancas");
+  const pendingPanel = page
+    .locator("section.panel")
+    .filter({ hasText: "Pendências por lançamento" });
+  const targetRow = pendingPanel
+    .getByRole("row")
+    .filter({ hasText: "50 × BRIGADEIRO GOURMET" });
+  await targetRow.getByRole("button", { name: "Baixar lançamento" }).click();
+  let dialog = page.getByRole("dialog");
+  const settleFlag = dialog.getByRole("checkbox", {
+    name: "Quitar saldo restante (pagamento total)",
+  });
+  const amountInput = dialog.getByLabel("Valor recebido agora (R$) *");
+  await expect(settleFlag).not.toBeChecked();
+  await expect(amountInput).toHaveValue("");
+  await expect(amountInput).toHaveAttribute("inputmode", "decimal");
+
+  // Rejeita valor vazio, zero/negativo e acima do saldo
+  await dialog.getByRole("button", { name: "Confirmar recebimento" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("Informe o valor recebido");
+  await amountInput.fill("0");
+  await dialog.getByRole("button", { name: "Confirmar recebimento" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("maior que zero");
+  await amountInput.fill("300");
+  await dialog.getByRole("button", { name: "Confirmar recebimento" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("excede o saldo pendente");
+
+  // Registra pagamento parcial de R$ 40,00 sobre R$ 225,00 -> fica R$ 185,00
+  await amountInput.fill("40");
+  await expect(dialog).toContainText("Saldo que permanecerá em aberto:");
+  await dialog.getByRole("button", { name: "Confirmar recebimento" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    pendingPanel.getByRole("row").filter({ hasText: "50 × BRIGADEIRO GOURMET" }),
+  ).toContainText("185,00");
+
+  // Reabre, marca (auto 185 readonly), desmarca (volta edição manual) e remarca para quitar sem duplicar
+  await pendingPanel
+    .getByRole("row")
+    .filter({ hasText: "50 × BRIGADEIRO GOURMET" })
+    .getByRole("button", { name: "Baixar lançamento" })
+    .click();
+  dialog = page.getByRole("dialog");
+  const reopenFlag = dialog.getByRole("checkbox", {
+    name: "Quitar saldo restante (pagamento total)",
+  });
+  const reopenAmount = dialog.getByLabel("Valor recebido agora (R$) *");
+  await expect(reopenFlag).not.toBeChecked();
+  await reopenFlag.check();
+  await expect(reopenAmount).toHaveValue("185");
+  await expect(reopenAmount).toHaveAttribute("readonly", "");
+  await expect(dialog).toContainText("R$ 0,00");
+
+  await reopenFlag.uncheck();
+  await expect(reopenAmount).not.toHaveAttribute("readonly", "");
+  await reopenAmount.fill("25");
+  await expect(dialog).toContainText("160,00");
+
+  await reopenFlag.check();
+  await expect(reopenAmount).toHaveValue("185");
+  await expect(reopenAmount).toHaveAttribute("readonly", "");
+  await dialog.getByRole("button", { name: "Confirmar recebimento" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    pendingPanel.getByRole("row").filter({ hasText: "50 × BRIGADEIRO GOURMET" }),
+  ).toHaveCount(0);
+  const historyPanel = page
+    .locator("section.panel")
+    .filter({ hasText: "Histórico de recebimentos" });
+  await expect(historyPanel).toBeVisible();
+  await expect(historyPanel.locator("tbody tr")).toHaveCount(2);
+});
+
+test("financeiro registra nota fiscal e atualiza saldo na tela de estoque", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1#financeiro");
+  await page.getByRole("button", { name: "Registrar nota fiscal" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Fornecedor (opcional)").fill("Atacadão Doce");
+  await dialog.getByLabel("Item cadastrado").selectOption("i1");
+  await dialog.getByRole("button", { name: "2", exact: true }).click();
+  await dialog.getByLabel("Unidade").selectOption("kg");
+  await dialog.getByLabel("Valor unitário (R$)").fill("42");
+  await dialog.getByRole("button", { name: "Adicionar item" }).click();
+  await expect(dialog.getByText("R$ 84,00").first()).toBeVisible();
+  await dialog.getByRole("button", { name: "Salvar nota fiscal" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    page.getByRole("row").filter({ hasText: "Nota fiscal (1)" }),
+  ).toBeVisible();
+  await navigate(page, "Estoque");
+  await expect(
+    page.getByRole("row").filter({ hasText: "Chocolate meio amargo" }),
+  ).toContainText("4.000 g (4 kg)");
 });

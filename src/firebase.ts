@@ -124,30 +124,38 @@ export async function mutate(
         throw new Error("Gerencie os acessos pelo administrador do Firebase.");
       if (change.id) {
         const snapshot = await transaction.get(ref);
-        if (!snapshot.exists())
-          throw new Error(
-            "Este registro foi removido por outra pessoa. Atualize a tela.",
-          );
-        const updated = snapshot.data().atualizadoEm;
-        if (
-          change.expectedUpdatedAt !== undefined &&
-          (updated?.toMillis() ?? 0) !== change.expectedUpdatedAt
-        )
-          throw new Error(
-            "Este registro foi alterado por outra pessoa. Feche o formulário e revise os dados atualizados.",
-          );
+        if (change.createOnly) {
+          if (snapshot.exists())
+            throw new Error(
+              "Esta operação já foi registrada anteriormente. Atualize a tela para conferir.",
+            );
+        } else {
+          if (!snapshot.exists())
+            throw new Error(
+              "Este registro foi removido por outra pessoa. Atualize a tela.",
+            );
+          const updated = snapshot.data().atualizadoEm;
+          if (
+            change.expectedUpdatedAt !== undefined &&
+            (updated?.toMillis() ?? 0) !== change.expectedUpdatedAt
+          )
+            throw new Error(
+              "Este registro foi alterado por outra pessoa. Feche o formulário e revise os dados atualizados.",
+            );
+        }
       }
     }
     for (const { change, ref } of operations) {
       if (change.remove) transaction.delete(ref);
       else {
+        const isCreate = !change.id || !!change.createOnly;
         const value = {
           ...change.data,
           atualizadoEm: serverTimestamp(),
-          ...(!change.id ? { criadoEm: serverTimestamp() } : {}),
+          ...(isCreate ? { criadoEm: serverTimestamp() } : {}),
         };
-        if (change.id) transaction.update(ref, value);
-        else transaction.set(ref, value);
+        if (isCreate) transaction.set(ref, value);
+        else transaction.update(ref, value);
       }
     }
     transaction.set(activity, {

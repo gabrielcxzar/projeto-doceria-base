@@ -4,6 +4,7 @@ export type EditorKind =
   | "sale"
   | "order"
   | "expense"
+  | "invoice"
   | "customer"
   | "product"
   | "ingredient"

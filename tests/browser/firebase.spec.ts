@@ -127,13 +127,22 @@ test("login real no emulador, venda, encomenda, despesa e saída", async ({
   await page.getByRole("button", { name: "Nova encomenda" }).click();
   dialog = page.getByRole("dialog");
   await dialog.getByLabel("Cliente", { exact: true }).selectOption("c1");
+  await dialog.getByLabel("Produto cadastrado").selectOption("p1");
+  await dialog.getByRole("button", { name: "Adicionar produto" }).click();
   await dialog
-    .getByLabel("O que vamos preparar?")
+    .getByLabel("Observações de preparo, sabor, tamanho e personalização")
     .fill("Bolo validado no emulador");
-  await dialog.getByLabel("Total (R$)", { exact: true }).fill("100");
   await dialog.getByLabel("Valor já recebido (R$)").fill("30");
   await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
-  await expect(page.getByText("Bolo validado no emulador")).toBeVisible();
+  await expect(dialog).not.toBeVisible();
+  const orderRow = page
+    .getByRole("row")
+    .filter({ hasText: "ANA OLIVEIRA" })
+    .filter({ hasText: "BOLO DE CHOCOLATE" })
+    .first();
+  await expect(orderRow).toBeVisible();
+  await orderRow.getByRole("button", { name: "Ver detalhes" }).click();
+  await expect(page.getByText("Obs.: Bolo validado no emulador")).toBeVisible();
   await navigate(page, "Financeiro");
   await page.getByRole("button", { name: "Registrar despesa" }).click();
   dialog = page.getByRole("dialog");
@@ -315,18 +324,84 @@ test("baixa individual, quitação por cliente e relatório conferem", async ({
 }) => {
   await loginAs(page, "admin");
   await navigate(page, "Cobranças");
-  const saleRow = page
+  const pendingPanel = page
+    .locator("section.panel")
+    .filter({ hasText: "Pendências por lançamento" });
+  const saleRow = pendingPanel
     .getByRole("row")
     .filter({ hasText: "50 × BRIGADEIRO GOURMET" });
   await saleRow.getByRole("button", { name: "Baixar lançamento" }).click();
-  await page
+  let launchDialog = page.getByRole("dialog");
+  await expect(
+    launchDialog.getByRole("checkbox", {
+      name: "Quitar saldo restante (pagamento total)",
+    }),
+  ).not.toBeChecked();
+  await launchDialog.getByLabel("Valor recebido agora (R$) *").fill("40");
+  await launchDialog
     .getByRole("button", { name: "Confirmar recebimento", exact: true })
     .click();
-  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(launchDialog).not.toBeVisible();
+  const partialDoc = await request.get(`${firestore}/vendas/v2`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+  });
+  const partialFields = (await partialDoc.json()).fields;
+  expect(partialFields.status.stringValue).toBe("P");
+  expect(Number(partialFields.valorPago.integerValue ?? partialFields.valorPago.doubleValue)).toBe(40);
+  await pendingPanel
+    .getByRole("row")
+    .filter({ hasText: "50 × BRIGADEIRO GOURMET" })
+    .getByRole("button", { name: "Baixar lançamento" })
+    .click();
+  launchDialog = page.getByRole("dialog");
+  await launchDialog
+    .getByRole("checkbox", { name: "Quitar saldo restante (pagamento total)" })
+    .check();
+  await expect(
+    launchDialog.getByLabel("Valor recebido agora (R$) *"),
+  ).toHaveValue("185");
+  await launchDialog
+    .getByRole("button", { name: "Confirmar recebimento", exact: true })
+    .click();
+  await expect(launchDialog).not.toBeVisible();
   const current = await request.get(`${firestore}/vendas/v2`, {
     headers: { Authorization: `Bearer ${adminToken}` },
   });
   expect((await current.json()).fields.status.stringValue).toBe("A");
+  const receiptsRes = await request.get(`${firestore}/recebimentos`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+  });
+  expect((await receiptsRes.json()).documents).toHaveLength(2);
+  // Verifica proteção contra concorrência ao baixar lançamento desatualizado
+  await pendingPanel
+    .getByRole("row")
+    .filter({ hasText: "ANA OLIVEIRA" })
+    .getByRole("button", { name: "Baixar lançamento" })
+    .click();
+  const staleDialog = page.getByRole("dialog");
+  const concurrentPatch = await request.patch(
+    `${firestore}/encomendas/e1?updateMask.fieldPaths=atualizadoEm`,
+    {
+      headers: { Authorization: `Bearer ${adminToken}` },
+      data: {
+        fields: {
+          atualizadoEm: { timestampValue: new Date().toISOString() },
+        },
+      },
+    },
+  );
+  expect(concurrentPatch.ok()).toBe(true);
+  await staleDialog
+    .getByRole("checkbox", { name: "Quitar saldo restante (pagamento total)" })
+    .check();
+  await staleDialog
+    .getByRole("button", { name: "Confirmar recebimento", exact: true })
+    .click();
+  await expect(staleDialog.getByRole("alert")).toContainText(
+    "alterado por outra pessoa",
+  );
+  await staleDialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(staleDialog).not.toBeVisible();
   const customerRow = page
     .getByRole("row")
     .filter({ hasText: "ANA OLIVEIRA" })
@@ -350,4 +425,42 @@ test("baixa individual, quitação por cliente e relatório conferem", async ({
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "CSV", exact: true }).click();
   expect((await download).suggestedFilename()).toContain("Vendas_");
+});
+
+test("nota fiscal com múltiplos itens persiste no emulador e movimenta estoque", async ({
+  page,
+  request,
+}) => {
+  await loginAs(page, "admin");
+  await navigate(page, "Financeiro");
+  await page.getByRole("button", { name: "Registrar nota fiscal" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Fornecedor (opcional)").fill("Casa do Confeiteiro");
+  await dialog.getByLabel("Número da nota (opcional)").fill("NF-900");
+  await dialog.getByLabel("Item cadastrado").selectOption("i1");
+  await dialog.getByRole("button", { name: "1", exact: true }).click();
+  await dialog.getByLabel("Unidade").selectOption("kg");
+  await dialog.getByLabel("Valor unitário (R$)").fill("45");
+  await dialog.getByRole("button", { name: "Adicionar item" }).click();
+  await dialog.getByLabel("Tipo do item").selectOption("material");
+  await dialog.getByLabel("Item cadastrado").selectOption("m1");
+  await dialog.getByRole("button", { name: "3", exact: true }).click();
+  await dialog.getByLabel("Valor unitário (R$)").fill("5");
+  await dialog.getByRole("button", { name: "Adicionar item" }).click();
+  await dialog.getByRole("button", { name: "Salvar nota fiscal" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    page.getByRole("row").filter({ hasText: "Casa do Confeiteiro" }),
+  ).toContainText("60,00");
+  const movsRes = await request.get(`${firestore}/movimentacoes_estoque`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+  });
+  expect((await movsRes.json()).documents.length).toBeGreaterThanOrEqual(2);
+  await navigate(page, "Estoque");
+  await expect(
+    page.getByRole("row").filter({ hasText: "Chocolate meio amargo" }),
+  ).toContainText("3.000 g (3 kg)");
+  await expect(
+    page.getByRole("row").filter({ hasText: "Caixa para bolo" }),
+  ).toContainText("18 un.");
 });

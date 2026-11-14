@@ -1,13 +1,17 @@
-import { useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import {
   Archive,
   ArrowDownToLine,
+  ArrowUpDown,
   ArrowUpRight,
   Check,
+  ChevronDown,
   ChevronRight,
   ClipboardCopy,
   Edit3,
   ExternalLink,
+  Eye,
+  FileText,
   Plus,
   Printer,
   RotateCcw,
@@ -19,25 +23,39 @@ import type {
   CollectionName,
   Customer,
   Entity,
+  Expense,
   Mutation,
   Order,
   Recipe,
   Sale,
 } from "./types";
 import {
+  buildPartialPaymentMutations,
   chargeMessage,
+  collectPendingLaunches,
   csv,
   customerMatches,
   customerTotals,
   dateText,
   finances,
+  formatStock,
+  groupOrders,
+  groupSales,
+  isLowStock,
   money,
+  orderReceived,
   orderRemaining,
   productCost,
+  round,
+  saleReceived,
+  saleRemaining,
   saleTotal,
+  sortByTextPtBr,
+  summarizeOrderItems,
   today,
   versionOf,
 } from "./domain";
+import type { PendingLaunch, SaleGroup } from "./domain";
 import {
   Badge,
   Button,
@@ -50,12 +68,28 @@ import {
   useListing,
 } from "./ui";
 
-const saleStatus = (s: Sale) =>
-  s.status === "P" ? (
+const saleStatus = (s: Sale) => {
+  const rec = saleReceived(s);
+  const rem = saleRemaining(s);
+  if (s.status === "P" && rec > 0 && rem > 0) {
+    return <Badge tone="warning">Parcial</Badge>;
+  }
+  return s.status === "P" ? (
     <Badge tone="warning">Pendente</Badge>
   ) : (
     <Badge tone="good">{s.status === "E" ? "Entregue e pago" : "Pago"}</Badge>
   );
+};
+const saleGroupStatus = (g: SaleGroup) => {
+  if (g.statusSummary === "Parcial") return <Badge tone="warning">Parcial</Badge>;
+  if (g.statusSummary === "P") return <Badge tone="warning">Pendente</Badge>;
+  if (g.statusSummary === "Misto") return <Badge tone="neutral">Misto</Badge>;
+  return (
+    <Badge tone="good">
+      {g.statusSummary === "E" ? "Entregue e pago" : "Pago"}
+    </Badge>
+  );
+};
 const orderStatus = (o: Order) => (
   <Badge
     tone={
@@ -142,9 +176,7 @@ export function Dashboard({ navigate }: { navigate: (page: string) => void }) {
   const goal = data.configuracoes[0]?.metaMensal || 0;
   const percentage =
     goal > 0 ? Math.min(100, Math.round((f.sold / goal) * 100)) : 0;
-  const recent = [...data.vendas]
-    .sort((a, b) => b.data.localeCompare(a.data))
-    .slice(0, 5);
+  const recent = groupSales(data.vendas, data.clientes).slice(0, 5);
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(`${today()}T12:00:00`);
     d.setDate(d.getDate() - (6 - i));
@@ -324,17 +356,21 @@ export function Dashboard({ navigate }: { navigate: (page: string) => void }) {
           </div>
           {recent.length ? (
             <ul className="simple-list">
-              {recent.map((s) => (
-                <li key={s.id}>
+              {recent.map((g) => (
+                <li key={g.key}>
                   <div>
-                    <strong>{s.pessoa}</strong>
+                    <strong>{g.clienteNome}</strong>
                     <small>
-                      {s.quantidade} × {s.produto}
+                      {g.items.length > 1
+                        ? g.isMultiProduct
+                          ? `${g.distinctProductCount} produtos (${g.totalUnits} un.)`
+                          : `${g.totalUnits} × ${g.items[0].produto}`
+                        : `${g.items[0].quantidade} × ${g.items[0].produto}`}
                     </small>
                   </div>
                   <div className="align-right">
-                    <strong>{money(saleTotal(s))}</strong>
-                    {saleStatus(s)}
+                    <strong>{money(g.total)}</strong>
+                    {saleGroupStatus(g)}
                   </div>
                 </li>
               ))}
@@ -433,16 +469,18 @@ function Metric({
 export function Sales() {
   const { data, period, canWrite, edit, save, notify } = useBusiness();
   const [status, setStatus] = useState("");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [payment, setPayment] = useState<Sale | null>(null);
+  const filteredSales = data.vendas.filter(
+    (s) =>
+      (!period || s.data.startsWith(period)) &&
+      (!status || s.status === status),
+  );
+  const grouped = groupSales(filteredSales, data.clientes);
   const list = useListing(
-    [...data.vendas]
-      .filter(
-        (s) =>
-          (!period || s.data.startsWith(period)) &&
-          (!status || s.status === status),
-      )
-      .sort((a, b) => b.data.localeCompare(a.data)),
-    (s) => `${s.pessoa} ${s.produto} ${s.pagamento}`,
+    grouped,
+    (g) =>
+      `${g.clienteNome} ${g.pagamento} ${g.items.map((s) => `${s.produto} ${s.pessoa}`).join(" ")}`,
   );
   return (
     <>
@@ -481,37 +519,126 @@ export function Sales() {
           ]}
           empty={!list.rows.length}
         >
-          {list.rows.map((s) => (
-            <tr key={s.id}>
-              <td>{dateText(s.data)}</td>
-              <td>
-                <strong>{s.pessoa}</strong>
-                <small>{s.produto}</small>
-              </td>
-              <td>{s.quantidade}</td>
-              <td className="money">{money(saleTotal(s))}</td>
-              <td>{s.pagamento}</td>
-              <td>{saleStatus(s)}</td>
-              <td>
-                <div className="row-actions">
-                  {canWrite && (
-                    <button
-                      className="icon-button"
-                      aria-label={`Atualizar situação da venda de ${s.pessoa}`}
-                      onClick={() => setPayment(s)}
-                    >
-                      <Check size={16} />
-                    </button>
-                  )}
-                  <Actions
-                    collection="vendas"
-                    record={s}
-                    name={`venda de ${s.pessoa}`}
-                  />
-                </div>
-              </td>
-            </tr>
-          ))}
+          {list.rows.map((g) => {
+            const single = g.items.length === 1 ? g.items[0] : null;
+            const isOpen = !!expanded[g.key];
+            return (
+              <Fragment key={g.key}>
+                <tr>
+                  <td>{dateText(g.data)}</td>
+                  <td>
+                    <div className="inline-title">
+                      <strong>{g.clienteNome}</strong>
+                      {g.isMultiProduct && (
+                        <Badge tone="neutral">
+                          {g.distinctProductCount} produtos
+                        </Badge>
+                      )}
+                    </div>
+                    <small>
+                      {single
+                        ? single.produto
+                        : g.items
+                            .map((i) => `${i.quantidade} × ${i.produto}`)
+                            .join(" · ")}
+                    </small>
+                    {g.remaining > 0 && g.received > 0 && (
+                      <small className="muted">
+                        Recebido: {money(g.received)} · Saldo:{" "}
+                        {money(g.remaining)}
+                      </small>
+                    )}
+                  </td>
+                  <td>{g.totalUnits}</td>
+                  <td className="money">{money(g.total)}</td>
+                  <td>{g.pagamento}</td>
+                  <td>{saleGroupStatus(g)}</td>
+                  <td>
+                    <div className="row-actions">
+                      {!single && (
+                        <Button
+                          variant="ghost"
+                          onClick={() =>
+                            setExpanded((prev) => ({
+                              ...prev,
+                              [g.key]: !prev[g.key],
+                            }))
+                          }
+                        >
+                          <Eye size={15} />{" "}
+                          {isOpen ? "Ocultar" : "Ver detalhes"}
+                        </Button>
+                      )}
+                      {single && canWrite && (
+                        <button
+                          className="icon-button"
+                          aria-label={`Atualizar situação da venda de ${single.pessoa}`}
+                          onClick={() => setPayment(single)}
+                        >
+                          <Check size={16} />
+                        </button>
+                      )}
+                      {single && (
+                        <Actions
+                          collection="vendas"
+                          record={single}
+                          name={`venda de ${single.pessoa}`}
+                        />
+                      )}
+                    </div>
+                  </td>
+                </tr>
+                {!single && isOpen && (
+                  <tr className="detail-row">
+                    <td colSpan={7}>
+                      <div className="detail-box">
+                        <div className="detail-box-head">
+                          <strong>Itens deste pedido ({g.items.length})</strong>
+                          <span>Pedido #{g.pedidoId?.slice(-6)}</span>
+                        </div>
+                        <ul className="detail-items">
+                          {g.items.map((item) => (
+                            <li key={item.id} className="detail-item">
+                              <div className="detail-item-main">
+                                <strong>
+                                  {item.quantidade} × {item.produto}
+                                </strong>
+                                <small>
+                                  Unit.: {money(item.valor)} · Total:{" "}
+                                  {money(saleTotal(item))} · {item.pagamento}
+                                  {saleReceived(item) > 0 &&
+                                  saleRemaining(item) > 0
+                                    ? ` · Recebido ${money(saleReceived(item))}`
+                                    : ""}
+                                </small>
+                              </div>
+                              <div className="row-actions">
+                                {saleStatus(item)}
+                                {canWrite && (
+                                  <button
+                                    className="icon-button"
+                                    aria-label={`Atualizar situação da venda de ${item.pessoa}`}
+                                    onClick={() => setPayment(item)}
+                                  >
+                                    <Check size={16} />
+                                  </button>
+                                )}
+                                <Actions
+                                  collection="vendas"
+                                  record={item}
+                                  name={`venda de ${item.pessoa}`}
+                                />
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
         </Table>
         <Pagination
           total={list.filtered.length}
@@ -523,17 +650,42 @@ export function Sales() {
         <StatusDialog
           sale={payment}
           close={() => setPayment(null)}
-          save={async (status) => {
+          save={async (nextStatus) => {
             try {
-              await save(
-                [
-                  {
-                    collection: "vendas",
-                    id: payment.id,
-                    data: { status },
-                    expectedUpdatedAt: versionOf(payment),
+              const total = saleTotal(payment);
+              const rem = saleRemaining(payment);
+              const mutations: Mutation[] = [
+                {
+                  collection: "vendas",
+                  id: payment.id,
+                  data: {
+                    status: nextStatus,
+                    ...(nextStatus !== "P"
+                      ? { valorPago: total }
+                      : { valorPago: Math.min(total, payment.valorPago || 0) }),
                   },
-                ],
+                  expectedUpdatedAt: versionOf(payment),
+                },
+              ];
+              if (nextStatus !== "P" && rem > 0) {
+                mutations.push({
+                  collection: "recebimentos",
+                  data: {
+                    data: today(),
+                    valor: rem,
+                    origemTipo: "venda",
+                    origemId: payment.id,
+                    vendaIds: [payment.id],
+                    clienteId: payment.clienteId || "",
+                    clienteNome: payment.pessoa,
+                    descricao: `${payment.quantidade} × ${payment.produto}`,
+                    pagamento: payment.pagamento || "PIX",
+                    tipoBaixa: "manual",
+                  },
+                });
+              }
+              await save(
+                mutations,
                 `Situação da venda de ${payment.pessoa} atualizada`,
               );
               setPayment(null);
@@ -557,11 +709,21 @@ function StatusDialog({
 }) {
   const { busy, canWrite } = useBusiness();
   const [status, setStatus] = useState(sale.status);
+  const rem = saleRemaining(sale);
+  const rec = saleReceived(sale);
   return (
     <Modal title="Situação da venda" onClose={close} busy={busy}>
       <p>
-        {sale.pessoa} · {money(saleTotal(sale))}
+        {sale.pessoa} · {sale.quantidade} × {sale.produto} ·{" "}
+        {money(saleTotal(sale))}
       </p>
+      {rec > 0 && rem > 0 && (
+        <p className="form-note">
+          Já recebido: <strong>{money(rec)}</strong> · Em aberto:{" "}
+          <strong>{money(rem)}</strong>. Para registrar outro pagamento parcial
+          com data, use <strong>Cobranças &gt; Baixar lançamento</strong>.
+        </p>
+      )}
       <Field label="Situação">
         <select
           value={status}
@@ -573,7 +735,7 @@ function StatusDialog({
         </select>
       </Field>
       <p className="form-note">
-        Selecione pago somente após confirmar o recebimento.
+        Selecione pago somente após confirmar o recebimento total.
       </p>
       <footer className="modal-footer">
         <Button variant="secondary" onClick={close} disabled={busy}>
@@ -589,11 +751,18 @@ function StatusDialog({
 export function Orders() {
   const { data, canWrite, edit } = useBusiness();
   const [status, setStatus] = useState("");
-  const list = useListing(
-    [...data.encomendas]
-      .filter((o) => !status || o.status === status)
-      .sort((a, b) => a.dataEntrega.localeCompare(b.dataEntrega)),
-    (o) => `${o.clienteNome} ${o.produtoDescricao}`,
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const filteredOrders = data.encomendas.filter(
+    (o) => !status || o.status === status,
+  );
+  const grouped = groupOrders(filteredOrders, data.clientes, sortDir);
+  const orderSummary = (o: Order) =>
+    o.itens && o.itens.length > 0
+      ? summarizeOrderItems(o.itens, o.acessorios || [], o.observacoes)
+      : o.produtoDescricao;
+  const list = useListing(grouped, (g) =>
+    `${g.clienteNome} ${g.orders.map((o) => `${o.produtoDescricao} ${o.observacoes || ""}`).join(" ")}`,
   );
   return (
     <>
@@ -612,6 +781,19 @@ export function Orders() {
             <option key={s}>{s}</option>
           ))}
         </select>
+        <Button
+          variant="ghost"
+          aria-label="Alternar ordenação da entrega"
+          onClick={() => {
+            setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+            list.setPage(1);
+          }}
+        >
+          <ArrowUpDown size={16} />{" "}
+          {sortDir === "desc"
+            ? "Entrega: Mais recentes"
+            : "Entrega: Mais antigas"}
+        </Button>
         <div className="grow" />
         {canWrite && (
           <Button onClick={() => edit("order")}>
@@ -620,8 +802,8 @@ export function Orders() {
         )}
       </div>
       <p className="page-note">
-        A agenda mostra todas as entregas, incluindo as que estão fora do
-        período do painel.
+        A agenda mostra todas as entregas (mais recentes primeiro por padrão),
+        incluindo as que estão fora do período do painel.
       </p>
       <section className="panel">
         <Table
@@ -636,35 +818,142 @@ export function Orders() {
           ]}
           empty={!list.rows.length}
         >
-          {list.rows.map((o) => (
-            <tr key={o.id}>
-              <td
-                className={
-                  o.dataEntrega < today() && o.status !== "Finalizado"
-                    ? "danger-text"
-                    : ""
-                }
-              >
-                {dateText(o.dataEntrega)}
-              </td>
-              <td>
-                <strong>{o.clienteNome}</strong>
-                <small>{o.produtoDescricao}</small>
-              </td>
-              <td className="money">{money(o.valorTotal)}</td>
-              <td className="money">{money(o.valorEntrada)}</td>
-              <td className="money">{money(orderRemaining(o))}</td>
-              <td>{orderStatus(o)}</td>
-              <td>
-                <Actions
-                  kind="order"
-                  collection="encomendas"
-                  record={o}
-                  name={`encomenda de ${o.clienteNome}`}
-                />
-              </td>
-            </tr>
-          ))}
+          {list.rows.map((g) => {
+            const single = g.orders.length === 1 ? g.orders[0] : null;
+            const isOpen = !!expanded[g.key];
+            const overdue =
+              g.dataEntrega < today() &&
+              g.orders.some((o) => o.status !== "Finalizado");
+            const hasDetails =
+              !single ||
+              !!(single.itens && single.itens.length > 0) ||
+              !!(single.acessorios && single.acessorios.length > 0) ||
+              !!single.observacoes;
+            return (
+              <Fragment key={g.key}>
+                <tr>
+                  <td className={overdue ? "danger-text" : ""}>
+                    {dateText(g.dataEntrega)}
+                  </td>
+                  <td>
+                    <div className="inline-title">
+                      <strong>{g.clienteNome}</strong>
+                      {g.orders.length > 1 && (
+                        <Badge tone="neutral">
+                          {g.orders.length} encomendas
+                        </Badge>
+                      )}
+                    </div>
+                    <small>
+                      {single
+                        ? orderSummary(single)
+                        : g.orders
+                            .map((o) => orderSummary(o))
+                            .join(" · ")}
+                    </small>
+                  </td>
+                  <td className="money">{money(g.total)}</td>
+                  <td className="money">{money(g.received)}</td>
+                  <td className="money">{money(g.remaining)}</td>
+                  <td>
+                    {single ? (
+                      orderStatus(single)
+                    ) : g.mixedStatus ? (
+                      <Badge tone="warning">Situações diferentes</Badge>
+                    ) : (
+                      orderStatus(g.orders[0])
+                    )}
+                  </td>
+                  <td>
+                    <div className="row-actions">
+                      {hasDetails && (
+                        <Button
+                          variant="ghost"
+                          onClick={() =>
+                            setExpanded((prev) => ({
+                              ...prev,
+                              [g.key]: !prev[g.key],
+                            }))
+                          }
+                        >
+                          {isOpen ? (
+                            <ChevronDown size={15} />
+                          ) : (
+                            <Eye size={15} />
+                          )}{" "}
+                          {isOpen ? "Ocultar" : "Ver detalhes"}
+                        </Button>
+                      )}
+                      {single && (
+                        <Actions
+                          kind="order"
+                          collection="encomendas"
+                          record={single}
+                          name={`encomenda de ${single.clienteNome}`}
+                        />
+                      )}
+                    </div>
+                  </td>
+                </tr>
+                {isOpen && (
+                  <tr className="detail-row">
+                    <td colSpan={7}>
+                      <div className="detail-box">
+                        <ul className="detail-items">
+                          {g.orders.map((o) => (
+                            <li key={o.id} className="detail-item">
+                              <div className="detail-item-main">
+                                <div className="inline-title">
+                                  <strong>{orderSummary(o)}</strong>
+                                  {orderStatus(o)}
+                                </div>
+                                {o.itens && o.itens.length > 0 && (
+                                  <small>
+                                    Produtos:{" "}
+                                    {o.itens
+                                      .map(
+                                        (it) =>
+                                          `${it.quantidade} × ${it.produtoNome} (${money(it.subtotal)})`,
+                                      )
+                                      .join(", ")}
+                                  </small>
+                                )}
+                                {o.acessorios && o.acessorios.length > 0 && (
+                                  <small>
+                                    Acessórios:{" "}
+                                    {o.acessorios
+                                      .map(
+                                        (ac) =>
+                                          `${ac.quantidade} × ${ac.descricao} (${ac.cobradoCliente ? `cobrado ${money(ac.subtotal)}` : "incluso/interno"})`,
+                                      )
+                                      .join(", ")}
+                                  </small>
+                                )}
+                                {o.observacoes && (
+                                  <small>Obs.: {o.observacoes}</small>
+                                )}
+                                <small>
+                                  Total: {money(o.valorTotal)} · Recebido:{" "}
+                                  {money(orderReceived(o))} · A receber:{" "}
+                                  {money(orderRemaining(o))}
+                                </small>
+                              </div>
+                              <Actions
+                                kind="order"
+                                collection="encomendas"
+                                record={o}
+                                name={`encomenda de ${o.clienteNome}`}
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
         </Table>
         <Pagination
           total={list.filtered.length}
@@ -678,12 +967,14 @@ export function Orders() {
 export function Finance() {
   const { data, period, canWrite, edit } = useBusiness();
   const [type, setType] = useState("");
+  const [details, setDetails] = useState<Expense | null>(null);
   const f = finances(data, period);
   const list = useListing(
     f.expenses
       .filter((e) => !type || e.tipo === type)
       .sort((a, b) => b.data.localeCompare(a.data)),
-    (e) => `${e.descricao} ${e.tipo}`,
+    (e) =>
+      `${e.descricao} ${e.tipo} ${e.fornecedor || ""} ${e.numeroNota || ""}`,
   );
   return (
     <>
@@ -691,7 +982,7 @@ export function Finance() {
         <Metric
           title="Já recebido"
           value={f.received}
-          detail="Vendas e entradas de encomendas"
+          detail="Vendas, entradas e recebimentos"
         />
         <Metric
           title="Despesas pagas"
@@ -713,8 +1004,8 @@ export function Finance() {
       <p className="page-note">
         O resultado de caixa não é uma apuração contábil de lucro. O custo
         estimado é informativo: despesas com ingredientes podem já estar
-        incluídas nos lançamentos. O período das encomendas considera a data de
-        entrega.
+        incluídas nos lançamentos. Recebimentos parciais ou totais registrados
+        com data aparecem conforme a data real do pagamento.
       </p>
       <div className="section-tools">
         {list.searchInput}
@@ -735,9 +1026,14 @@ export function Finance() {
         </select>
         <div className="grow" />
         {canWrite && (
-          <Button onClick={() => edit("expense")}>
-            <Plus size={18} /> Registrar despesa
-          </Button>
+          <div className="row-actions">
+            <Button variant="secondary" onClick={() => edit("expense")}>
+              <Plus size={18} /> Registrar despesa
+            </Button>
+            <Button onClick={() => edit("invoice")}>
+              <FileText size={18} /> Registrar nota fiscal
+            </Button>
+          </div>
         )}
       </div>
       <section className="panel">
@@ -756,7 +1052,24 @@ export function Finance() {
             <tr key={e.id}>
               <td>{dateText(e.data)}</td>
               <td>
-                <strong>{e.descricao}</strong>
+                <div className="inline-title">
+                  <strong>{e.descricao}</strong>
+                  {e.isNotaFiscal && (
+                    <Badge tone="neutral">
+                      Nota fiscal ({e.itensNota?.length || 0})
+                    </Badge>
+                  )}
+                  {(e.entradaEstoque || e.itensNota?.some((i) => i.geraEstoque)) && (
+                    <Badge tone="good">Estoque +</Badge>
+                  )}
+                </div>
+                {(e.fornecedor || e.numeroNota) && (
+                  <small>
+                    {[e.fornecedor, e.numeroNota ? `NF ${e.numeroNota}` : ""]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </small>
+                )}
               </td>
               <td>
                 <Badge>{e.tipo}</Badge>
@@ -764,12 +1077,19 @@ export function Finance() {
               <td>{e.quantidade || "—"}</td>
               <td className="money">{money(e.valor)}</td>
               <td>
-                <Actions
-                  kind="expense"
-                  collection="despesas"
-                  record={e}
-                  name={e.descricao}
-                />
+                <div className="row-actions">
+                  {(e.isNotaFiscal || e.entradaEstoque || e.observacoes) && (
+                    <Button variant="ghost" onClick={() => setDetails(e)}>
+                      <Eye size={15} /> Ver detalhes
+                    </Button>
+                  )}
+                  <Actions
+                    kind={e.isNotaFiscal ? undefined : "expense"}
+                    collection="despesas"
+                    record={e}
+                    name={e.descricao}
+                  />
+                </div>
               </td>
             </tr>
           ))}
@@ -780,6 +1100,80 @@ export function Finance() {
           setPage={list.setPage}
         />
       </section>
+      {details && (
+        <Modal
+          title={details.isNotaFiscal ? "Detalhes da nota fiscal" : "Detalhes da despesa"}
+          subtitle={`${details.descricao} · ${dateText(details.data)}`}
+          onClose={() => setDetails(null)}
+        >
+          <div className="detail-meta">
+            <p>
+              <strong>Categoria:</strong> {details.tipo} ·{" "}
+              <strong>Total:</strong> {money(details.valor)}
+            </p>
+            {details.fornecedor && (
+              <p>
+                <strong>Fornecedor:</strong> {details.fornecedor}
+              </p>
+            )}
+            {details.numeroNota && (
+              <p>
+                <strong>Número da nota:</strong> {details.numeroNota}
+              </p>
+            )}
+            {details.observacoes && (
+              <p>
+                <strong>Observações:</strong> {details.observacoes}
+              </p>
+            )}
+          </div>
+          {details.itensNota && details.itensNota.length > 0 && (
+            <Table
+              headings={["Item", "Qtd.", "Unitário", "Subtotal", "Estoque"]}
+              empty={false}
+            >
+              {details.itensNota.map((item) => (
+                <tr key={item.id}>
+                  <td>
+                    <strong>{item.itemNome}</strong>
+                    <small>
+                      {item.itemTipo === "ingrediente"
+                        ? "Ingrediente"
+                        : item.itemTipo === "material"
+                          ? "Material"
+                          : "Avulso"}
+                    </small>
+                  </td>
+                  <td>
+                    {item.quantidade} {item.unidade}
+                  </td>
+                  <td className="money">{money(item.valorUnitario)}</td>
+                  <td className="money">{money(item.subtotal)}</td>
+                  <td>
+                    {item.geraEstoque ? (
+                      <Badge tone="good">Lançado</Badge>
+                    ) : (
+                      <Badge>Não</Badge>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          )}
+          {details.entradaEstoque && (
+            <p className="form-note">
+              Entrada vinculada ao estoque: {details.entradaEstoque.quantidade}{" "}
+              {details.entradaEstoque.unidade} de{" "}
+              <strong>{details.entradaEstoque.itemNome}</strong>.
+            </p>
+          )}
+          <footer className="modal-footer">
+            <Button variant="secondary" onClick={() => setDetails(null)}>
+              Fechar
+            </Button>
+          </footer>
+        </Modal>
+      )}
     </>
   );
 }
@@ -795,8 +1189,13 @@ export function Catalog() {
   const [tab, setTab] = useState<(typeof catalogTabs)[number]>(catalogTabs[0]);
   const [printRecipe, setPrintRecipe] = useState<Recipe | null>(null);
   const [archived, setArchived] = useState(false);
-  const list = useListing<Entity>(
+  const sortedCatalog = sortByTextPtBr(
     data[tab.key].filter((r) => archived || !r.arquivado),
+    (r) => ("nome" in r ? r.nome : "titulo" in r ? r.titulo : ""),
+    (r) => r.id,
+  );
+  const list = useListing<Entity>(
+    sortedCatalog,
     (r) => ("nome" in r ? r.nome : "titulo" in r ? r.titulo : ""),
   );
   const head: Record<string, string[]> = {
@@ -851,7 +1250,10 @@ export function Catalog() {
           <input
             type="checkbox"
             checked={archived}
-            onChange={(e) => setArchived(e.target.checked)}
+            onChange={(e) => {
+              setArchived(e.target.checked);
+              list.setPage(1);
+            }}
           />
           Mostrar arquivados
         </label>
@@ -1062,13 +1464,19 @@ export function Catalog() {
 
 export function Charges() {
   const { data, canWrite, save, notify, busy } = useBusiness();
-  const debtors = data.clientes
-    .map((customer) => ({ customer, ...customerTotals(data, customer) }))
-    .filter((c) => c.pending > 0);
+  const debtors = sortByTextPtBr(
+    data.clientes
+      .map((customer) => ({ customer, ...customerTotals(data, customer) }))
+      .filter((c) => c.pending > 0),
+    (c) => c.customer.nome,
+    (c) => c.customer.id,
+  );
   const [selected, setSelected] = useState<Customer | null>(null);
   const [payment, setPayment] = useState<{
     customer: Customer;
     total: number;
+    saleCount: number;
+    orderCount: number;
     changes: Mutation[];
   } | null>(null);
   const [type, setType] = useState("amigavel");
@@ -1077,32 +1485,32 @@ export function Charges() {
     ? chargeMessage(selected.nome, customerTotals(data, selected).pending, type)
     : "";
   function openSettlement(customer: Customer) {
-    const changes: Mutation[] = [
-      ...data.vendas
-        .filter((s) => customerMatches(s, customer) && s.status === "P")
-        .map((s) => ({
-          collection: "vendas" as const,
-          id: s.id,
-          expectedUpdatedAt: versionOf(s),
-          data: { status: "A" },
-        })),
-      ...data.encomendas
-        .filter((o) => customerMatches(o, customer) && orderRemaining(o) > 0)
-        .map((o) => ({
-          collection: "encomendas" as const,
-          id: o.id,
-          expectedUpdatedAt: versionOf(o),
-          data: { status: "Finalizado", valorEntrada: o.valorTotal },
-        })),
-    ];
+    const launches = collectPendingLaunches(data).filter((l) =>
+      l.kind === "sale"
+        ? l.sales.some((s) => customerMatches(s, customer))
+        : customerMatches(l.order, customer),
+    );
+    const batchId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const changes: Mutation[] = launches.flatMap((launch, idx) =>
+      buildPartialPaymentMutations({
+        launch,
+        amount: launch.remainingAmount,
+        date: today(),
+        method: launch.pagamento || "PIX",
+        receiptId: `rcpt_${batchId}_${idx}`,
+        tipoBaixa: "quitacao_cliente",
+      }),
+    );
     setPayment({
       customer,
-      total: customerTotals(data, customer).pending,
+      total: round(launches.reduce((sum, l) => sum + l.remainingAmount, 0)),
+      saleCount: launches.filter((l) => l.kind === "sale").length,
+      orderCount: launches.filter((l) => l.kind === "order").length,
       changes,
     });
   }
   const settle = async () => {
-    if (!payment) return;
+    if (!payment || busy) return;
     try {
       await save(
         payment.changes,
@@ -1215,6 +1623,7 @@ export function Charges() {
         />
       </section>
       <PendingItems />
+      <ReceiptHistory />
       {selected && (
         <Modal
           title="Mensagem de cobrança"
@@ -1289,17 +1698,23 @@ export function Charges() {
       )}
       {payment && (
         <Modal
-          title="Confirmar recebimento"
+          title="Quitar todas as pendências do cliente"
           onClose={() => setPayment(null)}
           busy={busy}
         >
           <p>
-            Você confirma que recebeu <strong>{money(payment.total)}</strong> de{" "}
+            Você confirma o recebimento total de{" "}
+            <strong>{money(payment.total)}</strong> de{" "}
             <strong>{payment.customer.nome}</strong>?
           </p>
           <p className="form-note">
-            Todas as vendas e encomendas em aberto deste cliente serão marcadas
-            como quitadas.
+            Esta ação quitará{" "}
+            <strong>
+              todos os lançamentos em aberto ({payment.saleCount} venda(s) e{" "}
+              {payment.orderCount} encomenda(s))
+            </strong>{" "}
+            deste cliente, registrando o recebimento na data de hoje sem
+            alterar a etapa de produção das encomendas.
           </p>
           <footer className="modal-footer">
             <Button
@@ -1309,7 +1724,10 @@ export function Charges() {
             >
               Cancelar
             </Button>
-            <Button onClick={() => void settle()} disabled={!canWrite}>
+            <Button
+              onClick={() => void settle()}
+              disabled={!canWrite || busy || !payment.changes.length}
+            >
               {busy ? "Confirmando…" : "Confirmar recebimento"}
             </Button>
           </footer>
@@ -1330,45 +1748,8 @@ function dateValue(value: import("./types").DateValue) {
 
 function PendingItems() {
   const { data, canWrite, busy, save, notify } = useBusiness();
-  const [selected, setSelected] = useState<{
-    name: string;
-    amount: number;
-    change: Mutation;
-  } | null>(null);
-  const pending = [
-    ...data.vendas
-      .filter((s) => s.status === "P")
-      .map((s) => ({
-        key: `sale-${s.id}`,
-        name: s.pessoa,
-        description: `${s.quantidade} × ${s.produto}`,
-        date: s.data,
-        amount: saleTotal(s),
-        type: "Venda",
-        change: {
-          collection: "vendas" as const,
-          id: s.id,
-          expectedUpdatedAt: versionOf(s),
-          data: { status: "A" },
-        },
-      })),
-    ...data.encomendas
-      .filter((o) => orderRemaining(o) > 0)
-      .map((o) => ({
-        key: `order-${o.id}`,
-        name: o.clienteNome,
-        description: o.produtoDescricao,
-        date: o.dataEntrega,
-        amount: orderRemaining(o),
-        type: "Encomenda",
-        change: {
-          collection: "encomendas" as const,
-          id: o.id,
-          expectedUpdatedAt: versionOf(o),
-          data: { status: "Finalizado", valorEntrada: o.valorTotal },
-        },
-      })),
-  ].sort((a, b) => a.date.localeCompare(b.date));
+  const [selected, setSelected] = useState<PendingLaunch | null>(null);
+  const pending = collectPendingLaunches(data);
   const listing = useListing(pending, (p) => `${p.name} ${p.description}`);
   return (
     <section className="panel report-detail">
@@ -1376,16 +1757,20 @@ function PendingItems() {
         <div>
           <h2>Pendências por lançamento</h2>
           <p className="form-note">
-            A referência é a data da venda ou da entrega; não há vencimento de
-            cobrança cadastrado.
+            A referência é a data da venda ou da entrega. Use Baixar lançamento
+            para pagamento parcial ou quitação integral.
           </p>
         </div>
+      </div>
+      <div className="section-tools">
+        {listing.searchInput}
       </div>
       <Table
         headings={[
           "Data de referência",
           "Cliente / descrição",
           "Tipo",
+          "Original / já recebido",
           "Em aberto",
           "Ação",
         ]}
@@ -1412,20 +1797,20 @@ function PendingItems() {
               <small>{p.description}</small>
             </td>
             <td>
-              <Badge>{p.type}</Badge>
+              <Badge>{p.kind === "sale" ? "Venda" : "Encomenda"}</Badge>
             </td>
-            <td className="money">{money(p.amount)}</td>
+            <td>
+              <span>{money(p.originalAmount)}</span>
+              {p.receivedAmount > 0 && (
+                <small>Já recebido: {money(p.receivedAmount)}</small>
+              )}
+            </td>
+            <td className="money">{money(p.remainingAmount)}</td>
             <td>
               {canWrite && (
                 <Button
                   variant="secondary"
-                  onClick={() =>
-                    setSelected({
-                      name: p.name,
-                      amount: p.amount,
-                      change: p.change,
-                    })
-                  }
+                  onClick={() => setSelected(p)}
                 >
                   Baixar lançamento
                 </Button>
@@ -1440,35 +1825,283 @@ function PendingItems() {
         setPage={listing.setPage}
       />
       {selected && (
-        <Modal
-          title="Confirmar recebimento do lançamento"
-          onClose={() => setSelected(null)}
+        <PartialPaymentDialog
+          launch={selected}
           busy={busy}
-        >
-          <p>
-            Confirma o recebimento de <strong>{money(selected.amount)}</strong>{" "}
-            de {selected.name}?
-          </p>
-          <footer className="modal-footer">
-            <Button
-              variant="secondary"
-              onClick={() => setSelected(null)}
-              disabled={busy}
-            >
-              Cancelar
-            </Button>
-            <Button
-              disabled={!canWrite}
-              onClick={() => {
-                void save([selected.change], `Recebimento de ${selected.name}`)
-                  .then(() => setSelected(null))
-                  .catch((e) => notify((e as Error).message, true));
+          canWrite={canWrite}
+          onClose={() => setSelected(null)}
+          onSubmit={async (amount, date, method, receiptId) => {
+            try {
+              const mutations = buildPartialPaymentMutations({
+                launch: selected,
+                amount,
+                date,
+                method,
+                receiptId,
+              });
+              await save(
+                mutations,
+                amount >= selected.remainingAmount
+                  ? `Quitação de ${selected.name}`
+                  : `Recebimento parcial de ${selected.name} (${money(amount)})`,
+              );
+              setSelected(null);
+            } catch (e) {
+              notify((e as Error).message, true);
+              throw e;
+            }
+          }}
+        />
+      )}
+    </section>
+  );
+}
+
+function PartialPaymentDialog({
+  launch,
+  busy,
+  canWrite,
+  onClose,
+  onSubmit,
+}: {
+  launch: PendingLaunch;
+  busy: boolean;
+  canWrite: boolean;
+  onClose: () => void;
+  onSubmit: (
+    amount: number,
+    date: string,
+    method: string,
+    receiptId: string,
+  ) => Promise<void>;
+}) {
+  const [settleFull, setSettleFull] = useState(false);
+  const [manualAmount, setManualAmount] = useState("");
+  const [date, setDate] = useState(today());
+  const [method, setMethod] = useState(launch.pagamento || "PIX");
+  const [error, setError] = useState("");
+  const lockRef = useRef(false);
+
+  const displayedAmount = settleFull
+    ? String(launch.remainingAmount)
+    : manualAmount;
+
+  async function submitValue(val: number) {
+    if (lockRef.current || busy || !canWrite) return;
+    setError("");
+    lockRef.current = true;
+    const receiptId = `rcpt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    try {
+      await onSubmit(val, date, method, receiptId);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      lockRef.current = false;
+    }
+  }
+
+  function handleConfirm(e: React.FormEvent) {
+    e.preventDefault();
+    if (settleFull) {
+      void submitValue(launch.remainingAmount);
+      return;
+    }
+    if (!manualAmount.trim()) {
+      setError("Informe o valor recebido ou marque Quitar saldo restante.");
+      return;
+    }
+    void submitValue(Number(manualAmount));
+  }
+
+  const typed = settleFull ? launch.remainingAmount : Number(manualAmount);
+  const projectedRemaining = settleFull
+    ? 0
+    : Number.isFinite(typed) && typed > 0
+      ? Math.max(0, round(launch.remainingAmount - typed))
+      : launch.remainingAmount;
+
+  return (
+    <Modal
+      title="Baixar lançamento"
+      subtitle={`${launch.name} · ${launch.kind === "sale" ? "Venda" : "Encomenda"}`}
+      onClose={onClose}
+      busy={busy}
+    >
+      <div className="detail-meta">
+        <p>
+          <strong>Cliente:</strong> {launch.name}
+        </p>
+        <p>
+          <strong>Referência:</strong> {launch.description} (
+          {dateText(launch.date)})
+        </p>
+      </div>
+      <div className="form-summary">
+        <div>
+          <span>Valor original</span>
+          <strong>{money(launch.originalAmount)}</strong>
+        </div>
+        <div>
+          <span>Total já recebido</span>
+          <strong>{money(launch.receivedAmount)}</strong>
+        </div>
+        <div>
+          <span>Saldo pendente</span>
+          <strong>{money(launch.remainingAmount)}</strong>
+        </div>
+      </div>
+      <form onSubmit={handleConfirm} noValidate>
+        <label className="checkbox settle-flag">
+          <input
+            type="checkbox"
+            checked={settleFull}
+            disabled={busy || !canWrite}
+            onChange={(e) => {
+              setSettleFull(e.target.checked);
+              setError("");
+            }}
+          />
+          Quitar saldo restante (pagamento total)
+        </label>
+        <div className="form-grid">
+          <Field label="Valor recebido agora (R$) *">
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0.01"
+              step="0.01"
+              max={launch.remainingAmount}
+              placeholder="Ex.: 40,00"
+              value={displayedAmount}
+              readOnly={settleFull}
+              aria-readonly={settleFull || undefined}
+              onChange={(e) => {
+                if (settleFull) return;
+                setManualAmount(e.target.value);
+                setError("");
               }}
-            >
-              {busy ? "Confirmando…" : "Confirmar recebimento"}
-            </Button>
-          </footer>
-        </Modal>
+            />
+          </Field>
+          <Field label="Data do recebimento *">
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => {
+                setDate(e.target.value);
+                setError("");
+              }}
+            />
+          </Field>
+          <Field label="Forma de pagamento">
+            <select value={method} onChange={(e) => setMethod(e.target.value)}>
+              {["PIX", "Dinheiro", "Cartão", "Transferência"].map((m) => (
+                <option key={m}>{m}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <p className="form-note">
+          {settleFull ? (
+            <>
+              Após confirmar, o saldo será{" "}
+              <strong>{money(0)}</strong> (lançamento quitado).
+            </>
+          ) : (
+            <>
+              Saldo que permanecerá em aberto:{" "}
+              <strong>{money(projectedRemaining)}</strong>
+            </>
+          )}
+        </p>
+        {error && (
+          <p role="alert" className="form-error">
+            {error}
+          </p>
+        )}
+        <footer className="modal-footer">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={busy}
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={!canWrite || busy}>
+            {busy ? "Confirmando…" : "Confirmar recebimento"}
+          </Button>
+        </footer>
+      </form>
+    </Modal>
+  );
+}
+
+function ReceiptHistory() {
+  const { data } = useBusiness();
+  const receipts = [...(data.recebimentos || [])].sort((a, b) =>
+    b.data.localeCompare(a.data),
+  );
+  const listing = useListing(
+    receipts,
+    (r) => `${r.clienteNome} ${r.descricao} ${r.pagamento}`,
+  );
+  const tipoLabel = (t: string) =>
+    t === "parcial"
+      ? "Parcial"
+      : t === "quitacao_cliente"
+        ? "Quitação cliente"
+        : t === "entrada"
+          ? "Entrada"
+          : t === "manual"
+            ? "Manual"
+            : "Integral";
+
+  return (
+    <section className="panel report-detail">
+      <div className="panel-header">
+        <div>
+          <h2>Histórico de recebimentos</h2>
+          <p className="form-note">
+            Registros auditáveis por data efetiva do pagamento.
+          </p>
+        </div>
+      </div>
+      {receipts.length > 0 && (
+        <div className="section-tools">{listing.searchInput}</div>
+      )}
+      <Table
+        headings={[
+          "Data",
+          "Cliente / referência",
+          "Tipo de baixa",
+          "Pagamento",
+          "Valor recebido",
+        ]}
+        empty={!listing.rows.length}
+      >
+        {listing.rows.map((r) => (
+          <tr key={r.id}>
+            <td>{dateText(r.data)}</td>
+            <td>
+              <strong>{r.clienteNome}</strong>
+              <small>{r.descricao}</small>
+            </td>
+            <td>
+              <Badge tone={r.tipoBaixa === "parcial" ? "warning" : "good"}>
+                {tipoLabel(r.tipoBaixa)}
+              </Badge>
+            </td>
+            <td>{r.pagamento}</td>
+            <td className="money">{money(r.valor)}</td>
+          </tr>
+        ))}
+      </Table>
+      {receipts.length > 0 && (
+        <Pagination
+          total={listing.filtered.length}
+          page={listing.page}
+          setPage={listing.setPage}
+        />
       )}
     </section>
   );
@@ -1482,16 +2115,41 @@ export function Reports() {
   const [end, setEnd] = useState(today());
   const [customer, setCustomer] = useState("");
   const [method, setMethod] = useState("");
+  const sortedCustomers = sortByTextPtBr(
+    data.clientes,
+    (c) => c.nome,
+    (c) => c.id,
+  );
+  const selectedCustomerObj = customer
+    ? data.clientes.find((c) => c.id === customer)
+    : undefined;
   const rows = data.vendas
     .filter(
       (s) =>
         (!start || s.data >= start) &&
         (!end || s.data <= end) &&
-        (!customer ||
-          customerMatches(s, data.clientes.find((c) => c.id === customer)!)) &&
+        (!selectedCustomerObj || customerMatches(s, selectedCustomerObj)) &&
         (!method || s.pagamento === method),
     )
     .sort((a, b) => a.data.localeCompare(b.data));
+  const ordersInRange = data.encomendas
+    .filter(
+      (o) =>
+        (!start || o.dataEntrega >= start) &&
+        (!end || o.dataEntrega <= end) &&
+        (!selectedCustomerObj || customerMatches(o, selectedCustomerObj)),
+    )
+    .sort((a, b) => b.dataEntrega.localeCompare(a.dataEntrega));
+  const receiptsInRange = (data.recebimentos || [])
+    .filter(
+      (r) =>
+        (!start || r.data >= start) &&
+        (!end || r.data <= end) &&
+        (!selectedCustomerObj || customerMatches(r, selectedCustomerObj)) &&
+        (!method || r.pagamento === method),
+    )
+    .sort((a, b) => b.data.localeCompare(a.data));
+  const receiptsTotal = round(receiptsInRange.reduce((n, r) => n + r.valor, 0));
   const total = rows.reduce((n, s) => n + saleTotal(s), 0);
   const customers = new Set(
     rows.map(
@@ -1536,11 +2194,11 @@ export function Reports() {
     { customer: string; product: string; quantity: number; total: number }
   >();
   rows.forEach((s) => {
-    const customer = data.clientes.find((c) => customerMatches(s, c));
+    const cust = data.clientes.find((c) => customerMatches(s, c));
     const product = productName(s);
-    const key = `${customer?.id || s.pessoa}::${product}`;
+    const key = `${cust?.id || s.pessoa}::${product}`;
     const group = details.get(key) || {
-      customer: customer?.nome || s.pessoa,
+      customer: cust?.nome || s.pessoa,
       product,
       quantity: 0,
       total: 0,
@@ -1549,6 +2207,48 @@ export function Reports() {
     group.total += saleTotal(s);
     details.set(key, group);
   });
+
+  const purchasesInRange = data.despesas
+    .filter(
+      (e) =>
+        (!start || e.data >= start) &&
+        (!end || e.data <= end) &&
+        (e.isNotaFiscal || !!e.entradaEstoque),
+    )
+    .sort((a, b) => b.data.localeCompare(a.data));
+  const stockSummary = sortByTextPtBr(
+    [
+      ...data.ingredientes
+        .filter((i) => !i.arquivado && (i.estoqueIniciado || (i.estoqueAtual ?? 0) > 0 || (i.estoqueMinimo ?? 0) > 0))
+        .map((i) => ({
+          key: `ing:${i.id}`,
+          kind: "Ingrediente",
+          name: i.nome,
+          formatted: formatStock(i.estoqueAtual ?? 0, i.unidadePadrao),
+          low: isLowStock(i),
+        })),
+      ...data.materiais
+        .filter((m) => !m.arquivado && (m.estoqueIniciado || (m.estoqueAtual ?? 0) > 0 || (m.estoqueMinimo ?? 0) > 0))
+        .map((m) => ({
+          key: `mat:${m.id}`,
+          kind: "Material",
+          name: m.nome,
+          formatted: formatStock(m.estoqueAtual ?? 0, "un"),
+          low: isLowStock(m),
+        })),
+    ],
+    (item) => item.name,
+    (item) => item.key,
+  );
+
+  const saleStatusLabel = (s: Sale) => {
+    const rec = saleReceived(s);
+    const rem = saleRemaining(s);
+    if (s.status === "P" && rec > 0 && rem > 0) return "Parcial";
+    if (s.status === "P") return "Pendente";
+    return s.status === "E" ? "Entregue e pago" : "Pago";
+  };
+
   const invalidRange = !!start && !!end && start > end;
   function exportCSV() {
     DownloadFile(
@@ -1560,6 +2260,8 @@ export function Reports() {
           "Quantidade",
           "Preço unitário",
           "Total",
+          "Recebido",
+          "Em aberto",
           "Pagamento",
           "Situação",
         ],
@@ -1570,8 +2272,10 @@ export function Reports() {
           s.quantidade,
           s.valor,
           saleTotal(s),
+          saleReceived(s),
+          saleRemaining(s),
           s.pagamento,
-          s.status,
+          saleStatusLabel(s),
         ]),
       ]),
       `Vendas_${today()}.csv`,
@@ -1601,7 +2305,7 @@ export function Reports() {
             onChange={(e) => setCustomer(e.target.value)}
           >
             <option value="">Todos os clientes</option>
-            {data.clientes.map((c) => (
+            {sortedCustomers.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.nome}
               </option>
@@ -1625,7 +2329,10 @@ export function Reports() {
           <ArrowDownToLine size={16} /> CSV
         </Button>
         <Button
-          disabled={invalidRange || !rows.length}
+          disabled={
+            invalidRange ||
+            (!rows.length && !ordersInRange.length && !receiptsInRange.length)
+          }
           onClick={() => window.print()}
         >
           <Printer size={16} /> Imprimir
@@ -1638,7 +2345,7 @@ export function Reports() {
       ) : (
         <article className="report-content">
           <div className="print-only">
-            <h1>Lá Divino Sabor · Relatório de vendas</h1>
+            <h1>Lá Divino Sabor · Relatório operacional e financeiro</h1>
             <p>
               {dateText(start)} a {dateText(end)}
             </p>
@@ -1650,14 +2357,14 @@ export function Reports() {
               detail={`${rows.length} registros de venda`}
             />
             <Metric
+              title="Recebimentos datados"
+              value={receiptsTotal}
+              detail={`${receiptsInRange.length} pagamento(s) no intervalo`}
+            />
+            <Metric
               title="Média por cliente"
               value={customers ? total / customers : 0}
               detail="Total dividido pelos clientes"
-            />
-            <Metric
-              title="Média por venda"
-              value={rows.length ? total / rows.length : 0}
-              detail="Total dividido pelos registros"
             />
             <section className="metric">
               <span>Clientes atendidos</span>
@@ -1675,8 +2382,9 @@ export function Reports() {
             </section>
           </div>
           <p className="page-note">
-            Relatório de vendas avulsas, incluindo pendentes. Encomendas são
-            acompanhadas na agenda e no financeiro.
+            Relatório consolidado no intervalo selecionado: vendas avulsas,
+            encomendas por data de entrega, recebimentos efetivos por data do
+            pagamento e compras/estoque.
           </p>
           <section className="panel">
             <div className="panel-header">
@@ -1686,15 +2394,17 @@ export function Reports() {
               headings={["Cliente", "Unidades", "Total"]}
               empty={!rows.length}
             >
-              {[...byCustomer.values()].map((c) => (
-                <tr key={c.name}>
-                  <td>
-                    <strong>{c.name}</strong>
-                  </td>
-                  <td>{c.quantity}</td>
-                  <td className="money">{money(c.total)}</td>
-                </tr>
-              ))}
+              {sortByTextPtBr([...byCustomer.values()], (c) => c.name).map(
+                (c) => (
+                  <tr key={c.name}>
+                    <td>
+                      <strong>{c.name}</strong>
+                    </td>
+                    <td>{c.quantity}</td>
+                    <td className="money">{money(c.total)}</td>
+                  </tr>
+                ),
+              )}
             </Table>
           </section>
           <section className="panel report-detail">
@@ -1705,14 +2415,16 @@ export function Reports() {
               headings={["Cliente", "Produto", "Unidades", "Total"]}
               empty={!rows.length}
             >
-              {[...details.entries()].map(([key, item]) => (
-                <tr key={key}>
-                  <td>{item.customer}</td>
-                  <td>{item.product}</td>
-                  <td>{item.quantity}</td>
-                  <td className="money">{money(item.total)}</td>
-                </tr>
-              ))}
+              {sortByTextPtBr([...details.entries()], ([, i]) => i.customer).map(
+                ([key, item]) => (
+                  <tr key={key}>
+                    <td>{item.customer}</td>
+                    <td>{item.product}</td>
+                    <td>{item.quantity}</td>
+                    <td className="money">{money(item.total)}</td>
+                  </tr>
+                ),
+              )}
             </Table>
           </section>
           <section className="panel report-detail">
@@ -1737,10 +2449,104 @@ export function Reports() {
                   <td>{s.produto}</td>
                   <td>{s.quantidade}</td>
                   <td>{money(saleTotal(s))}</td>
-                  <td>{s.status === "P" ? "Pendente" : "Pago"}</td>
+                  <td>{saleStatusLabel(s)}</td>
                 </tr>
               ))}
             </Table>
+          </section>
+          <section className="panel report-detail">
+            <div className="panel-header">
+              <h2>Encomendas no intervalo (por entrega)</h2>
+            </div>
+            <Table
+              headings={[
+                "Entrega",
+                "Cliente",
+                "Resumo",
+                "Total",
+                "Recebido",
+                "Situação",
+              ]}
+              empty={!ordersInRange.length}
+            >
+              {ordersInRange.map((o) => (
+                <tr key={o.id}>
+                  <td>{dateText(o.dataEntrega)}</td>
+                  <td>{o.clienteNome}</td>
+                  <td>
+                    {o.itens && o.itens.length > 0
+                      ? summarizeOrderItems(
+                          o.itens,
+                          o.acessorios || [],
+                          o.observacoes,
+                        )
+                      : o.produtoDescricao}
+                  </td>
+                  <td className="money">{money(o.valorTotal)}</td>
+                  <td className="money">{money(orderReceived(o))}</td>
+                  <td>{o.status}</td>
+                </tr>
+              ))}
+            </Table>
+          </section>
+          <section className="panel report-detail">
+            <div className="panel-header">
+              <h2>Recebimentos efetivos no intervalo</h2>
+            </div>
+            <Table
+              headings={["Data", "Cliente", "Referência", "Forma", "Valor"]}
+              empty={!receiptsInRange.length}
+            >
+              {receiptsInRange.map((r) => (
+                <tr key={r.id}>
+                  <td>{dateText(r.data)}</td>
+                  <td>{r.clienteNome}</td>
+                  <td>{r.descricao}</td>
+                  <td>{r.pagamento}</td>
+                  <td className="money">{money(r.valor)}</td>
+                </tr>
+              ))}
+            </Table>
+          </section>
+          <section className="panel report-detail">
+            <div className="panel-header">
+              <h2>Compras com estoque e saldo atual</h2>
+            </div>
+            <Table
+              headings={["Data", "Descrição", "Fornecedor", "Itens", "Total"]}
+              empty={!purchasesInRange.length}
+            >
+              {purchasesInRange.map((e) => (
+                <tr key={e.id}>
+                  <td>{dateText(e.data)}</td>
+                  <td>{e.descricao}</td>
+                  <td>{e.fornecedor || "—"}</td>
+                  <td>{e.isNotaFiscal ? e.itensNota?.length || 0 : 1}</td>
+                  <td className="money">{money(e.valor)}</td>
+                </tr>
+              ))}
+            </Table>
+            {stockSummary.length > 0 && (
+              <Table
+                headings={["Item em estoque", "Tipo", "Saldo atual", "Status"]}
+                empty={false}
+              >
+                {stockSummary.map((st) => (
+                  <tr key={st.key}>
+                    <td>{st.name}</td>
+                    <td>{st.kind}</td>
+                    <td>{st.formatted}</td>
+                    <td>
+                      {st.low ? (
+                        <Badge tone="warning">Abaixo do mínimo</Badge>
+                      ) : (
+                        <Badge tone="good">OK</Badge>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </Table>
+            )}
           </section>
         </article>
       )}

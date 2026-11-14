@@ -23,7 +23,8 @@ flowchart LR
 | `src/App.tsx`     | Sessão, perfil, menu, hash, filtro de período, contexto, gravações, arquivamento, exportação e instalação/atualização da PWA |
 | `src/context.ts`  | Contrato `Business` compartilhado com telas e formulários                                                                    |
 | `src/pages.tsx`   | Componentes de painel, vendas, encomendas, financeiro, cadastros, cobranças e relatórios                                     |
-| `src/editors.tsx` | Formulários, cálculos de composição e conversão para mutations                                                               |
+| `src/stock.tsx`   | Módulo de estoque quantitativo (saldos atuais, saldo inicial, saídas, ajustes, mínimos e histórico)                          |
+| `src/editors.tsx` | Formulários, nota fiscal multi-item, encomenda estruturada, composição e conversão para mutations                            |
 | `src/ui.tsx`      | Campos rotulados, modal nativo, tabelas, paginação e download                                                                |
 | `src/domain.ts`   | Funções de datas, dinheiro, custos, recebíveis, validação e serialização                                                     |
 | `src/types.ts`    | Coleções e contratos compatíveis com dados legados                                                                           |
@@ -36,7 +37,7 @@ flowchart LR
 
 `onAuthStateChanged` identifica a conta. `profileFor` consulta `usuarios/{uid}` no servidor e exige papel `admin` ou `viewer` antes de iniciar as assinaturas. O estado é limpo quando muda a sessão; geração/cleanup dos listeners impedem uma resposta antiga de repor dados de outra sessão.
 
-`subscribeData` acompanha as 12 coleções conhecidas. Atividades são limitadas às 40 mais recentes, por `criadoEm`; a exportação completa consulta todos os documentos dessa coleção. As demais coleções são carregadas sem paginação no servidor. A paginação das tabelas é local, com dez linhas por página.
+`subscribeData` acompanha as 14 coleções conhecidas (incluindo `recebimentos` e `movimentacoes_estoque`). Atividades são limitadas às 40 mais recentes, por `criadoEm`; a exportação completa consulta todos os documentos dessa coleção. As demais coleções são carregadas sem paginação no servidor. A paginação das tabelas é local, com dez linhas por página, após ordenação e agrupamento em memória.
 
 As regras executáveis estão em [firestore.rules](../firestore.rules). A interface ajuda a restringir ações, mas a autorização efetiva é feita no Firestore. O perfil de consulta não grava; uma conta sem perfil não consulta os dados comerciais.
 
@@ -53,7 +54,7 @@ Há limite local de 400 mutations por operação. Transações não são enfilei
 
 ## Navegação, ambiente e publicação
 
-A navegação usa `location.hash` (`dashboard`, `vendas`, `encomendas`, `financeiro`, `cadastros`, `cobrancas`, `relatorios`). A SPA também atende o antigo `/login.html` graças ao fallback do Hosting.
+A navegação usa `location.hash` (`dashboard`, `vendas`, `encomendas`, `financeiro`, `estoque`, `cadastros`, `cobrancas`, `relatorios`). A SPA também atende o antigo `/login.html` graças ao fallback do Hosting.
 
 `VITE_USE_EMULATORS=1` só tem efeito em desenvolvimento, nos hosts locais permitidos. A flag conecta Authentication em 9099 e Firestore em 8080 usando `demo-doceria`. `?demo=1`, `?demo=viewer` e `?demo=login` também só são interpretados em desenvolvimento. Não há segredo de servidor necessário no bundle.
 

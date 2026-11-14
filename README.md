@@ -41,16 +41,16 @@ Os emuladores usam exclusivamente o projeto fictício `demo-doceria`, portas 808
 
 ## Fluxos preservados
 
-Painel e metas; vendas e pagamentos; encomendas e entradas; despesas; clientes; produtos e precificação; ingredientes, receitas e materiais; cobranças por cliente e por lançamento; mensagens de WhatsApp abertas manualmente; relatórios por período, cliente e produto; CSV, impressão e exportação completa JSON.
+Painel e metas; vendas agrupadas com `Salvar e continuar`; encomendas com produtos cadastrados, acessórios e entrega decrescente; despesas simples e notas fiscais com múltiplos itens; estoque quantitativo com saldo inicial, saídas e ajustes; cadastros A–Z (clientes, produtos, receitas, ingredientes e materiais); cobranças por cliente e lançamento com recebimento parcial e quitação; mensagens de WhatsApp abertas manualmente; relatórios completos, CSV e exportação JSON.
 
-- Vendas legadas continuam identificadas por nome. Novas vendas incluem também IDs. Renomear cadastros preserva nomes anteriores para manter os vínculos históricos.
+- Vendas legadas continuam identificadas por nome. Novas vendas incluem também IDs e `pedidoId` para compras com vários itens. Renomear cadastros preserva nomes anteriores para manter os vínculos históricos.
 - Totais dos clientes são calculados dos lançamentos, corrigindo agregados antigos inconsistentes sem reescrever o histórico.
 - Custos indiretos entram no preço. O percentual sobre custo é chamado de acréscimo/markup, sem confusão com margem sobre receita.
 - Receitas e produtos mantêm custos salvos. Após reajustar insumos, revise e salve as receitas e os produtos dependentes. Vendas novas preservam o custo unitário da ocasião.
 - Cadastros são arquivados e podem ser reativados; referências históricas são preservadas.
 - O resultado de caixa é recebido menos despesas; não é apresentado como lucro contábil.
-- O período de encomendas considera a entrega, pois o legado não registra cada recebimento com sua própria data. Não foi inventado histórico financeiro.
-- O JSON inclui as 12 coleções conhecidas, IDs, campos extras e datas tipadas. Não inclui senhas/Auth, infraestrutura ou restauração automática. Guarde os arquivos exportados fora do repositório.
+- Novos recebimentos parciais e quitações gravam a data efetiva em `recebimentos`; parcelas legadas continuam filtradas pela venda/entrega sem inventar histórico financeiro anterior.
+- O JSON inclui as 14 coleções conhecidas, IDs, campos extras e datas tipadas. Não inclui senhas/Auth, infraestrutura ou restauração automática. Guarde os arquivos exportados fora do repositório.
 
 ## Firebase e publicação
 

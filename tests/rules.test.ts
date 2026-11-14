@@ -191,4 +191,111 @@ describe("perfis e dados comerciais", () => {
     });
     await assertSucceeds(batch.commit());
   });
+  it("valida recebimentos parciais/auditáveis e valorPago em vendas", async () => {
+    const adminDb = env.authenticatedContext("admin").firestore();
+    const viewerDb = env.authenticatedContext("viewer").firestore();
+
+    await assertSucceeds(
+      setDoc(doc(adminDb, "vendas/parcial"), {
+        ...sale,
+        quantidade: 2,
+        valor: 50,
+        valorPago: 40,
+      }),
+    );
+    await assertFails(
+      setDoc(doc(adminDb, "vendas/estouro"), {
+        ...sale,
+        quantidade: 2,
+        valor: 50,
+        valorPago: 105,
+      }),
+    );
+
+    const receipt = {
+      data: "2026-10-24",
+      valor: 40,
+      origemTipo: "venda",
+      origemId: "parcial",
+      clienteNome: "CLIENTE TESTE",
+      descricao: "2 × BOLO TESTE",
+      pagamento: "PIX",
+      tipoBaixa: "parcial",
+    };
+    await assertSucceeds(setDoc(doc(adminDb, "recebimentos/r1"), receipt));
+    await assertFails(setDoc(doc(viewerDb, "recebimentos/rv"), receipt));
+    await assertFails(
+      setDoc(doc(adminDb, "recebimentos/rinv"), { ...receipt, valor: 0 }),
+    );
+    await assertFails(
+      updateDoc(doc(adminDb, "recebimentos/r1"), { valor: 50 }),
+    );
+    await assertFails(deleteDoc(doc(viewerDb, "recebimentos/r1")));
+    await assertSucceeds(deleteDoc(doc(adminDb, "recebimentos/r1")));
+  });
+  it("valida movimentações e saldos quantitativos de estoque", async () => {
+    const adminDb = env.authenticatedContext("admin").firestore();
+    const viewerDb = env.authenticatedContext("viewer").firestore();
+
+    await assertSucceeds(
+      setDoc(doc(adminDb, "ingredientes/ing-est"), {
+        nome: "Açúcar",
+        unidadeCompra: "kg",
+        precoCompra: 5,
+        tamanhoCompra: 1000,
+        unidadePadrao: "g",
+        custoUnitarioPadrao: 0.005,
+        estoqueAtual: 2000,
+        estoqueMinimo: 500,
+        estoqueIniciado: true,
+      }),
+    );
+    await assertFails(
+      setDoc(doc(adminDb, "ingredientes/ing-neg"), {
+        nome: "Negativo",
+        unidadeCompra: "kg",
+        precoCompra: 5,
+        tamanhoCompra: 1000,
+        unidadePadrao: "g",
+        custoUnitarioPadrao: 0.005,
+        estoqueAtual: -1,
+      }),
+    );
+
+    const mov = {
+      data: "2026-10-24",
+      itemTipo: "ingrediente",
+      itemId: "ing-est",
+      itemNome: "Açúcar",
+      tipo: "entrada",
+      direcao: "entrada",
+      quantidade: 2,
+      unidade: "kg",
+      quantidadePadrao: 2000,
+      deltaPadrao: 2000,
+      unidadePadrao: "g",
+      saldoAnterior: 0,
+      saldoPosterior: 2000,
+      motivo: "Nota fiscal #123",
+      origemTipo: "nota_fiscal",
+      origemId: "d1",
+    };
+    await assertSucceeds(
+      setDoc(doc(adminDb, "movimentacoes_estoque/m1"), mov),
+    );
+    await assertFails(
+      setDoc(doc(viewerDb, "movimentacoes_estoque/mv"), mov),
+    );
+    await assertFails(
+      setDoc(doc(adminDb, "movimentacoes_estoque/mzero"), {
+        ...mov,
+        deltaPadrao: 0,
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(adminDb, "movimentacoes_estoque/m1"), { deltaPadrao: 10 }),
+    );
+    await assertFails(deleteDoc(doc(viewerDb, "movimentacoes_estoque/m1")));
+    await assertSucceeds(deleteDoc(doc(adminDb, "movimentacoes_estoque/m1")));
+  });
 });
