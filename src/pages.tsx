@@ -44,6 +44,7 @@ import {
   formatStock,
   groupOrders,
   groupSales,
+  invoiceItemAddsToStock,
   isArchivableCollection,
   isLowStock,
   money,
@@ -1133,7 +1134,7 @@ export function Finance() {
                         <div className="inline-title">
                           <strong>{sup.displayName || "Fornecedor não informado"}</strong>
                           <Badge tone="neutral">Nota fiscal</Badge>
-                          {e.itensNota?.some((i) => i.geraEstoque) && (
+                          {e.itensNota?.some((i) => invoiceItemAddsToStock(i)) && (
                             <Badge tone="good">Estoque +</Badge>
                           )}
                           {sup.isLegacyUnlinked && (
@@ -1252,7 +1253,9 @@ export function Finance() {
                                           : item.itemTipo === "material"
                                             ? "Material"
                                             : "Avulso"}
-                                        {item.geraEstoque ? " · Estoque +" : ""}
+                                        {invoiceItemAddsToStock(item)
+                                          ? " · Estoque +"
+                                          : " · Sem estoque"}
                                       </small>
                                     </td>
                                     <td>

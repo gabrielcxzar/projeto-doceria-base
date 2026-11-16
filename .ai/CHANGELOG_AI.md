@@ -1,5 +1,11 @@
 # Mudanças relevantes por IA
 
+## 2026-11-16 — Entrada opcional de estoque por item da nota fiscal
+
+**Agente:** Antigravity. **Objetivo:** permitir que o usuário marque ou desmarque individualmente **[ ] Adicionar ao estoque** por item em **Financeiro > Registrar nota fiscal** (com edição reversível e estorno seguro), mantendo todos os itens e o total financeiro da nota.
+
+**Mudanças:** adicionado `adicionarEstoque?: boolean` em `ExpenseInvoiceItem` (`src/types.ts`); funções puras `invoiceItemAddsToStock`, `invoiceItemNetStockDelta`, `expenseHasActiveStockEntries`, `buildInvoiceMutations` e soma líquida incluindo `correcao_nota` em `buildExpenseDeletionMutations` (`src/domain.ts`, `src/App.tsx`); checkbox **Adicionar ao estoque** marcada por padrão no construtor de item e controle individual por item na lista adicionada/edição em `src/editors.tsx`, com distinção visual em `src/pages.tsx` e `src/styles.css`. Testes adicionados/atualizados em `src/domain.test.ts`, `tests/browser/preview.spec.ts` e `tests/browser/firebase.spec.ts`; documentação e Spec Kit atualizados (`docs/`, `specs/006-nota-fiscal-estoque-opcional/`). **Observação:** mantido na branch `feat/nota-fiscal-estoque-opcional` sem push em `main`.
+
 ## 2026-11-16 — Cadastro de fornecedores e agrupamento de notas fiscais no Financeiro
 
 **Agente:** Antigravity. **Objetivo:** implementar a 6ª aba **Fornecedores** em Cadastros, exigir seleção de fornecedor cadastrado ao registrar novas notas fiscais (com criação rápida inline) e exibir cada nota fiscal no Financeiro como linha única com expansão responsiva **Exibir itens** e filtros por fornecedor e tipo de lançamento.

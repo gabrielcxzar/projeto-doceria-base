@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Timestamp } from "firebase/firestore";
 import {
   buildExpenseDeletionMutations,
+  buildInvoiceMutations,
   buildPartialPaymentMutations,
   chargeMessage,
   collectPendingLaunches,
@@ -10,12 +11,15 @@ import {
   customerTotals,
   dateText,
   encodeBackup,
+  expenseHasActiveStockEntries,
   expenseMatchesSupplierFilter,
   finances,
   formatStock,
   groupOrders,
   groupSales,
   ingredientCost,
+  invoiceItemAddsToStock,
+  invoiceItemNetStockDelta,
   isArchivableCollection,
   isLowStock,
   normalizeStockQuantity,
@@ -33,7 +37,7 @@ import {
   validateSupplierInput,
 } from "./domain";
 import { emptyData } from "./types";
-import type { Order, Sale, Supplier } from "./types";
+import type { Expense, ExpenseInvoiceItem, Order, Sale, Supplier } from "./types";
 
 const sale: Sale = {
   id: "s",
@@ -439,5 +443,308 @@ describe("fornecedores e vínculos em notas fiscais", () => {
     expect(legacyNote.isLegacyUnlinked).toBe(true);
     expect(expenseMatchesSupplierFilter({ isNotaFiscal: true }, "__sem_vinculo__")).toBe(true);
     expect(expenseMatchesSupplierFilter({ isNotaFiscal: true }, "sup2")).toBe(false);
+  });
+});
+
+describe("entrada opcional de estoque por item da nota fiscal", () => {
+  function setupInvoiceStore() {
+    const data = emptyData();
+    data.fornecedores = [{ id: "f1", nome: "Distribuidora ABC" }];
+    data.ingredientes = [
+      {
+        id: "ing-farinha",
+        nome: "Farinha de trigo",
+        unidadeCompra: "Pacote 5 kg",
+        precoCompra: 25,
+        tamanhoCompra: 5000,
+        unidadePadrao: "g",
+        custoUnitarioPadrao: 0.005,
+        estoqueAtual: 1000,
+        estoqueIniciado: true,
+      },
+      {
+        id: "ing-choc",
+        nome: "Chocolate",
+        unidadeCompra: "Barra 1 kg",
+        precoCompra: 50,
+        tamanhoCompra: 1000,
+        unidadePadrao: "g",
+        custoUnitarioPadrao: 0.05,
+        estoqueAtual: 500,
+        estoqueIniciado: true,
+      },
+      {
+        id: "ing-leite",
+        nome: "Leite condensado",
+        unidadeCompra: "Caixa",
+        precoCompra: 10,
+        tamanhoCompra: 1,
+        unidadePadrao: "unidade",
+        custoUnitarioPadrao: 10,
+        estoqueAtual: 4,
+        estoqueIniciado: true,
+      },
+    ];
+    data.materiais = [
+      {
+        id: "mat-emb",
+        nome: "Embalagem",
+        custo: 2,
+        estoqueAtual: 20,
+        estoqueIniciado: true,
+      },
+    ];
+    return data;
+  }
+
+  it("gera entradas apenas para itens marcados mantendo todos os 4 itens e o valor total da nota", () => {
+    const data = setupInvoiceStore();
+    const items: ExpenseInvoiceItem[] = [
+      {
+        id: "it-farinha",
+        itemTipo: "ingrediente",
+        itemId: "ing-farinha",
+        itemNome: "Farinha de trigo",
+        quantidade: 5,
+        unidade: "kg",
+        quantidadePadrao: 5000,
+        unidadePadrao: "g",
+        valorUnitario: 10,
+        subtotal: 50,
+        geraEstoque: true,
+        adicionarEstoque: true,
+      },
+      {
+        id: "it-choc",
+        itemTipo: "ingrediente",
+        itemId: "ing-choc",
+        itemNome: "Chocolate",
+        quantidade: 2,
+        unidade: "kg",
+        quantidadePadrao: 2000,
+        unidadePadrao: "g",
+        valorUnitario: 50,
+        subtotal: 100,
+        geraEstoque: true,
+        adicionarEstoque: true,
+      },
+      {
+        id: "it-emb",
+        itemTipo: "material",
+        itemId: "mat-emb",
+        itemNome: "Embalagem",
+        quantidade: 10,
+        unidade: "unidade",
+        quantidadePadrao: 10,
+        unidadePadrao: "unidade",
+        valorUnitario: 3,
+        subtotal: 30,
+        geraEstoque: false,
+        adicionarEstoque: false,
+      },
+      {
+        id: "it-leite",
+        itemTipo: "ingrediente",
+        itemId: "ing-leite",
+        itemNome: "Leite condensado",
+        quantidade: 10,
+        unidade: "unidade",
+        quantidadePadrao: 10,
+        unidadePadrao: "unidade",
+        valorUnitario: 10,
+        subtotal: 100,
+        geraEstoque: true,
+        adicionarEstoque: true,
+      },
+    ];
+
+    const { expenseData, stockMutations } = buildInvoiceMutations({
+      data,
+      expenseId: "nf-mix",
+      date: "2026-11-16",
+      category: "Material",
+      fornecedorId: "f1",
+      fornecedorNome: "Distribuidora ABC",
+      numeroNota: "001",
+      items,
+    });
+
+    // Todos os 4 itens e o total financeiro completo (50 + 100 + 30 + 100 = 280) são preservados.
+    expect(expenseData.valor).toBe(280);
+    expect(expenseData.itensNota).toHaveLength(4);
+
+    // Exatamente 3 movimentações de entrada determinísticas (Embalagem não gera movimento nem altera saldo).
+    const movementsCreated = stockMutations.filter(
+      (m) => m.collection === "movimentacoes_estoque",
+    );
+    expect(movementsCreated).toHaveLength(3);
+    expect(movementsCreated.map((m) => m.id)).toEqual([
+      "nf_nf-mix_it-farinha",
+      "nf_nf-mix_it-choc",
+      "nf_nf-mix_it-leite",
+    ]);
+
+    const matUpdates = stockMutations.filter((m) => m.collection === "materiais");
+    expect(matUpdates).toHaveLength(0);
+
+    const ingUpdates = stockMutations.filter((m) => m.collection === "ingredientes");
+    expect(ingUpdates).toHaveLength(3);
+    expect(ingUpdates.find((m) => m.id === "ing-farinha")?.data?.estoqueAtual).toBe(6000);
+    expect(ingUpdates.find((m) => m.id === "ing-choc")?.data?.estoqueAtual).toBe(2500);
+    expect(ingUpdates.find((m) => m.id === "ing-leite")?.data?.estoqueAtual).toBe(14);
+  });
+
+  it("edita sem duplicar, não presume entrada para legado sem movimento e estorna somente o que entrou", () => {
+    const data = setupInvoiceStore();
+    const existing: Expense = {
+      id: "nf-edit",
+      data: "2026-11-16",
+      tipo: "Material",
+      descricao: "NF 009 · Distribuidora ABC · (2 itens)",
+      quantidade: "2 itens",
+      valor: 80,
+      isNotaFiscal: true,
+      fornecedorId: "f1",
+      fornecedorNome: "Distribuidora ABC",
+      itensNota: [
+        {
+          id: "it-a",
+          itemTipo: "ingrediente",
+          itemId: "ing-farinha",
+          itemNome: "Farinha de trigo",
+          quantidade: 1,
+          unidade: "kg",
+          quantidadePadrao: 1000,
+          unidadePadrao: "g",
+          valorUnitario: 50,
+          subtotal: 50,
+          geraEstoque: true,
+        },
+        {
+          // Simula item legado sem adicionarEstoque e sem movimentação gravada (apesar de geraEstoque antigo)
+          id: "it-b",
+          itemTipo: "material",
+          itemId: "mat-emb",
+          itemNome: "Embalagem",
+          quantidade: 10,
+          unidade: "unidade",
+          quantidadePadrao: 10,
+          unidadePadrao: "unidade",
+          valorUnitario: 3,
+          subtotal: 30,
+          geraEstoque: true,
+        },
+      ],
+    };
+    data.ingredientes[0].estoqueAtual = 2000;
+    data.movimentacoes_estoque = [
+      {
+        id: "nf_nf-edit_it-a",
+        data: "2026-11-16",
+        itemTipo: "ingrediente",
+        itemId: "ing-farinha",
+        itemNome: "Farinha de trigo",
+        tipo: "entrada",
+        direcao: "entrada",
+        quantidade: 1,
+        unidade: "kg",
+        quantidadePadrao: 1000,
+        deltaPadrao: 1000,
+        unidadePadrao: "g",
+        saldoAnterior: 1000,
+        saldoPosterior: 2000,
+        motivo: "Nota fiscal #009",
+        origemTipo: "nota_fiscal",
+        origemId: "nf-edit",
+        origemItemId: "it-a",
+      },
+    ];
+
+    // Estado real determinado pelas movimentações gravadas: it-a tem +1000, it-b tem 0.
+    expect(invoiceItemNetStockDelta("nf-edit", "it-a", data.movimentacoes_estoque)).toBe(1000);
+    expect(invoiceItemNetStockDelta("nf-edit", "it-b", data.movimentacoes_estoque)).toBe(0);
+
+    // Ao editar apenas observações mantendo o estado real (it-a: true, it-b: false), nenhuma movimentação é criada.
+    const unchanged = buildInvoiceMutations({
+      data,
+      existingInvoice: existing,
+      expenseId: existing.id,
+      date: existing.data,
+      category: existing.tipo,
+      fornecedorId: "f1",
+      fornecedorNome: "Distribuidora ABC",
+      numeroNota: "009",
+      observacoes: "Conferida",
+      items: [
+        { ...existing.itensNota![0], adicionarEstoque: true, geraEstoque: true },
+        { ...existing.itensNota![1], adicionarEstoque: false, geraEstoque: false },
+      ],
+    });
+    expect(unchanged.stockMutations).toHaveLength(0);
+    expect(unchanged.expenseData.valor).toBe(80);
+
+    // Ao desmarcar it-a durante a edição, estorna apenas os 1000 g de farinha e preserva valor R$ 80.
+    const uncheckedItemA = buildInvoiceMutations({
+      data,
+      existingInvoice: existing,
+      expenseId: existing.id,
+      date: existing.data,
+      category: existing.tipo,
+      fornecedorId: "f1",
+      fornecedorNome: "Distribuidora ABC",
+      numeroNota: "009",
+      items: [
+        { ...existing.itensNota![0], adicionarEstoque: false, geraEstoque: false },
+        { ...existing.itensNota![1], adicionarEstoque: false, geraEstoque: false },
+      ],
+      movementIdSuffix: () => "rev1",
+    });
+    expect(uncheckedItemA.expenseData.valor).toBe(80);
+    expect(uncheckedItemA.stockMutations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          collection: "ingredientes",
+          id: "ing-farinha",
+          data: { estoqueAtual: 1000, estoqueIniciado: true },
+        }),
+        expect.objectContaining({
+          collection: "movimentacoes_estoque",
+          createOnly: true,
+          data: expect.objectContaining({
+            origemTipo: "correcao_nota",
+            deltaPadrao: -1000,
+            saldoPosterior: 1000,
+          }),
+        }),
+      ]),
+    );
+
+    // Se excluir a nota após o estorno parcial já ter ocorrido, não estorna farinha duas vezes.
+    data.movimentacoes_estoque.push({
+      id: "nf_nf-edit_it-a_rev_rev1",
+      data: "2026-11-16",
+      itemTipo: "ingrediente",
+      itemId: "ing-farinha",
+      itemNome: "Farinha de trigo",
+      tipo: "ajuste",
+      direcao: "saida",
+      quantidade: 1000,
+      unidade: "g",
+      quantidadePadrao: 1000,
+      deltaPadrao: -1000,
+      unidadePadrao: "g",
+      saldoAnterior: 2000,
+      saldoPosterior: 1000,
+      motivo: "Correção",
+      origemTipo: "correcao_nota",
+      origemId: "nf-edit",
+      origemItemId: "it-a",
+    });
+    expect(expenseHasActiveStockEntries("nf-edit", data.movimentacoes_estoque)).toBe(false);
+    const delMuts = buildExpenseDeletionMutations(existing, data);
+    expect(delMuts).toEqual([
+      expect.objectContaining({ collection: "despesas", id: "nf-edit", remove: true }),
+    ]);
+    expect(invoiceItemAddsToStock({ itemTipo: "outro", geraEstoque: true, adicionarEstoque: true })).toBe(false);
   });
 });

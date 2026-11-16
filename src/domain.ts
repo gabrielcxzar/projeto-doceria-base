@@ -5,6 +5,7 @@ import type {
   DataStore,
   DateValue,
   Expense,
+  ExpenseInvoiceItem,
   Ingredient,
   Material,
   Mutation,
@@ -16,6 +17,7 @@ import type {
   Recipe,
   RecordBase,
   Sale,
+  StockMovement,
   StockUnit,
   Supplier,
 } from "./types";
@@ -727,12 +729,280 @@ export function buildPartialPaymentMutations(params: {
   return mutations;
 }
 
+export function invoiceItemAddsToStock(
+  item: Pick<
+    ExpenseInvoiceItem,
+    "itemTipo" | "geraEstoque" | "adicionarEstoque"
+  >,
+) {
+  if (item.itemTipo === "outro") return false;
+  return Boolean(item.adicionarEstoque ?? item.geraEstoque);
+}
+
+export function invoiceItemNetStockDelta(
+  expenseId: string,
+  itemId: string,
+  movements: readonly StockMovement[],
+) {
+  const baseId = `nf_${expenseId}_${itemId}`;
+  return roundStock(
+    movements
+      .filter(
+        (m) =>
+          m.origemId === expenseId &&
+          (m.origemItemId === itemId || m.id === baseId),
+      )
+      .reduce((sum, m) => sum + m.deltaPadrao, 0),
+  );
+}
+
+export function expenseHasActiveStockEntries(
+  expenseId: string,
+  movements: readonly StockMovement[],
+) {
+  const byItem = new Map<string, number>();
+  for (const m of movements) {
+    if (m.origemId !== expenseId) continue;
+    const k = `${m.itemTipo}:${m.itemId}`;
+    byItem.set(k, roundStock((byItem.get(k) ?? 0) + m.deltaPadrao));
+  }
+  return [...byItem.values()].some((delta) => delta > 0);
+}
+
+export function buildInvoiceMutations(params: {
+  data: DataStore;
+  existingInvoice?: Expense;
+  expenseId: string;
+  date: string;
+  category: string;
+  fornecedorId?: string;
+  fornecedorNome?: string;
+  fornecedor?: string;
+  numeroNota?: string;
+  observacoes?: string;
+  items: ExpenseInvoiceItem[];
+  movementIdSuffix?: () => string;
+}): { expenseData: Record<string, unknown>; stockMutations: Mutation[] } {
+  const {
+    data,
+    existingInvoice,
+    expenseId,
+    date,
+    category,
+    fornecedorId,
+    fornecedorNome,
+    fornecedor,
+    numeroNota = "",
+    observacoes = "",
+    items,
+    movementIdSuffix,
+  } = params;
+  const movements = data.movimentacoes_estoque || [];
+  const runningBalances = new Map<
+    string,
+    {
+      collection: "ingredientes" | "materiais";
+      record: Ingredient | Material;
+      balance: number;
+      hadInit: boolean;
+    }
+  >();
+
+  const ensureBalance = (itemTipo: "ingrediente" | "material", itemId: string, itemNome: string) => {
+    const mapKey = `${itemTipo}:${itemId}`;
+    let state = runningBalances.get(mapKey);
+    if (!state) {
+      const target =
+        itemTipo === "ingrediente"
+          ? data.ingredientes.find((i) => i.id === itemId)
+          : data.materiais.find((m) => m.id === itemId);
+      if (!target)
+        throw new Error(`Item "${itemNome}" não encontrado no cadastro.`);
+      state = {
+        collection: itemTipo === "ingrediente" ? "ingredientes" : "materiais",
+        record: target,
+        balance: target.estoqueAtual ?? 0,
+        hadInit: !!target.estoqueIniciado,
+      };
+      runningBalances.set(mapKey, state);
+    }
+    return state;
+  };
+
+  const stockMutations: Mutation[] = [];
+  const normalizedItems: ExpenseInvoiceItem[] = [];
+  const supplierLabel = fornecedorNome || fornecedor || "";
+
+  for (const raw of items) {
+    const desired = invoiceItemAddsToStock(raw);
+    const currentNet = existingInvoice
+      ? invoiceItemNetStockDelta(existingInvoice.id, raw.id, movements)
+      : 0;
+
+    if (raw.itemTipo === "outro" || !raw.itemId) {
+      normalizedItems.push({
+        ...raw,
+        geraEstoque: false,
+        adicionarEstoque: false,
+      });
+      continue;
+    }
+
+    const expectedBase: BaseUnit =
+      raw.itemTipo === "ingrediente"
+        ? (((data.ingredientes.find((i) => i.id === raw.itemId)?.unidadePadrao) ||
+            raw.unidadePadrao ||
+            "g") as BaseUnit)
+        : "unidade";
+    const normalized =
+      raw.quantidadePadrao && raw.unidadePadrao
+        ? { quantidadePadrao: raw.quantidadePadrao, unidadePadrao: raw.unidadePadrao }
+        : normalizeStockQuantity(raw.quantidade, raw.unidade, expectedBase);
+
+    if (desired && currentNet <= 0) {
+      const state = ensureBalance(raw.itemTipo, raw.itemId, raw.itemNome);
+      const prevBal = state.balance;
+      const nextBal = roundStock(prevBal + normalized.quantidadePadrao);
+      state.balance = nextBal;
+
+      const baseId = `nf_${expenseId}_${raw.id}`;
+      const baseUsed = movements.some((m) => m.id === baseId);
+      const movId = baseUsed
+        ? `${baseId}_re_${(movementIdSuffix?.() || crypto.randomUUID()).slice(0, 8)}`
+        : baseId;
+
+      stockMutations.push({
+        collection: "movimentacoes_estoque",
+        id: movId,
+        createOnly: true,
+        data: {
+          data: date,
+          itemTipo: raw.itemTipo,
+          itemId: raw.itemId,
+          itemNome: raw.itemNome,
+          tipo: "entrada",
+          direcao: "entrada",
+          quantidade: raw.quantidade,
+          unidade: raw.unidade,
+          quantidadePadrao: normalized.quantidadePadrao,
+          deltaPadrao: normalized.quantidadePadrao,
+          unidadePadrao: normalized.unidadePadrao,
+          saldoAnterior: state.hadInit ? prevBal : null,
+          saldoPosterior: nextBal,
+          motivo: `Nota fiscal${numeroNota ? ` #${numeroNota}` : ""}${supplierLabel ? ` · ${supplierLabel}` : ""}`,
+          origemTipo: "nota_fiscal",
+          origemId: expenseId,
+          origemItemId: raw.id,
+          custoUnitario: raw.valorUnitario,
+        },
+      });
+      state.hadInit = true;
+    } else if (!desired && currentNet > 0) {
+      const state = ensureBalance(raw.itemTipo, raw.itemId, raw.itemNome);
+      const prevBal = state.balance;
+      if (prevBal < currentNet) {
+        throw new Error(
+          `Não é possível remover "${raw.itemNome}" do estoque porque parte do saldo já foi consumida (disponível: ${formatStock(prevBal, expectedBase)}, entrada vinculada: ${formatStock(currentNet, expectedBase)}).`,
+        );
+      }
+      const nextBal = roundStock(prevBal - currentNet);
+      state.balance = nextBal;
+      stockMutations.push({
+        collection: "movimentacoes_estoque",
+        id: `nf_${expenseId}_${raw.id}_rev_${(movementIdSuffix?.() || crypto.randomUUID()).slice(0, 8)}`,
+        createOnly: true,
+        data: {
+          data: today(),
+          itemTipo: raw.itemTipo,
+          itemId: raw.itemId,
+          itemNome: raw.itemNome,
+          tipo: "ajuste",
+          direcao: "saida",
+          quantidade: currentNet,
+          unidade: expectedBase,
+          quantidadePadrao: currentNet,
+          deltaPadrao: -currentNet,
+          unidadePadrao: expectedBase,
+          saldoAnterior: prevBal,
+          saldoPosterior: nextBal,
+          motivo: `Correção de nota fiscal${numeroNota ? ` #${numeroNota}` : ""}: item desmarcado do estoque`,
+          origemTipo: "correcao_nota",
+          origemId: expenseId,
+          origemItemId: raw.id,
+        },
+      });
+    }
+
+    normalizedItems.push({
+      ...raw,
+      quantidadePadrao: normalized.quantidadePadrao,
+      unidadePadrao: normalized.unidadePadrao,
+      geraEstoque: desired,
+      adicionarEstoque: desired,
+    });
+  }
+
+  for (const state of runningBalances.values()) {
+    stockMutations.push({
+      collection: state.collection,
+      id: state.record.id,
+      expectedUpdatedAt: versionOf(state.record),
+      data: {
+        estoqueAtual: state.balance,
+        estoqueIniciado: true,
+      },
+    });
+  }
+
+  const totalNota =
+    normalizedItems.length > 0
+      ? round(normalizedItems.reduce((sum, item) => sum + item.subtotal, 0))
+      : existingInvoice?.valor ?? 0;
+  const headerDescParts = [
+    numeroNota ? `NF ${numeroNota}` : "Nota fiscal",
+    supplierLabel || undefined,
+    normalizedItems.length > 0
+      ? `(${normalizedItems.length} ${normalizedItems.length === 1 ? "item" : "itens"})`
+      : undefined,
+  ].filter(Boolean);
+
+  const expenseData: Record<string, unknown> = {
+    data: date,
+    tipo: category,
+    descricao: headerDescParts.join(" · "),
+    quantidade:
+      normalizedItems.length > 0
+        ? `${normalizedItems.length} ${normalizedItems.length === 1 ? "item" : "itens"}`
+        : existingInvoice?.quantidade || "",
+    valor: totalNota,
+    isNotaFiscal: true,
+    ...(fornecedorId
+      ? {
+          fornecedorId,
+          fornecedorNome: fornecedorNome || supplierLabel,
+          fornecedor: fornecedor || supplierLabel,
+        }
+      : supplierLabel
+        ? { fornecedor: supplierLabel }
+        : {}),
+    ...(existingInvoice
+      ? { numeroNota, observacoes }
+      : {
+          ...(numeroNota ? { numeroNota } : {}),
+          ...(observacoes ? { observacoes } : {}),
+        }),
+    ...(normalizedItems.length > 0 ? { itensNota: normalizedItems } : {}),
+  };
+
+  return { expenseData, stockMutations };
+}
+
 export function buildExpenseDeletionMutations(
   expense: Expense,
   data: DataStore,
 ): Mutation[] {
   const movements = (data.movimentacoes_estoque || []).filter(
-    (m) => m.origemId === expense.id && m.origemTipo !== "correcao_nota",
+    (m) => m.origemId === expense.id,
   );
   if (!movements.length) {
     return [

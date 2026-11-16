@@ -47,6 +47,7 @@ import {
   buildExpenseDeletionMutations,
   collectPendingLaunches,
   encodeBackup,
+  expenseHasActiveStockEntries,
   isArchivableCollection,
   today,
   versionOf,
@@ -784,10 +785,9 @@ export default function App() {
             {isArchivableCollection(deleting.collection)
               ? "O cadastro será arquivado e continuará preservado no histórico. Você poderá reativá-lo em Cadastros."
               : deleting.collection === "despesas" &&
-                  (data.movimentacoes_estoque || []).some(
-                    (m) =>
-                      m.origemId === deleting.record.id &&
-                      m.origemTipo !== "correcao_nota",
+                  expenseHasActiveStockEntries(
+                    deleting.record.id,
+                    data.movimentacoes_estoque || [],
                   )
                 ? "Esta despesa/nota movimentou o estoque. Ao confirmar, a entrada disponível será estornada atomicamente (bloqueado se o item já tiver sido consumido)."
                 : "O registro será removido do banco. Essa ação não tem desfazer."}

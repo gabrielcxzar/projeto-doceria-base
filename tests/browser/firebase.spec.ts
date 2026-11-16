@@ -492,3 +492,64 @@ test("nota fiscal com múltiplos itens persiste no emulador e movimenta estoque"
     page.getByRole("row").filter({ hasText: "Caixa para bolo" }),
   ).toContainText("18 un.");
 });
+
+test("nota fiscal mista no emulador grava apenas itens marcados e estorna corretamente na edição", async ({
+  page,
+  request,
+}) => {
+  await loginAs(page, "admin");
+  await navigate(page, "Financeiro");
+  await page.getByRole("button", { name: "Registrar nota fiscal" }).click();
+  let dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Fornecedor *").selectOption("f1");
+  await dialog.getByLabel("Número da nota (opcional)").fill("NF-MISTA");
+
+  // Chocolate: entra no estoque (+1 kg)
+  await dialog.getByLabel("Item cadastrado").selectOption("i1");
+  await dialog.getByRole("button", { name: "1", exact: true }).click();
+  await dialog.getByLabel("Unidade").selectOption("kg");
+  await dialog.getByLabel("Valor unitário (R$)").fill("45");
+  await dialog.getByRole("button", { name: "Adicionar item" }).click();
+
+  // Caixa para bolo: NÃO entra no estoque (desmarcado)
+  await dialog.getByLabel("Adicionar ao estoque", { exact: true }).uncheck();
+  await dialog.getByLabel("Tipo do item").selectOption("material");
+  await dialog.getByLabel("Item cadastrado").selectOption("m1");
+  await dialog.getByRole("button", { name: "2", exact: true }).click();
+  await dialog.getByLabel("Valor unitário (R$)").fill("5");
+  await dialog.getByRole("button", { name: "Adicionar item" }).click();
+
+  await dialog.getByRole("button", { name: "Salvar nota fiscal" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  const mistaRow = page.getByRole("row").filter({ hasText: "NF-MISTA" });
+  await expect(mistaRow).toContainText("55,00");
+
+  // Apenas 1 nova movimentação (de 2 iniciais mv1/mv2 -> 3 total)
+  const movsAfterCreate = await (
+    await request.get(`${firestore}/movimentacoes_estoque`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    })
+  ).json();
+  expect(movsAfterCreate.documents).toHaveLength(3);
+
+  // Ao editar a nota, Chocolate aparece marcado e Caixa aparece desmarcada; desmarcar Chocolate estorna apenas Chocolate
+  await mistaRow.getByRole("button", { name: /Editar Distribuidora ABC/ }).click();
+  dialog = page.getByRole("dialog");
+  const chocCheck = dialog.getByLabel("Adicionar Chocolate meio amargo ao estoque", { exact: true });
+  const matCheck = dialog.getByLabel("Adicionar Caixa para bolo ao estoque", { exact: true });
+  await expect(chocCheck).toBeChecked();
+  await expect(matCheck).not.toBeChecked();
+  await chocCheck.uncheck();
+  await dialog.getByRole("button", { name: "Salvar nota fiscal" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  await expect(page.getByRole("row").filter({ hasText: "NF-MISTA" })).toContainText("55,00");
+  await navigate(page, "Estoque");
+  await expect(
+    page.getByRole("row").filter({ hasText: "Chocolate meio amargo" }),
+  ).toContainText("2.000 g (2 kg)");
+  await expect(
+    page.getByRole("row").filter({ hasText: "Caixa para bolo" }),
+  ).toContainText("15 un.");
+});

@@ -2302,6 +2302,10 @@ dialog p {
   width: 96px;
   min-width: 72px;
 }
+.item-stock-check {
+  font-size: 12px;
+  white-space: nowrap;
+}
 .settle-flag {
   margin: 14px 0;
   padding: 10px 12px;

@@ -10,7 +10,6 @@ import type {
   Expense,
   ExpenseInvoiceItem,
   Ingredient,
-  Material,
   Mutation,
   Order,
   OrderAccessory,
@@ -21,10 +20,13 @@ import type {
   Sale,
 } from "./types";
 import {
+  buildInvoiceMutations,
   compatibleUnits,
   computeOrderTotal,
   formatStock,
   ingredientCost,
+  invoiceItemAddsToStock,
+  invoiceItemNetStockDelta,
   money,
   normalizeStockQuantity,
   positive,
@@ -211,9 +213,29 @@ export default function Editor({
   const [expStockUnit, setExpStockUnit] = useState("g");
 
   // Nota fiscal multi-item
-  const [invoiceItems, setInvoiceItems] = useState<ExpenseInvoiceItem[]>(
-    kind === "invoice" ? (record as Expense)?.itensNota || [] : [],
-  );
+  const [invoiceItems, setInvoiceItems] = useState<ExpenseInvoiceItem[]>(() => {
+    if (kind !== "invoice" || !record) return [];
+    const existingInv = record as Expense;
+    const movements = data.movimentacoes_estoque || [];
+    return (existingInv.itensNota || []).map((item) => {
+      if (item.itemTipo === "outro") {
+        return { ...item, geraEstoque: false, adicionarEstoque: false };
+      }
+      // Determinar estado real a partir das movimentações gravadas no Firestore,
+      // sem presumir que itens antigos sem a flag devem gerar novas entradas.
+      const recordedDelta = invoiceItemNetStockDelta(
+        existingInv.id,
+        item.id,
+        movements,
+      );
+      const hasStock = recordedDelta > 0;
+      return {
+        ...item,
+        geraEstoque: hasStock,
+        adicionarEstoque: hasStock,
+      };
+    });
+  });
   const [invType, setInvType] = useState<"ingrediente" | "material" | "outro">("ingrediente");
   const [invSearch, setInvSearch] = useState("");
   const [invItemId, setInvItemId] = useState("");
@@ -222,6 +244,7 @@ export default function Editor({
   const [invQty, setInvQty] = useState("1");
   const [invUnit, setInvUnit] = useState("g");
   const [invUnitPrice, setInvUnitPrice] = useState("");
+  const [invAddStock, setInvAddStock] = useState(true);
   const [supSearch, setSupSearch] = useState("");
   const [quickSupOpen, setQuickSupOpen] = useState(false);
   const [quickSupName, setQuickSupName] = useState("");
@@ -443,6 +466,7 @@ export default function Editor({
             valorUnitario: round(unitPrice),
             subtotal: round(qty * unitPrice),
             geraEstoque: false,
+            adicionarEstoque: false,
           },
         ]);
       } else {
@@ -473,7 +497,8 @@ export default function Editor({
             unidadePadrao,
             valorUnitario: round(unitPrice),
             subtotal: round(qty * unitPrice),
-            geraEstoque: true,
+            geraEstoque: invAddStock,
+            adicionarEstoque: invAddStock,
           },
         ]);
       }
@@ -482,6 +507,7 @@ export default function Editor({
       setInvQuickQty("1");
       setInvQty("1");
       setInvUnitPrice("");
+      setInvAddStock(true);
       setError("");
     } catch (e) {
       setError((e as Error).message);
@@ -796,52 +822,7 @@ export default function Editor({
         const numeroNota = v("numeroNota").trim();
         const observacoes = v("observacoes").trim();
 
-        if (existingInvoice) {
-          const itemsForEdit = existingInvoice.itensNota || invoiceItems;
-          const keptSameSupplier =
-            chosenSupplier && existingInvoice.fornecedorId === chosenSupplier.id;
-          const legacyInfo = resolveExpenseSupplier(
-            existingInvoice,
-            data.fornecedores || [],
-          );
-          const resolvedName = keptSameSupplier
-            ? legacyInfo.snapshotName || chosenSupplier.nome
-            : chosenSupplier
-              ? chosenSupplier.nome
-              : (existingInvoice.fornecedor || "").trim();
-          const itemCount = itemsForEdit.length;
-          const headerDescParts = [
-            numeroNota ? `NF ${numeroNota}` : "Nota fiscal",
-            resolvedName || undefined,
-            itemCount > 0
-              ? `(${itemCount} ${itemCount === 1 ? "item" : "itens"})`
-              : undefined,
-          ].filter(Boolean);
-
-          payload = {
-            data: v("data"),
-            tipo: v("tipo"),
-            descricao: headerDescParts.join(" · "),
-            quantidade:
-              itemCount > 0
-                ? `${itemCount} ${itemCount === 1 ? "item" : "itens"}`
-                : existingInvoice.quantidade || "",
-            valor: existingInvoice.valor,
-            isNotaFiscal: true,
-            ...(chosenSupplier
-              ? {
-                  fornecedorId: chosenSupplier.id,
-                  fornecedorNome: resolvedName,
-                  fornecedor: resolvedName,
-                }
-              : resolvedName
-                ? { fornecedor: resolvedName }
-                : {}),
-            numeroNota,
-            observacoes,
-            ...(itemsForEdit.length > 0 ? { itensNota: itemsForEdit } : {}),
-          };
-        } else {
+        if (!existingInvoice) {
           if (!invoiceItems.length)
             throw new Error("Adicione pelo menos um item à nota fiscal.");
           const totalNota = round(
@@ -849,106 +830,39 @@ export default function Editor({
           );
           if (totalNota <= 0)
             throw new Error("O total da nota fiscal deve ser maior que zero.");
-
           mainId = crypto.randomUUID();
           createOnly = true;
-          const fornecedor = chosenSupplier!.nome;
-          const headerDescParts = [
-            numeroNota ? `NF ${numeroNota}` : "Nota fiscal",
-            fornecedor,
-            `(${invoiceItems.length} ${invoiceItems.length === 1 ? "item" : "itens"})`,
-          ].filter(Boolean);
-
-          payload = {
-            data: v("data"),
-            tipo: v("tipo"),
-            descricao: headerDescParts.join(" · "),
-            quantidade: `${invoiceItems.length} ${invoiceItems.length === 1 ? "item" : "itens"}`,
-            valor: totalNota,
-            isNotaFiscal: true,
-            fornecedorId: chosenSupplier!.id,
-            fornecedorNome: fornecedor,
-            fornecedor,
-            ...(numeroNota ? { numeroNota } : {}),
-            ...(observacoes ? { observacoes } : {}),
-            itensNota: invoiceItems,
-          };
-
-          // Agrupa movimentações de estoque por item para atualizar cada documento uma única vez na transação.
-          const runningBalances = new Map<
-            string,
-            {
-              collection: "ingredientes" | "materiais";
-              record: Ingredient | Material;
-              balance: number;
-              hadInit: boolean;
-            }
-          >();
-
-          for (const item of invoiceItems) {
-            if (!item.geraEstoque || !item.itemId || !item.quantidadePadrao || !item.unidadePadrao)
-              continue;
-            const mapKey = `${item.itemTipo}:${item.itemId}`;
-            let state = runningBalances.get(mapKey);
-            if (!state) {
-              const target =
-                item.itemTipo === "ingrediente"
-                  ? data.ingredientes.find((i) => i.id === item.itemId)
-                  : data.materiais.find((m) => m.id === item.itemId);
-              if (!target)
-                throw new Error(`Item "${item.itemNome}" não encontrado no cadastro.`);
-              state = {
-                collection: item.itemTipo === "ingrediente" ? "ingredientes" : "materiais",
-                record: target,
-                balance: target.estoqueAtual ?? 0,
-                hadInit: !!target.estoqueIniciado,
-              };
-              runningBalances.set(mapKey, state);
-            }
-            const prevBal = state.balance;
-            const nextBal = roundStock(prevBal + item.quantidadePadrao);
-            state.balance = nextBal;
-
-            extraMutations.push({
-              collection: "movimentacoes_estoque",
-              id: `nf_${mainId}_${item.id}`,
-              createOnly: true,
-              data: {
-                data: v("data"),
-                itemTipo: item.itemTipo,
-                itemId: item.itemId,
-                itemNome: item.itemNome,
-                tipo: "entrada",
-                direcao: "entrada",
-                quantidade: item.quantidade,
-                unidade: item.unidade,
-                quantidadePadrao: item.quantidadePadrao,
-                deltaPadrao: item.quantidadePadrao,
-                unidadePadrao: item.unidadePadrao,
-                saldoAnterior: state.hadInit ? prevBal : null,
-                saldoPosterior: nextBal,
-                motivo: `Nota fiscal${numeroNota ? ` #${numeroNota}` : ""} · ${fornecedor}`,
-                origemTipo: "nota_fiscal",
-                origemId: mainId,
-                origemItemId: item.id,
-                custoUnitario: item.valorUnitario,
-              },
-            });
-            state.hadInit = true;
-          }
-
-          for (const state of runningBalances.values()) {
-            extraMutations.push({
-              collection: state.collection,
-              id: state.record.id,
-              expectedUpdatedAt: versionOf(state.record),
-              data: {
-                estoqueAtual: state.balance,
-                estoqueIniciado: true,
-              },
-            });
-          }
         }
+
+        const keptSameSupplier =
+          existingInvoice &&
+          chosenSupplier &&
+          existingInvoice.fornecedorId === chosenSupplier.id;
+        const legacyInfo = existingInvoice
+          ? resolveExpenseSupplier(existingInvoice, data.fornecedores || [])
+          : undefined;
+        const resolvedName = keptSameSupplier
+          ? legacyInfo?.snapshotName || chosenSupplier!.nome
+          : chosenSupplier
+            ? chosenSupplier.nome
+            : (existingInvoice?.fornecedor || "").trim();
+
+        const targetId = existingInvoice ? existingInvoice.id : mainId!;
+        const result = buildInvoiceMutations({
+          data,
+          existingInvoice,
+          expenseId: targetId,
+          date: v("data"),
+          category: v("tipo"),
+          fornecedorId: chosenSupplier?.id,
+          fornecedorNome: chosenSupplier ? resolvedName : undefined,
+          fornecedor: resolvedName || undefined,
+          numeroNota,
+          observacoes,
+          items: invoiceItems,
+        });
+        payload = result.expenseData;
+        extraMutations.push(...result.stockMutations);
       } else if (kind === "supplier") {
         const clean = validateSupplierInput({
           nome: v("nome"),
@@ -1930,6 +1844,16 @@ export default function Editor({
                           {money((Number(invQty) || 0) * (Number(invUnitPrice) || 0))}
                         </strong>
                       </div>
+                      {invType !== "outro" && (
+                        <label className="checkbox">
+                          <input
+                            type="checkbox"
+                            checked={invAddStock}
+                            onChange={(e) => setInvAddStock(e.target.checked)}
+                          />
+                          Adicionar ao estoque
+                        </label>
+                      )}
                       <Button
                         type="button"
                         variant="secondary"
@@ -1941,112 +1865,178 @@ export default function Editor({
 
                     {invoiceItems.length > 0 && (
                       <ul className="composition-list">
-                        {invoiceItems.map((item, idx) => (
-                          <li key={item.id}>
-                            <span>
-                              <strong>{item.itemNome}</strong>
-                              <small>
-                                {item.itemTipo === "ingrediente"
-                                  ? "Ingrediente"
-                                  : item.itemTipo === "material"
-                                    ? "Material"
-                                    : "Sem estoque"}{" "}
-                                · {item.quantidade} {item.unidade}
-                                {item.quantidadePadrao && item.unidadePadrao
-                                  ? ` (${formatStock(item.quantidadePadrao, item.unidadePadrao)})`
-                                  : ""}
-                              </small>
-                            </span>
-                            <div className="inline-edit-controls">
-                              <input
-                                aria-label={`Quantidade de ${item.itemNome}`}
-                                type="number"
-                                min="0.001"
-                                step="any"
-                                value={item.quantidade}
-                                onChange={(e) => {
-                                  const nextQty = Math.max(0.001, Number(e.target.value) || 0);
-                                  setInvoiceItems(
-                                    invoiceItems.map((it, i) => {
-                                      if (i !== idx) return it;
-                                      let qtdPadrao = it.quantidadePadrao;
-                                      if (it.geraEstoque && it.unidadePadrao) {
-                                        qtdPadrao = normalizeStockQuantity(
-                                          nextQty,
-                                          it.unidade,
-                                          it.unidadePadrao,
-                                        ).quantidadePadrao;
-                                      }
-                                      return {
-                                        ...it,
-                                        quantidade: nextQty,
-                                        quantidadePadrao: qtdPadrao,
-                                        subtotal: round(nextQty * it.valorUnitario),
-                                      };
-                                    }),
-                                  );
-                                }}
-                              />
-                              <input
-                                aria-label={`Valor unitário de ${item.itemNome}`}
-                                type="number"
-                                min="0"
-                                step="any"
-                                value={item.valorUnitario}
-                                onChange={(e) => {
-                                  const nextPrice = Math.max(0, Number(e.target.value) || 0);
-                                  setInvoiceItems(
-                                    invoiceItems.map((it, i) =>
-                                      i === idx
-                                        ? {
-                                            ...it,
-                                            valorUnitario: nextPrice,
-                                            subtotal: round(it.quantidade * nextPrice),
-                                          }
-                                        : it,
-                                    ),
-                                  );
-                                }}
-                              />
-                            </div>
-                            <strong>{money(item.subtotal)}</strong>
-                            <button
-                              type="button"
-                              className="icon-button"
-                              aria-label={`Remover ${item.itemNome}`}
-                              onClick={() =>
-                                setInvoiceItems(invoiceItems.filter((_, i) => i !== idx))
-                              }
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </li>
-                        ))}
+                        {invoiceItems.map((item, idx) => {
+                          const addsStock = invoiceItemAddsToStock(item);
+                          return (
+                            <li key={item.id}>
+                              <span>
+                                <strong>{item.itemNome}</strong>
+                                <small>
+                                  {item.itemTipo === "ingrediente"
+                                    ? "Ingrediente"
+                                    : item.itemTipo === "material"
+                                      ? "Material"
+                                      : "Sem estoque"}{" "}
+                                  · {item.quantidade} {item.unidade}
+                                  {item.quantidadePadrao && item.unidadePadrao
+                                    ? ` (${formatStock(item.quantidadePadrao, item.unidadePadrao)})`
+                                    : ""}
+                                  {" · "}
+                                  {addsStock
+                                    ? "Adicionar ao estoque: Sim"
+                                    : "Adicionar ao estoque: Não"}
+                                </small>
+                              </span>
+                              {item.itemTipo !== "outro" && (
+                                <label className="checkbox item-stock-check">
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`Adicionar ${item.itemNome} ao estoque`}
+                                    checked={addsStock}
+                                    onChange={(e) => {
+                                      const checked = e.target.checked;
+                                      setInvoiceItems(
+                                        invoiceItems.map((it, i) =>
+                                          i === idx
+                                            ? {
+                                                ...it,
+                                                geraEstoque: checked,
+                                                adicionarEstoque: checked,
+                                              }
+                                            : it,
+                                        ),
+                                      );
+                                    }}
+                                  />
+                                  Adicionar ao estoque
+                                </label>
+                              )}
+                              <div className="inline-edit-controls">
+                                <input
+                                  aria-label={`Quantidade de ${item.itemNome}`}
+                                  type="number"
+                                  min="0.001"
+                                  step="any"
+                                  value={item.quantidade}
+                                  onChange={(e) => {
+                                    const nextQty = Math.max(0.001, Number(e.target.value) || 0);
+                                    setInvoiceItems(
+                                      invoiceItems.map((it, i) => {
+                                        if (i !== idx) return it;
+                                        let qtdPadrao = it.quantidadePadrao;
+                                        if (it.itemTipo !== "outro" && it.unidadePadrao) {
+                                          qtdPadrao = normalizeStockQuantity(
+                                            nextQty,
+                                            it.unidade,
+                                            it.unidadePadrao,
+                                          ).quantidadePadrao;
+                                        }
+                                        return {
+                                          ...it,
+                                          quantidade: nextQty,
+                                          quantidadePadrao: qtdPadrao,
+                                          subtotal: round(nextQty * it.valorUnitario),
+                                        };
+                                      }),
+                                    );
+                                  }}
+                                />
+                                <input
+                                  aria-label={`Valor unitário de ${item.itemNome}`}
+                                  type="number"
+                                  min="0"
+                                  step="any"
+                                  value={item.valorUnitario}
+                                  onChange={(e) => {
+                                    const nextPrice = Math.max(0, Number(e.target.value) || 0);
+                                    setInvoiceItems(
+                                      invoiceItems.map((it, i) =>
+                                        i === idx
+                                          ? {
+                                              ...it,
+                                              valorUnitario: nextPrice,
+                                              subtotal: round(it.quantidade * nextPrice),
+                                            }
+                                          : it,
+                                      ),
+                                    );
+                                  }}
+                                />
+                              </div>
+                              <strong>{money(item.subtotal)}</strong>
+                              <button
+                                type="button"
+                                className="icon-button"
+                                aria-label={`Remover ${item.itemNome}`}
+                                onClick={() =>
+                                  setInvoiceItems(invoiceItems.filter((_, i) => i !== idx))
+                                }
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </>
                 ) : (
                   <>
                     <p className="form-note">
-                      Alterar o fornecedor ou cabeçalho da nota não gera novas
-                      movimentações de estoque. Para corrigir quantidades já lançadas,
-                      exclua a nota (se houver saldo disponível) ou faça um ajuste no
-                      módulo Estoque.
+                      Alterar apenas fornecedor ou cabeçalho não gera novas
+                      movimentações de estoque. Marcar ou desmarcar um item
+                      abaixo registra ou estorna somente aquele item quando
+                      permitido pelo saldo.
                     </p>
                     {invoiceItems.length > 0 && (
                       <ul className="composition-list">
-                        {invoiceItems.map((item) => (
-                          <li key={item.id}>
-                            <span>
-                              <strong>{item.itemNome}</strong>
-                              <small>
-                                {item.quantidade} {item.unidade} · Unitário{" "}
-                                {money(item.valorUnitario)}
-                              </small>
-                            </span>
-                            <strong>{money(item.subtotal)}</strong>
-                          </li>
-                        ))}
+                        {invoiceItems.map((item, idx) => {
+                          const addsStock = invoiceItemAddsToStock(item);
+                          const recordedDelta = invoiceItemNetStockDelta(
+                            (record as Expense).id,
+                            item.id,
+                            data.movimentacoes_estoque || [],
+                          );
+                          return (
+                            <li key={item.id}>
+                              <span>
+                                <strong>{item.itemNome}</strong>
+                                <small>
+                                  {item.quantidade} {item.unidade} · Unitário{" "}
+                                  {money(item.valorUnitario)} ·{" "}
+                                  {recordedDelta > 0
+                                    ? "Entrada já registrada no estoque"
+                                    : "Sem entrada no estoque"}
+                                </small>
+                              </span>
+                              {item.itemTipo !== "outro" && (
+                                <label className="checkbox item-stock-check">
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`Adicionar ${item.itemNome} ao estoque`}
+                                    checked={addsStock}
+                                    onChange={(e) => {
+                                      const checked = e.target.checked;
+                                      setInvoiceItems(
+                                        invoiceItems.map((it, i) =>
+                                          i === idx
+                                            ? {
+                                                ...it,
+                                                geraEstoque: checked,
+                                                adicionarEstoque: checked,
+                                              }
+                                            : it,
+                                        ),
+                                      );
+                                    }}
+                                  />
+                                  Adicionar ao estoque
+                                </label>
+                              )}
+                              <strong>{money(item.subtotal)}</strong>
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </>

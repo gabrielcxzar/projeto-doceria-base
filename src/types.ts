@@ -152,6 +152,7 @@ export interface ExpenseInvoiceItem {
   valorUnitario: number;
   subtotal: number;
   geraEstoque: boolean;
+  adicionarEstoque?: boolean;
 }
 export interface ExpenseStockEntry {
   itemTipo: "ingrediente" | "material";

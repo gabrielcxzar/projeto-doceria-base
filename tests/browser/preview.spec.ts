@@ -468,3 +468,67 @@ test("financeiro mantém duas notas do mesmo fornecedor separadas, permite filtr
     page.locator("tbody > tr:not(.detail-row)").filter({ hasText: "Distribuidora ABC" }),
   ).toHaveCount(2);
 });
+
+test("nota fiscal permite escolher por item se adiciona ao estoque mantendo o valor total", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1#financeiro");
+  await page.getByRole("button", { name: "Registrar nota fiscal" }).click();
+  const dialog = page.getByRole("dialog");
+
+  await dialog.getByLabel("Fornecedor *").selectOption("f1");
+  await dialog.getByLabel("Número da nota (opcional)").fill("003");
+
+  // Item 1 (Chocolate): checkbox marcada por padrão -> entra no estoque
+  const addStockCheck = dialog.getByLabel("Adicionar ao estoque", { exact: true });
+  await expect(addStockCheck).toBeChecked();
+  await dialog.getByLabel("Item cadastrado").selectOption("i1");
+  await dialog.getByRole("button", { name: "1", exact: true }).click();
+  await dialog.getByLabel("Unidade").selectOption("kg");
+  await dialog.getByLabel("Valor unitário (R$)").fill("45");
+  await dialog.getByRole("button", { name: "Adicionar item" }).click();
+
+  // Item 2 (Caixa para bolo): usuário desmarca "Adicionar ao estoque"
+  await addStockCheck.uncheck();
+  await expect(addStockCheck).not.toBeChecked();
+  await dialog.getByLabel("Tipo do item").selectOption("material");
+  await dialog.getByLabel("Item cadastrado").selectOption("m1");
+  await dialog.getByRole("button", { name: "2", exact: true }).click();
+  await dialog.getByLabel("Valor unitário (R$)").fill("10");
+  await dialog.getByRole("button", { name: "Adicionar item" }).click();
+
+  // Na lista adicionada, é possível alternar a opção antes de salvar sem mudar o total R$ 65,00
+  await expect(dialog.getByText("R$ 65,00")).toBeVisible();
+  const listMatCheck = dialog.getByLabel("Adicionar Caixa para bolo ao estoque", {
+    exact: true,
+  });
+  await expect(listMatCheck).not.toBeChecked();
+  await listMatCheck.check();
+  await expect(
+    dialog.locator(".composition-list").getByText("Adicionar ao estoque: Sim"),
+  ).toHaveCount(2);
+  await expect(dialog.getByText("R$ 65,00")).toBeVisible();
+  await listMatCheck.uncheck();
+  await expect(listMatCheck).not.toBeChecked();
+  await expect(dialog.getByText("R$ 65,00")).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Salvar nota fiscal" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  const row = page.getByRole("row").filter({ hasText: "NF 003" });
+  await expect(row).toContainText("2 itens");
+  await expect(row).toContainText("65,00");
+  await row.getByRole("button", { name: "Exibir itens" }).click();
+  await expect(page.getByText("Chocolate meio amargo")).toBeVisible();
+  await expect(page.getByText("Caixa para bolo")).toBeVisible();
+  await expect(page.getByText("Total da nota: R$ 65,00")).toBeVisible();
+
+  // Estoque: Chocolate subiu de 2 kg para 3 kg; Caixa para bolo manteve 15 un.
+  await navigate(page, "Estoque");
+  await expect(
+    page.getByRole("row").filter({ hasText: "Chocolate meio amargo" }),
+  ).toContainText("3.000 g (3 kg)");
+  await expect(
+    page.getByRole("row").filter({ hasText: "Caixa para bolo" }),
+  ).toContainText("15 un.");
+});
