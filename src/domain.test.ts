@@ -10,11 +10,13 @@ import {
   customerTotals,
   dateText,
   encodeBackup,
+  expenseMatchesSupplierFilter,
   finances,
   formatStock,
   groupOrders,
   groupSales,
   ingredientCost,
+  isArchivableCollection,
   isLowStock,
   normalizeStockQuantity,
   orderRemaining,
@@ -22,14 +24,16 @@ import {
   priceFor,
   productCost,
   recipeCost,
+  resolveExpenseSupplier,
   saleRemaining,
   sortByTextPtBr,
   validDate,
   validateOrder,
   validateSale,
+  validateSupplierInput,
 } from "./domain";
 import { emptyData } from "./types";
-import type { Order, Sale } from "./types";
+import type { Order, Sale, Supplier } from "./types";
 
 const sale: Sale = {
   id: "s",
@@ -374,5 +378,66 @@ describe("exportação", () => {
     expect(text).toContain("'=1+1");
     expect(text).toContain("'@cmd");
     expect(text).toContain('a;""b');
+  });
+});
+
+describe("fornecedores e vínculos em notas fiscais", () => {
+  it("valida fornecedor informal sem CNPJ e valida campos opcionais quando preenchidos", () => {
+    expect(
+      validateSupplierInput({
+        nome: "  Produtor Rural João  ",
+        documento: "",
+        contato: "",
+        email: "",
+      }),
+    ).toMatchObject({
+      nome: "Produtor Rural João",
+      documento: "",
+    });
+    expect(() => validateSupplierInput({ nome: "   " })).toThrow(/razão social/i);
+    expect(() =>
+      validateSupplierInput({ nome: "ABC", documento: "12345" }),
+    ).toThrow(/11 \(CPF\) ou 14 \(CNPJ\)/);
+    expect(() =>
+      validateSupplierInput({ nome: "ABC", documento: "12.345.678/0001-90" }),
+    ).not.toThrow();
+    expect(() =>
+      validateSupplierInput({ nome: "ABC", email: "email-invalido" }),
+    ).toThrow(/e-mail válido/i);
+    expect(isArchivableCollection("fornecedores")).toBe(true);
+  });
+
+  it("preserva snapshot histórico após renomear/arquivar e nunca auto-vincula nota legada por nome", () => {
+    const suppliers: Supplier[] = [
+      { id: "sup1", nome: "Distribuidora Nova Ltda", arquivado: true },
+      { id: "sup2", nome: "Distribuidora ABC" },
+    ];
+    const renamedLinked = resolveExpenseSupplier(
+      {
+        isNotaFiscal: true,
+        fornecedorId: "sup1",
+        fornecedorNome: "Distribuidora Antiga",
+        fornecedor: "Distribuidora Antiga",
+      },
+      suppliers,
+    );
+    expect(renamedLinked.displayName).toBe("Distribuidora Antiga");
+    expect(renamedLinked.renamedTo).toBe("Distribuidora Nova Ltda");
+    expect(renamedLinked.isLegacyUnlinked).toBe(false);
+    expect(expenseMatchesSupplierFilter({ fornecedorId: "sup1", isNotaFiscal: true }, "sup1")).toBe(true);
+
+    // Nota legada sem fornecedorId, mesmo tendo o mesmo nome de sup2, não recebe vínculo automático.
+    const legacyNote = resolveExpenseSupplier(
+      {
+        isNotaFiscal: true,
+        fornecedor: "Distribuidora ABC",
+      },
+      suppliers,
+    );
+    expect(legacyNote.linked).toBeUndefined();
+    expect(legacyNote.displayName).toBe("Distribuidora ABC");
+    expect(legacyNote.isLegacyUnlinked).toBe(true);
+    expect(expenseMatchesSupplierFilter({ isNotaFiscal: true }, "__sem_vinculo__")).toBe(true);
+    expect(expenseMatchesSupplierFilter({ isNotaFiscal: true }, "sup2")).toBe(false);
   });
 });

@@ -155,9 +155,17 @@ test("todas as áreas, cadastros e diálogos mantêm controles acessíveis", asy
     ["Vendas", "Registrar venda"], ["Encomendas", "Nova encomenda"], ["Financeiro", "Registrar despesa"],
   ]) {
     await navigate(page, name);
+    if (name === "Financeiro") {
+      await page.getByRole("button", { name: "Exibir itens" }).first().click();
+      await fits(page);
+    }
     await inspectTables(page);
     await page.getByRole("button", { name: action, exact: true }).click();
     await inspectDialog(page);
+    if (name === "Financeiro") {
+      await page.getByRole("button", { name: "Registrar nota fiscal", exact: true }).click();
+      await inspectDialog(page);
+    }
     if (name !== "Vendas") {
       await page.getByRole("button", { name: /^Editar / }).first().click();
       await inspectDialog(page);
@@ -168,7 +176,7 @@ test("todas as áreas, cadastros e diálogos mantêm controles acessíveis", asy
   await navigate(page, "Cadastros");
   for (const [tab, action] of [
     ["Clientes", "cliente"], ["Produtos", "produto"], ["Receitas", "receita"],
-    ["Ingredientes", "ingrediente"], ["Materiais", "material"],
+    ["Ingredientes", "ingrediente"], ["Materiais", "material"], ["Fornecedores", "fornecedor"],
   ]) {
     await page.getByRole("tab", { name: new RegExp(`^${tab}`) }).click();
     await fits(page);

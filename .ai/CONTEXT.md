@@ -9,9 +9,9 @@ Aplicação interna de gestão de uma confeitaria. O usuário confirmou a preser
 | Visão geral | Vendas agrupadas, recebimentos datados, despesas, pendências, metas, entregas e atividades        |
 | Vendas      | Venda avulsa com `Salvar e continuar` (`pedidoId`), agrupamento com indicador multi-produto       |
 | Encomendas  | Cliente, produtos cadastrados, acessórios cobrados/inclusos, entrega decrescente, entrada e saldo |
-| Financeiro  | Despesa simples ou Nota Fiscal com múltiplos itens e vinculação opcional/automática ao estoque    |
+| Financeiro  | Despesa simples ou Nota Fiscal com fornecedor, múltiplos itens (`Exibir itens`), filtros e estoque |
 | Estoque     | Saldo inicial, entradas por compra, saídas manuais, ajustes, mínimos e histórico auditável        |
-| Cadastros   | Clientes, produtos, ingredientes, receitas e materiais em ordem alfabética A–Z e arquivamento     |
+| Cadastros   | Clientes, produtos, receitas, ingredientes, materiais e fornecedores em ordem A–Z e arquivamento  |
 | Cobranças   | Pendências por cliente/lançamento, baixa parcial sucessiva, `recebimentos` e WhatsApp             |
 | Relatórios  | Vendas, encomendas, recebimentos por data real, compras/estoque, CSV e impressão                  |
 
@@ -40,7 +40,7 @@ O [registro da reformulação](../docs/reformulacao.md) contém histórico e evi
 - Não há checkout, pagamento automático, multiempresa ou gestão de contas na interface; também não há baixa automática de estoque na produção/venda nesta versão (ver proposta futura em ADR-007).
 - Resultado de caixa não é lucro contábil. Recebimentos recentes possuem data efetiva em `recebimentos`; parcelas legadas sem registro datado continuam filtradas pela venda/entrega sem inventar histórico anterior.
 - Receitas e produtos guardam custos calculados ao salvar; alterar um insumo não atualiza automaticamente toda a cadeia.
-- Exportação JSON (14 coleções) não é restauração automática, backup do Authentication ou rotina agendada.
+- Exportação JSON (15 coleções) não é restauração automática, backup do Authentication ou rotina agendada.
 - A PWA mantém assets estáticos; não oferece promessa de dados disponíveis após reabrir offline.
 
 Não há decisão humana pendente que impeça trabalhar na documentação ou manter o sistema. Novas funcionalidades, custos e mudanças de contrato devem ser tratadas no pedido correspondente.

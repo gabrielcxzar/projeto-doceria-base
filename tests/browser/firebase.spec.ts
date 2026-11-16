@@ -434,8 +434,8 @@ test("nota fiscal com múltiplos itens persiste no emulador e movimenta estoque"
   await loginAs(page, "admin");
   await navigate(page, "Financeiro");
   await page.getByRole("button", { name: "Registrar nota fiscal" }).click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Fornecedor (opcional)").fill("Casa do Confeiteiro");
+  let dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Fornecedor *").selectOption("f1");
   await dialog.getByLabel("Número da nota (opcional)").fill("NF-900");
   await dialog.getByLabel("Item cadastrado").selectOption("i1");
   await dialog.getByRole("button", { name: "1", exact: true }).click();
@@ -449,13 +449,41 @@ test("nota fiscal com múltiplos itens persiste no emulador e movimenta estoque"
   await dialog.getByRole("button", { name: "Adicionar item" }).click();
   await dialog.getByRole("button", { name: "Salvar nota fiscal" }).click();
   await expect(dialog).not.toBeVisible();
-  await expect(
-    page.getByRole("row").filter({ hasText: "Casa do Confeiteiro" }),
-  ).toContainText("60,00");
-  const movsRes = await request.get(`${firestore}/movimentacoes_estoque`, {
-    headers: { Authorization: `Bearer ${adminToken}` },
-  });
-  expect((await movsRes.json()).documents.length).toBeGreaterThanOrEqual(2);
+
+  const nf900Row = page.getByRole("row").filter({ hasText: "NF-900" });
+  await expect(nf900Row).toContainText("Distribuidora ABC");
+  await expect(nf900Row).toContainText("60,00");
+
+  const movsBefore = (
+    await (
+      await request.get(`${firestore}/movimentacoes_estoque`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      })
+    ).json()
+  ).documents.length;
+  expect(movsBefore).toBeGreaterThanOrEqual(4);
+
+  // Editar fornecedor da nota preserva estoque sem gerar novas movimentações
+  await nf900Row
+    .getByRole("button", { name: /Editar Distribuidora ABC/ })
+    .click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Fornecedor", { exact: true }).selectOption("f2");
+  await dialog.getByRole("button", { name: "Salvar nota fiscal" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: "NF-900" })).toContainText(
+    "Embalagens Bahia",
+  );
+
+  const movsAfter = (
+    await (
+      await request.get(`${firestore}/movimentacoes_estoque`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      })
+    ).json()
+  ).documents.length;
+  expect(movsAfter).toBe(movsBefore);
+
   await navigate(page, "Estoque");
   await expect(
     page.getByRole("row").filter({ hasText: "Chocolate meio amargo" }),

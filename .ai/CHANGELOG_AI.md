@@ -1,5 +1,11 @@
 # Mudanças relevantes por IA
 
+## 2026-11-16 — Cadastro de fornecedores e agrupamento de notas fiscais no Financeiro
+
+**Agente:** Antigravity. **Objetivo:** implementar a 6ª aba **Fornecedores** em Cadastros, exigir seleção de fornecedor cadastrado ao registrar novas notas fiscais (com criação rápida inline) e exibir cada nota fiscal no Financeiro como linha única com expansão responsiva **Exibir itens** e filtros por fornecedor e tipo de lançamento.
+
+**Mudanças:** coleção `fornecedores` (`Supplier`) e vínculos opcionais `fornecedorId`/`fornecedorNome` em `Expense` (`src/types.ts`, `src/context.ts`, `src/firebase.ts` com 15 coleções e `firestore.rules`); helpers `isArchivableCollection`, `validateSupplierInput`, `resolveExpenseSupplier` e `expenseMatchesSupplierFilter` (`src/domain.ts`); aba **Fornecedores** e visualização agrupada por nota com tabela expansível **Exibir itens** + filtros em `src/pages.tsx`, `src/styles.css` e `src/App.tsx`; formulário de fornecedor, seletor pesquisável com `+ Novo fornecedor` e edição segura de cabeçalho sem duplicar estoque em `src/editors.tsx`. Testes ampliados em `src/domain.test.ts`, `tests/rules.test.ts`, `tests/browser/preview.spec.ts`, `tests/browser/firebase.spec.ts` e `tests/browser/responsive.spec.ts`, e documentação atualizada (`docs/`, `.ai/`, `specs/005-fornecedores-notas-fiscais/`). **Evidências:** [feature 005](../specs/005-fornecedores-notas-fiscais/spec.md) e [tasks](../specs/005-fornecedores-notas-fiscais/tasks.md). **Observação:** alterações mantidas na branch `feat/fornecedores-notas-fiscais` sem push em `main`.
+
 ## 2026-11-13 — Evolução operacional, financeira, agrupamentos e estoque quantitativo
 
 **Agente:** Antigravity. **Objetivo:** implementar ordenação alfabética A–Z em cadastros/seletores, vendas com **Salvar e continuar** e agrupamento por pedido, cobranças com recebimentos parciais auditáveis (`recebimentos`), lançamento de notas fiscais com múltiplos itens em Financeiro, encomendas baseadas em produtos cadastrados com acessórios/ordenação por entrega e controle quantitativo de **Estoque** (`movimentacoes_estoque`).

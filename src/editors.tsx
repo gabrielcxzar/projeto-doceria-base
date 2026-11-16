@@ -31,6 +31,7 @@ import {
   priceFor,
   productCost,
   recipeCost,
+  resolveExpenseSupplier,
   round,
   roundStock,
   sortByTextPtBr,
@@ -39,6 +40,7 @@ import {
   validDate,
   validateOrder,
   validateSale,
+  validateSupplierInput,
   versionOf,
 } from "./domain";
 import { Button, Field, Modal } from "./ui";
@@ -49,6 +51,7 @@ const titles: Record<EditorKind, string> = {
   expense: "Despesa",
   invoice: "Registrar nota fiscal",
   customer: "Cliente",
+  supplier: "Fornecedor",
   product: "Produto",
   ingredient: "Ingrediente",
   material: "Material",
@@ -61,6 +64,7 @@ const targets: Record<EditorKind, CollectionName> = {
   expense: "despesas",
   invoice: "despesas",
   customer: "clientes",
+  supplier: "fornecedores",
   product: "produtos",
   ingredient: "ingredientes",
   material: "materiais",
@@ -77,8 +81,16 @@ const defaultValues: Record<EditorKind, Record<string, string>> = {
   },
   order: { dataEntrega: today(), valorEntrada: "0", status: "Pendente", valorTotal: "0" },
   expense: { data: today(), tipo: "Material", quantidade: "" },
-  invoice: { data: today(), tipo: "Material", fornecedor: "", numeroNota: "", observacoes: "" },
+  invoice: {
+    data: today(),
+    tipo: "Material",
+    fornecedorId: "",
+    fornecedor: "",
+    numeroNota: "",
+    observacoes: "",
+  },
   customer: {},
+  supplier: {},
   ingredient: { unidadePadrao: "g" },
   material: {},
   recipe: { rendimento: "1" },
@@ -199,7 +211,9 @@ export default function Editor({
   const [expStockUnit, setExpStockUnit] = useState("g");
 
   // Nota fiscal multi-item
-  const [invoiceItems, setInvoiceItems] = useState<ExpenseInvoiceItem[]>([]);
+  const [invoiceItems, setInvoiceItems] = useState<ExpenseInvoiceItem[]>(
+    kind === "invoice" ? (record as Expense)?.itensNota || [] : [],
+  );
   const [invType, setInvType] = useState<"ingrediente" | "material" | "outro">("ingrediente");
   const [invSearch, setInvSearch] = useState("");
   const [invItemId, setInvItemId] = useState("");
@@ -208,8 +222,15 @@ export default function Editor({
   const [invQty, setInvQty] = useState("1");
   const [invUnit, setInvUnit] = useState("g");
   const [invUnitPrice, setInvUnitPrice] = useState("");
+  const [supSearch, setSupSearch] = useState("");
+  const [quickSupOpen, setQuickSupOpen] = useState(false);
+  const [quickSupName, setQuickSupName] = useState("");
+  const [quickSupFantasy, setQuickSupFantasy] = useState("");
+  const [quickSupDoc, setQuickSupDoc] = useState("");
+  const [quickSupPhone, setQuickSupPhone] = useState("");
 
   const sortedCustomers = sortByTextPtBr(data.clientes, (c) => c.nome, (c) => c.id);
+  const sortedSuppliers = sortByTextPtBr(data.fornecedores || [], (s) => s.nome, (s) => s.id);
   const sortedProducts = sortByTextPtBr(data.produtos, (p) => p.nome, (p) => p.id);
   const sortedIngredients = sortByTextPtBr(data.ingredientes, (i) => i.nome, (i) => i.id);
   const sortedMaterials = sortByTextPtBr(data.materiais, (m) => m.nome, (m) => m.id);
@@ -757,112 +778,199 @@ export default function Editor({
         payload = expData;
       } else if (kind === "invoice") {
         if (!validDate(v("data"))) throw new Error("Informe uma data válida.");
-        if (!invoiceItems.length)
-          throw new Error("Adicione pelo menos um item à nota fiscal.");
-        const totalNota = round(
-          invoiceItems.reduce((sum, item) => sum + item.subtotal, 0),
-        );
-        if (totalNota <= 0)
-          throw new Error("O total da nota fiscal deve ser maior que zero.");
+        const existingInvoice = record as Expense | undefined;
+        const selectedSupId = v("fornecedorId").trim();
+        const chosenSupplier = selectedSupId
+          ? (data.fornecedores || []).find((s) => s.id === selectedSupId)
+          : undefined;
+        if (selectedSupId && !chosenSupplier) {
+          throw new Error("Fornecedor selecionado não encontrado.");
+        }
+        if (!existingInvoice && !chosenSupplier) {
+          throw new Error("Selecione um fornecedor cadastrado para a nota fiscal.");
+        }
+        if (!existingInvoice && chosenSupplier?.arquivado) {
+          throw new Error("O fornecedor selecionado está arquivado. Selecione um fornecedor ativo.");
+        }
 
-        mainId = crypto.randomUUID();
-        createOnly = true;
-        const fornecedor = v("fornecedor").trim();
         const numeroNota = v("numeroNota").trim();
         const observacoes = v("observacoes").trim();
-        const headerDescParts = [
-          numeroNota ? `NF ${numeroNota}` : "Nota fiscal",
-          fornecedor || undefined,
-          `(${invoiceItems.length} ${invoiceItems.length === 1 ? "item" : "itens"})`,
-        ].filter(Boolean);
 
+        if (existingInvoice) {
+          const itemsForEdit = existingInvoice.itensNota || invoiceItems;
+          const keptSameSupplier =
+            chosenSupplier && existingInvoice.fornecedorId === chosenSupplier.id;
+          const legacyInfo = resolveExpenseSupplier(
+            existingInvoice,
+            data.fornecedores || [],
+          );
+          const resolvedName = keptSameSupplier
+            ? legacyInfo.snapshotName || chosenSupplier.nome
+            : chosenSupplier
+              ? chosenSupplier.nome
+              : (existingInvoice.fornecedor || "").trim();
+          const itemCount = itemsForEdit.length;
+          const headerDescParts = [
+            numeroNota ? `NF ${numeroNota}` : "Nota fiscal",
+            resolvedName || undefined,
+            itemCount > 0
+              ? `(${itemCount} ${itemCount === 1 ? "item" : "itens"})`
+              : undefined,
+          ].filter(Boolean);
+
+          payload = {
+            data: v("data"),
+            tipo: v("tipo"),
+            descricao: headerDescParts.join(" · "),
+            quantidade:
+              itemCount > 0
+                ? `${itemCount} ${itemCount === 1 ? "item" : "itens"}`
+                : existingInvoice.quantidade || "",
+            valor: existingInvoice.valor,
+            isNotaFiscal: true,
+            ...(chosenSupplier
+              ? {
+                  fornecedorId: chosenSupplier.id,
+                  fornecedorNome: resolvedName,
+                  fornecedor: resolvedName,
+                }
+              : resolvedName
+                ? { fornecedor: resolvedName }
+                : {}),
+            numeroNota,
+            observacoes,
+            ...(itemsForEdit.length > 0 ? { itensNota: itemsForEdit } : {}),
+          };
+        } else {
+          if (!invoiceItems.length)
+            throw new Error("Adicione pelo menos um item à nota fiscal.");
+          const totalNota = round(
+            invoiceItems.reduce((sum, item) => sum + item.subtotal, 0),
+          );
+          if (totalNota <= 0)
+            throw new Error("O total da nota fiscal deve ser maior que zero.");
+
+          mainId = crypto.randomUUID();
+          createOnly = true;
+          const fornecedor = chosenSupplier!.nome;
+          const headerDescParts = [
+            numeroNota ? `NF ${numeroNota}` : "Nota fiscal",
+            fornecedor,
+            `(${invoiceItems.length} ${invoiceItems.length === 1 ? "item" : "itens"})`,
+          ].filter(Boolean);
+
+          payload = {
+            data: v("data"),
+            tipo: v("tipo"),
+            descricao: headerDescParts.join(" · "),
+            quantidade: `${invoiceItems.length} ${invoiceItems.length === 1 ? "item" : "itens"}`,
+            valor: totalNota,
+            isNotaFiscal: true,
+            fornecedorId: chosenSupplier!.id,
+            fornecedorNome: fornecedor,
+            fornecedor,
+            ...(numeroNota ? { numeroNota } : {}),
+            ...(observacoes ? { observacoes } : {}),
+            itensNota: invoiceItems,
+          };
+
+          // Agrupa movimentações de estoque por item para atualizar cada documento uma única vez na transação.
+          const runningBalances = new Map<
+            string,
+            {
+              collection: "ingredientes" | "materiais";
+              record: Ingredient | Material;
+              balance: number;
+              hadInit: boolean;
+            }
+          >();
+
+          for (const item of invoiceItems) {
+            if (!item.geraEstoque || !item.itemId || !item.quantidadePadrao || !item.unidadePadrao)
+              continue;
+            const mapKey = `${item.itemTipo}:${item.itemId}`;
+            let state = runningBalances.get(mapKey);
+            if (!state) {
+              const target =
+                item.itemTipo === "ingrediente"
+                  ? data.ingredientes.find((i) => i.id === item.itemId)
+                  : data.materiais.find((m) => m.id === item.itemId);
+              if (!target)
+                throw new Error(`Item "${item.itemNome}" não encontrado no cadastro.`);
+              state = {
+                collection: item.itemTipo === "ingrediente" ? "ingredientes" : "materiais",
+                record: target,
+                balance: target.estoqueAtual ?? 0,
+                hadInit: !!target.estoqueIniciado,
+              };
+              runningBalances.set(mapKey, state);
+            }
+            const prevBal = state.balance;
+            const nextBal = roundStock(prevBal + item.quantidadePadrao);
+            state.balance = nextBal;
+
+            extraMutations.push({
+              collection: "movimentacoes_estoque",
+              id: `nf_${mainId}_${item.id}`,
+              createOnly: true,
+              data: {
+                data: v("data"),
+                itemTipo: item.itemTipo,
+                itemId: item.itemId,
+                itemNome: item.itemNome,
+                tipo: "entrada",
+                direcao: "entrada",
+                quantidade: item.quantidade,
+                unidade: item.unidade,
+                quantidadePadrao: item.quantidadePadrao,
+                deltaPadrao: item.quantidadePadrao,
+                unidadePadrao: item.unidadePadrao,
+                saldoAnterior: state.hadInit ? prevBal : null,
+                saldoPosterior: nextBal,
+                motivo: `Nota fiscal${numeroNota ? ` #${numeroNota}` : ""} · ${fornecedor}`,
+                origemTipo: "nota_fiscal",
+                origemId: mainId,
+                origemItemId: item.id,
+                custoUnitario: item.valorUnitario,
+              },
+            });
+            state.hadInit = true;
+          }
+
+          for (const state of runningBalances.values()) {
+            extraMutations.push({
+              collection: state.collection,
+              id: state.record.id,
+              expectedUpdatedAt: versionOf(state.record),
+              data: {
+                estoqueAtual: state.balance,
+                estoqueIniciado: true,
+              },
+            });
+          }
+        }
+      } else if (kind === "supplier") {
+        const clean = validateSupplierInput({
+          nome: v("nome"),
+          nomeFantasia: v("nomeFantasia"),
+          documento: v("documento"),
+          contato: v("contato"),
+          email: v("email"),
+          endereco: v("endereco"),
+          observacoes: v("observacoes"),
+        });
+        nameUnique(clean.nome, data.fornecedores || []);
+        const previous =
+          source?.nome && source.nome !== clean.nome ? [String(source.nome)] : [];
         payload = {
-          data: v("data"),
-          tipo: v("tipo"),
-          descricao: headerDescParts.join(" · "),
-          quantidade: `${invoiceItems.length} ${invoiceItems.length === 1 ? "item" : "itens"}`,
-          valor: totalNota,
-          isNotaFiscal: true,
-          ...(fornecedor ? { fornecedor } : {}),
-          ...(numeroNota ? { numeroNota } : {}),
-          ...(observacoes ? { observacoes } : {}),
-          itensNota: invoiceItems,
+          ...clean,
+          nomesAnteriores: [
+            ...new Set([
+              ...((source?.nomesAnteriores as string[]) || []),
+              ...previous,
+            ]),
+          ],
         };
-
-        // Agrupa movimentações de estoque por item para atualizar cada documento uma única vez na transação.
-        const runningBalances = new Map<
-          string,
-          {
-            collection: "ingredientes" | "materiais";
-            record: Ingredient | Material;
-            balance: number;
-            hadInit: boolean;
-          }
-        >();
-
-        for (const item of invoiceItems) {
-          if (!item.geraEstoque || !item.itemId || !item.quantidadePadrao || !item.unidadePadrao)
-            continue;
-          const mapKey = `${item.itemTipo}:${item.itemId}`;
-          let state = runningBalances.get(mapKey);
-          if (!state) {
-            const target =
-              item.itemTipo === "ingrediente"
-                ? data.ingredientes.find((i) => i.id === item.itemId)
-                : data.materiais.find((m) => m.id === item.itemId);
-            if (!target)
-              throw new Error(`Item "${item.itemNome}" não encontrado no cadastro.`);
-            state = {
-              collection: item.itemTipo === "ingrediente" ? "ingredientes" : "materiais",
-              record: target,
-              balance: target.estoqueAtual ?? 0,
-              hadInit: !!target.estoqueIniciado,
-            };
-            runningBalances.set(mapKey, state);
-          }
-          const prevBal = state.balance;
-          const nextBal = roundStock(prevBal + item.quantidadePadrao);
-          state.balance = nextBal;
-
-          extraMutations.push({
-            collection: "movimentacoes_estoque",
-            id: `nf_${mainId}_${item.id}`,
-            createOnly: true,
-            data: {
-              data: v("data"),
-              itemTipo: item.itemTipo,
-              itemId: item.itemId,
-              itemNome: item.itemNome,
-              tipo: "entrada",
-              direcao: "entrada",
-              quantidade: item.quantidade,
-              unidade: item.unidade,
-              quantidadePadrao: item.quantidadePadrao,
-              deltaPadrao: item.quantidadePadrao,
-              unidadePadrao: item.unidadePadrao,
-              saldoAnterior: state.hadInit ? prevBal : null,
-              saldoPosterior: nextBal,
-              motivo: `Nota fiscal${numeroNota ? ` #${numeroNota}` : ""}${fornecedor ? ` · ${fornecedor}` : ""}`,
-              origemTipo: "nota_fiscal",
-              origemId: mainId,
-              origemItemId: item.id,
-              custoUnitario: item.valorUnitario,
-            },
-          });
-          state.hadInit = true;
-        }
-
-        for (const state of runningBalances.values()) {
-          extraMutations.push({
-            collection: state.collection,
-            id: state.record.id,
-            expectedUpdatedAt: versionOf(state.record),
-            data: {
-              estoqueAtual: state.balance,
-              estoqueIniciado: true,
-            },
-          });
-        }
       } else if (kind === "customer") {
         const nome = v("nome").trim().toUpperCase();
         nameUnique(nome, data.clientes);
@@ -1014,6 +1122,57 @@ export default function Editor({
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Não foi possível salvar.",
+      );
+    }
+  }
+
+  const supplierOptions = sortedSuppliers
+    .filter((s) => !s.arquivado || s.id === v("fornecedorId"))
+    .filter((s) => {
+      if (s.id === v("fornecedorId")) return true;
+      const q = supSearch.trim().toLocaleLowerCase("pt-BR");
+      if (!q) return true;
+      return `${s.nome} ${s.nomeFantasia || ""} ${s.documento || ""}`
+        .toLocaleLowerCase("pt-BR")
+        .includes(q);
+    });
+
+  async function saveQuickSupplier() {
+    setError("");
+    try {
+      if (!canWrite)
+        throw new Error(
+          "Seu perfil permite somente consulta ou a conexão está indisponível.",
+        );
+      const clean = validateSupplierInput({
+        nome: quickSupName,
+        nomeFantasia: quickSupFantasy,
+        documento: quickSupDoc,
+        contato: quickSupPhone,
+      });
+      nameUnique(clean.nome, data.fornecedores || []);
+      const newId = crypto.randomUUID();
+      await save(
+        [
+          {
+            collection: "fornecedores",
+            id: newId,
+            createOnly: true,
+            data: { ...clean, nomesAnteriores: [] },
+          },
+        ],
+        `Cadastro rápido de fornecedor: ${clean.nome}`,
+      );
+      set("fornecedorId", newId);
+      setQuickSupOpen(false);
+      setQuickSupName("");
+      setQuickSupFantasy("");
+      setQuickSupDoc("");
+      setQuickSupPhone("");
+      setSupSearch("");
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Não foi possível cadastrar o fornecedor.",
       );
     }
   }
@@ -1540,236 +1699,416 @@ export default function Editor({
                 "Transporte",
                 "Outros",
               ])}
-              {field("fornecedor", "Fornecedor (opcional)", "text", undefined, undefined, false)}
-              {field("numeroNota", "Número da nota (opcional)", "text", undefined, undefined, false)}
-              <div className="span-2">
-                {field("observacoes", "Observações (opcional)", "text", undefined, undefined, false)}
-              </div>
               <div className="span-2 ingredient-builder">
-                <h3>Itens da nota fiscal</h3>
-                <div className="invoice-item-builder">
-                  <Field label="Tipo do item">
-                    <select
-                      value={invType}
-                      onChange={(e) => {
-                        const next = e.target.value as "ingrediente" | "material" | "outro";
-                        setInvType(next);
-                        setInvItemId("");
-                        setInvSearch("");
-                        setInvUnit(next === "ingrediente" ? "g" : "unidade");
-                      }}
+                <div className="detail-box-head">
+                  <h3>{record ? "Fornecedor da nota" : "Fornecedor *"}</h3>
+                  {!quickSupOpen && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setQuickSupOpen(true)}
                     >
-                      <option value="ingrediente">Ingrediente</option>
-                      <option value="material">Material</option>
-                      <option value="outro">Outro (sem estoque)</option>
-                    </select>
-                  </Field>
-                  {invType !== "outro" ? (
-                    <>
-                      <Field label="Filtrar item">
-                        <input
-                          placeholder="Buscar por nome…"
-                          value={invSearch}
-                          onChange={(e) => setInvSearch(e.target.value)}
-                        />
-                      </Field>
-                      <Field label="Item cadastrado">
-                        <select
-                          value={invItemId}
-                          onChange={(e) => {
-                            setInvItemId(e.target.value);
-                            if (invType === "ingrediente") {
-                              const ing = data.ingredientes.find(
-                                (i) => i.id === e.target.value,
-                              );
-                              if (ing) setInvUnit(ing.unidadePadrao);
-                            } else {
-                              setInvUnit("unidade");
-                            }
-                          }}
-                        >
-                          <option value="">Selecione…</option>
-                          {invFilteredOptions.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.nome}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                    </>
-                  ) : (
-                    <Field label="Descrição do item">
-                      <input
-                        value={invCustomName}
-                        onChange={(e) => setInvCustomName(e.target.value)}
-                        placeholder="Ex.: Frete ou taxa da compra"
-                      />
-                    </Field>
+                      <Plus size={16} /> Novo fornecedor
+                    </Button>
                   )}
-                  <div className="field">
-                    <label>Seleção rápida</label>
-                    <div className="quick-qty">
-                      {(["1", "2", "3"] as const).map((q) => (
-                        <button
-                          key={q}
-                          type="button"
-                          className={`button secondary ${invQuickQty === q ? "active-pill" : ""}`}
-                          onClick={() => {
-                            setInvQuickQty(q);
-                            setInvQty(q);
-                          }}
-                        >
-                          {q}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        className={`button secondary ${invQuickQty === "other" ? "active-pill" : ""}`}
-                        onClick={() => setInvQuickQty("other")}
-                      >
-                        Outro
-                      </button>
-                    </div>
-                  </div>
-                  <Field label="Quantidade">
+                </div>
+                {record && !v("fornecedorId") && (record as Expense).fornecedor && (
+                  <p className="form-note">
+                    Nota anterior com fornecedor em texto:{" "}
+                    <strong>{(record as Expense).fornecedor}</strong>. Selecione um
+                    fornecedor abaixo caso deseje vincular ao cadastro formal.
+                  </p>
+                )}
+                <div className="invoice-item-builder">
+                  <Field label="Pesquisar fornecedor">
                     <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={invQty}
-                      onChange={(e) => {
-                        setInvQty(e.target.value);
-                        setInvQuickQty("other");
-                      }}
+                      placeholder="Buscar por nome, fantasia ou CNPJ/CPF…"
+                      value={supSearch}
+                      onChange={(e) => setSupSearch(e.target.value)}
                     />
                   </Field>
-                  <Field label="Unidade">
+                  <Field
+                    label={record ? "Fornecedor" : "Fornecedor *"}
+                    hint={
+                      supSearch.trim()
+                        ? `${supplierOptions.length} fornecedor(es) encontrado(s)`
+                        : "Somente fornecedores ativos aparecem para novas notas."
+                    }
+                  >
                     <select
-                      value={invUnit}
-                      onChange={(e) => setInvUnit(e.target.value)}
+                      value={v("fornecedorId")}
+                      required={!record}
+                      onChange={(e) => set("fornecedorId", e.target.value)}
                     >
-                      {invAvailableUnits.map((u) => (
-                        <option key={u} value={u}>
-                          {u}
+                      <option value="">Selecione…</option>
+                      {supplierOptions.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.nome}
+                          {s.nomeFantasia ? ` · ${s.nomeFantasia}` : ""}
+                          {s.arquivado ? " (arquivado)" : ""}
                         </option>
                       ))}
                     </select>
                   </Field>
-                  <Field label="Valor unitário (R$)">
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={invUnitPrice}
-                      onChange={(e) => setInvUnitPrice(e.target.value)}
-                    />
-                  </Field>
-                  <div className="form-summary">
-                    <span>Subtotal do item</span>
-                    <strong>
-                      {money((Number(invQty) || 0) * (Number(invUnitPrice) || 0))}
-                    </strong>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={addInvoiceItem}
-                  >
-                    <Plus size={17} /> Adicionar item
-                  </Button>
                 </div>
-
-                {invoiceItems.length > 0 && (
-                  <ul className="composition-list">
-                    {invoiceItems.map((item, idx) => (
-                      <li key={item.id}>
-                        <span>
-                          <strong>{item.itemNome}</strong>
-                          <small>
-                            {item.itemTipo === "ingrediente"
-                              ? "Ingrediente"
-                              : item.itemTipo === "material"
-                                ? "Material"
-                                : "Sem estoque"}{" "}
-                            · {item.quantidade} {item.unidade}
-                            {item.quantidadePadrao && item.unidadePadrao
-                              ? ` (${formatStock(item.quantidadePadrao, item.unidadePadrao)})`
-                              : ""}
-                          </small>
-                        </span>
-                        <div className="inline-edit-controls">
-                          <input
-                            aria-label={`Quantidade de ${item.itemNome}`}
-                            type="number"
-                            min="0.001"
-                            step="any"
-                            value={item.quantidade}
-                            onChange={(e) => {
-                              const nextQty = Math.max(0.001, Number(e.target.value) || 0);
-                              setInvoiceItems(
-                                invoiceItems.map((it, i) => {
-                                  if (i !== idx) return it;
-                                  let qtdPadrao = it.quantidadePadrao;
-                                  if (it.geraEstoque && it.unidadePadrao) {
-                                    qtdPadrao = normalizeStockQuantity(
-                                      nextQty,
-                                      it.unidade,
-                                      it.unidadePadrao,
-                                    ).quantidadePadrao;
-                                  }
-                                  return {
-                                    ...it,
-                                    quantidade: nextQty,
-                                    quantidadePadrao: qtdPadrao,
-                                    subtotal: round(nextQty * it.valorUnitario),
-                                  };
-                                }),
-                              );
-                            }}
-                          />
-                          <input
-                            aria-label={`Valor unitário de ${item.itemNome}`}
-                            type="number"
-                            min="0"
-                            step="any"
-                            value={item.valorUnitario}
-                            onChange={(e) => {
-                              const nextPrice = Math.max(0, Number(e.target.value) || 0);
-                              setInvoiceItems(
-                                invoiceItems.map((it, i) =>
-                                  i === idx
-                                    ? {
-                                        ...it,
-                                        valorUnitario: nextPrice,
-                                        subtotal: round(it.quantidade * nextPrice),
-                                      }
-                                    : it,
-                                ),
-                              );
-                            }}
-                          />
-                        </div>
-                        <strong>{money(item.subtotal)}</strong>
-                        <button
-                          type="button"
-                          className="icon-button"
-                          aria-label={`Remover ${item.itemNome}`}
-                          onClick={() =>
-                            setInvoiceItems(invoiceItems.filter((_, i) => i !== idx))
-                          }
+                {quickSupOpen && (
+                  <div className="session-box">
+                    <h3>Cadastro rápido de fornecedor</h3>
+                    <div className="invoice-item-builder">
+                      <Field label="Nome / Razão social *">
+                        <input
+                          value={quickSupName}
+                          onChange={(e) => setQuickSupName(e.target.value)}
+                          placeholder="Ex.: Distribuidora ABC"
+                        />
+                      </Field>
+                      <Field label="Nome fantasia (opcional)">
+                        <input
+                          value={quickSupFantasy}
+                          onChange={(e) => setQuickSupFantasy(e.target.value)}
+                        />
+                      </Field>
+                      <Field label="CNPJ / CPF (opcional)">
+                        <input
+                          value={quickSupDoc}
+                          onChange={(e) => setQuickSupDoc(e.target.value)}
+                          placeholder="Somente se aplicável"
+                        />
+                      </Field>
+                      <Field label="Telefone / WhatsApp (opcional)">
+                        <input
+                          type="tel"
+                          value={quickSupPhone}
+                          onChange={(e) => setQuickSupPhone(e.target.value)}
+                        />
+                      </Field>
+                    </div>
+                    <div className="row-actions">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setQuickSupOpen(false)}
+                      >
+                        Fechar cadastro rápido
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => void saveQuickSupplier()}
+                      >
+                        Salvar fornecedor
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {field("numeroNota", "Número da nota (opcional)", "text", undefined, undefined, false)}
+              {field("observacoes", "Observações (opcional)", "text", undefined, undefined, false)}
+              <div className="span-2 ingredient-builder">
+                <h3>Itens da nota fiscal</h3>
+                {!record ? (
+                  <>
+                    <div className="invoice-item-builder">
+                      <Field label="Tipo do item">
+                        <select
+                          value={invType}
+                          onChange={(e) => {
+                            const next = e.target.value as "ingrediente" | "material" | "outro";
+                            setInvType(next);
+                            setInvItemId("");
+                            setInvSearch("");
+                            setInvUnit(next === "ingrediente" ? "g" : "unidade");
+                          }}
                         >
-                          <Trash2 size={16} />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                          <option value="ingrediente">Ingrediente</option>
+                          <option value="material">Material</option>
+                          <option value="outro">Outro (sem estoque)</option>
+                        </select>
+                      </Field>
+                      {invType !== "outro" ? (
+                        <>
+                          <Field label="Filtrar item">
+                            <input
+                              placeholder="Buscar por nome…"
+                              value={invSearch}
+                              onChange={(e) => setInvSearch(e.target.value)}
+                            />
+                          </Field>
+                          <Field label="Item cadastrado">
+                            <select
+                              value={invItemId}
+                              onChange={(e) => {
+                                setInvItemId(e.target.value);
+                                if (invType === "ingrediente") {
+                                  const ing = data.ingredientes.find(
+                                    (i) => i.id === e.target.value,
+                                  );
+                                  if (ing) setInvUnit(ing.unidadePadrao);
+                                } else {
+                                  setInvUnit("unidade");
+                                }
+                              }}
+                            >
+                              <option value="">Selecione…</option>
+                              {invFilteredOptions.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.nome}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                        </>
+                      ) : (
+                        <Field label="Descrição do item">
+                          <input
+                            value={invCustomName}
+                            onChange={(e) => setInvCustomName(e.target.value)}
+                            placeholder="Ex.: Frete ou taxa da compra"
+                          />
+                        </Field>
+                      )}
+                      <div className="field">
+                        <label>Seleção rápida</label>
+                        <div className="quick-qty">
+                          {(["1", "2", "3"] as const).map((q) => (
+                            <button
+                              key={q}
+                              type="button"
+                              className={`button secondary ${invQuickQty === q ? "active-pill" : ""}`}
+                              onClick={() => {
+                                setInvQuickQty(q);
+                                setInvQty(q);
+                              }}
+                            >
+                              {q}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            className={`button secondary ${invQuickQty === "other" ? "active-pill" : ""}`}
+                            onClick={() => setInvQuickQty("other")}
+                          >
+                            Outro
+                          </button>
+                        </div>
+                      </div>
+                      <Field label="Quantidade">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={invQty}
+                          onChange={(e) => {
+                            setInvQty(e.target.value);
+                            setInvQuickQty("other");
+                          }}
+                        />
+                      </Field>
+                      <Field label="Unidade">
+                        <select
+                          value={invUnit}
+                          onChange={(e) => setInvUnit(e.target.value)}
+                        >
+                          {invAvailableUnits.map((u) => (
+                            <option key={u} value={u}>
+                              {u}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Valor unitário (R$)">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={invUnitPrice}
+                          onChange={(e) => setInvUnitPrice(e.target.value)}
+                        />
+                      </Field>
+                      <div className="form-summary">
+                        <span>Subtotal do item</span>
+                        <strong>
+                          {money((Number(invQty) || 0) * (Number(invUnitPrice) || 0))}
+                        </strong>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={addInvoiceItem}
+                      >
+                        <Plus size={17} /> Adicionar item
+                      </Button>
+                    </div>
+
+                    {invoiceItems.length > 0 && (
+                      <ul className="composition-list">
+                        {invoiceItems.map((item, idx) => (
+                          <li key={item.id}>
+                            <span>
+                              <strong>{item.itemNome}</strong>
+                              <small>
+                                {item.itemTipo === "ingrediente"
+                                  ? "Ingrediente"
+                                  : item.itemTipo === "material"
+                                    ? "Material"
+                                    : "Sem estoque"}{" "}
+                                · {item.quantidade} {item.unidade}
+                                {item.quantidadePadrao && item.unidadePadrao
+                                  ? ` (${formatStock(item.quantidadePadrao, item.unidadePadrao)})`
+                                  : ""}
+                              </small>
+                            </span>
+                            <div className="inline-edit-controls">
+                              <input
+                                aria-label={`Quantidade de ${item.itemNome}`}
+                                type="number"
+                                min="0.001"
+                                step="any"
+                                value={item.quantidade}
+                                onChange={(e) => {
+                                  const nextQty = Math.max(0.001, Number(e.target.value) || 0);
+                                  setInvoiceItems(
+                                    invoiceItems.map((it, i) => {
+                                      if (i !== idx) return it;
+                                      let qtdPadrao = it.quantidadePadrao;
+                                      if (it.geraEstoque && it.unidadePadrao) {
+                                        qtdPadrao = normalizeStockQuantity(
+                                          nextQty,
+                                          it.unidade,
+                                          it.unidadePadrao,
+                                        ).quantidadePadrao;
+                                      }
+                                      return {
+                                        ...it,
+                                        quantidade: nextQty,
+                                        quantidadePadrao: qtdPadrao,
+                                        subtotal: round(nextQty * it.valorUnitario),
+                                      };
+                                    }),
+                                  );
+                                }}
+                              />
+                              <input
+                                aria-label={`Valor unitário de ${item.itemNome}`}
+                                type="number"
+                                min="0"
+                                step="any"
+                                value={item.valorUnitario}
+                                onChange={(e) => {
+                                  const nextPrice = Math.max(0, Number(e.target.value) || 0);
+                                  setInvoiceItems(
+                                    invoiceItems.map((it, i) =>
+                                      i === idx
+                                        ? {
+                                            ...it,
+                                            valorUnitario: nextPrice,
+                                            subtotal: round(it.quantidade * nextPrice),
+                                          }
+                                        : it,
+                                    ),
+                                  );
+                                }}
+                              />
+                            </div>
+                            <strong>{money(item.subtotal)}</strong>
+                            <button
+                              type="button"
+                              className="icon-button"
+                              aria-label={`Remover ${item.itemNome}`}
+                              onClick={() =>
+                                setInvoiceItems(invoiceItems.filter((_, i) => i !== idx))
+                              }
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="form-note">
+                      Alterar o fornecedor ou cabeçalho da nota não gera novas
+                      movimentações de estoque. Para corrigir quantidades já lançadas,
+                      exclua a nota (se houver saldo disponível) ou faça um ajuste no
+                      módulo Estoque.
+                    </p>
+                    {invoiceItems.length > 0 && (
+                      <ul className="composition-list">
+                        {invoiceItems.map((item) => (
+                          <li key={item.id}>
+                            <span>
+                              <strong>{item.itemNome}</strong>
+                              <small>
+                                {item.quantidade} {item.unidade} · Unitário{" "}
+                                {money(item.valorUnitario)}
+                              </small>
+                            </span>
+                            <strong>{money(item.subtotal)}</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
                 )}
                 <div className="form-summary">
                   <span>Total da nota fiscal ({invoiceItems.length} itens)</span>
                   <strong>
-                    {money(invoiceItems.reduce((s, i) => s + i.subtotal, 0))}
+                    {money(
+                      record
+                        ? (record as Expense).valor
+                        : invoiceItems.reduce((s, i) => s + i.subtotal, 0),
+                    )}
                   </strong>
                 </div>
+              </div>
+            </>
+          )}
+          {kind === "supplier" && (
+            <>
+              {field("nome", "Nome / Razão social")}
+              {field(
+                "nomeFantasia",
+                "Nome fantasia (opcional)",
+                "text",
+                undefined,
+                undefined,
+                false,
+              )}
+              {field(
+                "documento",
+                "CNPJ / CPF (opcional)",
+                "text",
+                undefined,
+                "Deixe em branco para fornecedor informal.",
+                false,
+              )}
+              {field(
+                "contato",
+                "Telefone / WhatsApp (opcional)",
+                "tel",
+                undefined,
+                undefined,
+                false,
+              )}
+              {field("email", "E-mail (opcional)", "email", undefined, undefined, false)}
+              {field(
+                "endereco",
+                "Endereço (opcional)",
+                "text",
+                undefined,
+                undefined,
+                false,
+              )}
+              <div className="span-2">
+                {field(
+                  "observacoes",
+                  "Observações (opcional)",
+                  "text",
+                  undefined,
+                  undefined,
+                  false,
+                )}
               </div>
             </>
           )}

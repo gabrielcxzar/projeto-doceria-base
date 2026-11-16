@@ -2221,6 +2221,41 @@ dialog p {
   border-radius: 10px;
   font-size: 13px;
 }
+.detail-table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.detail-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.detail-items-table th,
+.detail-items-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.detail-items-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.detail-items-table small {
+  display: block;
+  color: var(--muted);
+}
+.detail-box-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.detail-box-foot strong {
+  color: var(--chocolate);
+}
 .session-box,
 .invoice-item-builder {
   display: grid;

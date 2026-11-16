@@ -28,24 +28,29 @@ import type {
   Order,
   Recipe,
   Sale,
+  Supplier,
 } from "./types";
 import {
   buildPartialPaymentMutations,
   chargeMessage,
   collectPendingLaunches,
+  compareTextPtBr,
   csv,
   customerMatches,
   customerTotals,
   dateText,
+  expenseMatchesSupplierFilter,
   finances,
   formatStock,
   groupOrders,
   groupSales,
+  isArchivableCollection,
   isLowStock,
   money,
   orderReceived,
   orderRemaining,
   productCost,
+  resolveExpenseSupplier,
   round,
   saleReceived,
   saleRemaining,
@@ -116,13 +121,7 @@ function Actions({
 }) {
   const { canWrite, edit, remove, save, notify } = useBusiness();
   if (!canWrite) return <span className="muted">—</span>;
-  const archive = [
-    "clientes",
-    "produtos",
-    "ingredientes",
-    "receitas",
-    "materiais",
-  ].includes(collection);
+  const archive = isArchivableCollection(collection);
   if (record.arquivado)
     return (
       <button
@@ -967,15 +966,41 @@ export function Orders() {
 export function Finance() {
   const { data, period, canWrite, edit } = useBusiness();
   const [type, setType] = useState("");
+  const [entryKind, setEntryKind] = useState<"" | "invoice" | "expense">("");
+  const [supplierFilter, setSupplierFilter] = useState("");
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [details, setDetails] = useState<Expense | null>(null);
   const f = finances(data, period);
-  const list = useListing(
-    f.expenses
-      .filter((e) => !type || e.tipo === type)
-      .sort((a, b) => b.data.localeCompare(a.data)),
-    (e) =>
-      `${e.descricao} ${e.tipo} ${e.fornecedor || ""} ${e.numeroNota || ""}`,
+  const suppliers = data.fornecedores || [];
+  const sortedSuppliers = sortByTextPtBr(
+    suppliers,
+    (s) => s.nome,
+    (s) => s.id,
   );
+  const filteredExpenses = f.expenses
+    .filter((e) => !type || e.tipo === type)
+    .filter((e) =>
+      !entryKind
+        ? true
+        : entryKind === "invoice"
+          ? !!e.isNotaFiscal
+          : !e.isNotaFiscal,
+    )
+    .filter((e) => expenseMatchesSupplierFilter(e, supplierFilter))
+    .sort((a, b) => {
+      const dateCmp =
+        sortDir === "desc"
+          ? b.data.localeCompare(a.data)
+          : a.data.localeCompare(b.data);
+      if (dateCmp !== 0) return dateCmp;
+      return compareTextPtBr(a.descricao, b.descricao) || a.id.localeCompare(b.id);
+    });
+  const list = useListing(filteredExpenses, (e) => {
+    const sup = resolveExpenseSupplier(e, suppliers);
+    const itemsText = (e.itensNota || []).map((i) => i.itemNome).join(" ");
+    return `${e.descricao} ${e.tipo} ${sup.searchableText} ${e.numeroNota || ""} ${e.observacoes || ""} ${itemsText}`;
+  });
   return (
     <>
       <div className="metric-grid">
@@ -1010,6 +1035,35 @@ export function Finance() {
       <div className="section-tools">
         {list.searchInput}
         <select
+          aria-label="Filtrar tipo de lançamento"
+          value={entryKind}
+          onChange={(e) => {
+            setEntryKind(e.target.value as "" | "invoice" | "expense");
+            list.setPage(1);
+          }}
+        >
+          <option value="">Todos os lançamentos</option>
+          <option value="invoice">Somente notas fiscais</option>
+          <option value="expense">Somente despesas simples</option>
+        </select>
+        <select
+          aria-label="Filtrar fornecedor"
+          value={supplierFilter}
+          onChange={(e) => {
+            setSupplierFilter(e.target.value);
+            list.setPage(1);
+          }}
+        >
+          <option value="">Todos os fornecedores</option>
+          <option value="__sem_vinculo__">Notas sem fornecedor vinculado</option>
+          {sortedSuppliers.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.nome}
+              {s.arquivado ? " (arquivado)" : ""}
+            </option>
+          ))}
+        </select>
+        <select
           aria-label="Filtrar tipo de despesa"
           value={type}
           onChange={(e) => {
@@ -1024,6 +1078,17 @@ export function Finance() {
             ),
           )}
         </select>
+        <Button
+          variant="ghost"
+          aria-label="Alternar ordenação financeira"
+          onClick={() => {
+            setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+            list.setPage(1);
+          }}
+        >
+          <ArrowUpDown size={16} />{" "}
+          {sortDir === "desc" ? "Data: Mais recentes" : "Data: Mais antigas"}
+        </Button>
         <div className="grow" />
         {canWrite && (
           <div className="row-actions">
@@ -1040,59 +1105,188 @@ export function Finance() {
         <Table
           headings={[
             "Data",
-            "Descrição",
+            "Lançamento / fornecedor",
             "Categoria",
-            "Quantidade / observação",
+            "Quantidade / itens",
             "Total",
             "Ações",
           ]}
           empty={!list.rows.length}
         >
-          {list.rows.map((e) => (
-            <tr key={e.id}>
-              <td>{dateText(e.data)}</td>
-              <td>
-                <div className="inline-title">
-                  <strong>{e.descricao}</strong>
-                  {e.isNotaFiscal && (
-                    <Badge tone="neutral">
-                      Nota fiscal ({e.itensNota?.length || 0})
-                    </Badge>
-                  )}
-                  {(e.entradaEstoque || e.itensNota?.some((i) => i.geraEstoque)) && (
-                    <Badge tone="good">Estoque +</Badge>
-                  )}
-                </div>
-                {(e.fornecedor || e.numeroNota) && (
-                  <small>
-                    {[e.fornecedor, e.numeroNota ? `NF ${e.numeroNota}` : ""]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </small>
+          {list.rows.map((e) => {
+            const sup = resolveExpenseSupplier(e, suppliers);
+            const itemCount = e.itensNota?.length || 0;
+            const isOpen = !!expanded[e.id];
+            const hasInvoiceItems = !!e.isNotaFiscal;
+            const actionName = e.isNotaFiscal
+              ? [sup.displayName || e.descricao, e.numeroNota ? `NF ${e.numeroNota}` : ""]
+                  .filter(Boolean)
+                  .join(" · ")
+              : e.descricao;
+            return (
+              <Fragment key={e.id}>
+                <tr>
+                  <td>{dateText(e.data)}</td>
+                  <td>
+                    {e.isNotaFiscal ? (
+                      <>
+                        <div className="inline-title">
+                          <strong>{sup.displayName || "Fornecedor não informado"}</strong>
+                          <Badge tone="neutral">Nota fiscal</Badge>
+                          {e.itensNota?.some((i) => i.geraEstoque) && (
+                            <Badge tone="good">Estoque +</Badge>
+                          )}
+                          {sup.isLegacyUnlinked && (
+                            <Badge tone="warning">Sem vínculo</Badge>
+                          )}
+                        </div>
+                        <small>
+                          {[
+                            e.numeroNota ? `NF ${e.numeroNota}` : "",
+                            sup.renamedTo ? `Cadastro atual: ${sup.renamedTo}` : "",
+                            sup.linked?.arquivado ? "Fornecedor arquivado" : "",
+                            e.observacoes || "",
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "Nota fiscal"}
+                        </small>
+                      </>
+                    ) : (
+                      <>
+                        <div className="inline-title">
+                          <strong>{e.descricao}</strong>
+                          <Badge tone="neutral">Despesa simples</Badge>
+                          {e.entradaEstoque && (
+                            <Badge tone="good">Estoque +</Badge>
+                          )}
+                        </div>
+                        {(sup.displayName || e.numeroNota) && (
+                          <small>
+                            {[
+                              sup.displayName,
+                              e.numeroNota ? `NF ${e.numeroNota}` : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </small>
+                        )}
+                      </>
+                    )}
+                  </td>
+                  <td>
+                    <Badge>{e.tipo}</Badge>
+                  </td>
+                  <td>
+                    {e.isNotaFiscal
+                      ? `${itemCount} ${itemCount === 1 ? "item" : "itens"}`
+                      : e.quantidade || "—"}
+                  </td>
+                  <td className="money">{money(e.valor)}</td>
+                  <td>
+                    <div className="row-actions">
+                      {hasInvoiceItems ? (
+                        <Button
+                          variant="ghost"
+                          aria-expanded={isOpen}
+                          onClick={() =>
+                            setExpanded((prev) => ({
+                              ...prev,
+                              [e.id]: !prev[e.id],
+                            }))
+                          }
+                        >
+                          {isOpen ? <ChevronDown size={15} /> : <Eye size={15} />}{" "}
+                          {isOpen ? "Ocultar itens" : "Exibir itens"}
+                        </Button>
+                      ) : (
+                        (e.entradaEstoque || e.observacoes) && (
+                          <Button variant="ghost" onClick={() => setDetails(e)}>
+                            <Eye size={15} /> Ver detalhes
+                          </Button>
+                        )
+                      )}
+                      <Actions
+                        kind={e.isNotaFiscal ? "invoice" : "expense"}
+                        collection="despesas"
+                        record={e}
+                        name={actionName}
+                      />
+                    </div>
+                  </td>
+                </tr>
+                {hasInvoiceItems && isOpen && (
+                  <tr className="detail-row">
+                    <td colSpan={6}>
+                      <div className="detail-box">
+                        <div className="detail-box-head">
+                          <strong>Itens da nota fiscal ({itemCount})</strong>
+                          <span>
+                            {[
+                              sup.displayName,
+                              e.numeroNota ? `NF ${e.numeroNota}` : "",
+                              dateText(e.data),
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                        </div>
+                        {e.itensNota && e.itensNota.length > 0 ? (
+                          <div className="detail-table-scroll">
+                            <table className="detail-items-table">
+                              <thead>
+                                <tr>
+                                  <th>Produto</th>
+                                  <th>Quantidade</th>
+                                  <th className="money">Valor unitário</th>
+                                  <th className="money">Subtotal</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {e.itensNota.map((item) => (
+                                  <tr key={item.id}>
+                                    <td>
+                                      <strong>{item.itemNome}</strong>
+                                      <small>
+                                        {item.itemTipo === "ingrediente"
+                                          ? "Ingrediente"
+                                          : item.itemTipo === "material"
+                                            ? "Material"
+                                            : "Avulso"}
+                                        {item.geraEstoque ? " · Estoque +" : ""}
+                                      </small>
+                                    </td>
+                                    <td>
+                                      {item.quantidade} {item.unidade}
+                                    </td>
+                                    <td className="money">
+                                      {money(item.valorUnitario)}
+                                    </td>
+                                    <td className="money">
+                                      {money(item.subtotal)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <p className="form-note">
+                            Nenhum item detalhado registrado nesta nota.
+                          </p>
+                        )}
+                        <div className="detail-box-foot">
+                          <span>
+                            {e.observacoes ? `Obs.: ${e.observacoes}` : ""}
+                          </span>
+                          <strong>Total da nota: {money(e.valor)}</strong>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
                 )}
-              </td>
-              <td>
-                <Badge>{e.tipo}</Badge>
-              </td>
-              <td>{e.quantidade || "—"}</td>
-              <td className="money">{money(e.valor)}</td>
-              <td>
-                <div className="row-actions">
-                  {(e.isNotaFiscal || e.entradaEstoque || e.observacoes) && (
-                    <Button variant="ghost" onClick={() => setDetails(e)}>
-                      <Eye size={15} /> Ver detalhes
-                    </Button>
-                  )}
-                  <Actions
-                    kind={e.isNotaFiscal ? undefined : "expense"}
-                    collection="despesas"
-                    record={e}
-                    name={e.descricao}
-                  />
-                </div>
-              </td>
-            </tr>
-          ))}
+              </Fragment>
+            );
+          })}
         </Table>
         <Pagination
           total={list.filtered.length}
@@ -1102,7 +1296,7 @@ export function Finance() {
       </section>
       {details && (
         <Modal
-          title={details.isNotaFiscal ? "Detalhes da nota fiscal" : "Detalhes da despesa"}
+          title="Detalhes da despesa"
           subtitle={`${details.descricao} · ${dateText(details.data)}`}
           onClose={() => setDetails(null)}
         >
@@ -1111,55 +1305,12 @@ export function Finance() {
               <strong>Categoria:</strong> {details.tipo} ·{" "}
               <strong>Total:</strong> {money(details.valor)}
             </p>
-            {details.fornecedor && (
-              <p>
-                <strong>Fornecedor:</strong> {details.fornecedor}
-              </p>
-            )}
-            {details.numeroNota && (
-              <p>
-                <strong>Número da nota:</strong> {details.numeroNota}
-              </p>
-            )}
             {details.observacoes && (
               <p>
                 <strong>Observações:</strong> {details.observacoes}
               </p>
             )}
           </div>
-          {details.itensNota && details.itensNota.length > 0 && (
-            <Table
-              headings={["Item", "Qtd.", "Unitário", "Subtotal", "Estoque"]}
-              empty={false}
-            >
-              {details.itensNota.map((item) => (
-                <tr key={item.id}>
-                  <td>
-                    <strong>{item.itemNome}</strong>
-                    <small>
-                      {item.itemTipo === "ingrediente"
-                        ? "Ingrediente"
-                        : item.itemTipo === "material"
-                          ? "Material"
-                          : "Avulso"}
-                    </small>
-                  </td>
-                  <td>
-                    {item.quantidade} {item.unidade}
-                  </td>
-                  <td className="money">{money(item.valorUnitario)}</td>
-                  <td className="money">{money(item.subtotal)}</td>
-                  <td>
-                    {item.geraEstoque ? (
-                      <Badge tone="good">Lançado</Badge>
-                    ) : (
-                      <Badge>Não</Badge>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </Table>
-          )}
           {details.entradaEstoque && (
             <p className="form-note">
               Entrada vinculada ao estoque: {details.entradaEstoque.quantidade}{" "}
@@ -1183,6 +1334,7 @@ const catalogTabs = [
   { key: "receitas", title: "Receitas", kind: "recipe" },
   { key: "ingredientes", title: "Ingredientes", kind: "ingredient" },
   { key: "materiais", title: "Materiais", kind: "material" },
+  { key: "fornecedores", title: "Fornecedores", kind: "supplier" },
 ] as const;
 export function Catalog() {
   const { data, canWrite, edit } = useBusiness();
@@ -1194,10 +1346,13 @@ export function Catalog() {
     (r) => ("nome" in r ? r.nome : "titulo" in r ? r.titulo : ""),
     (r) => r.id,
   );
-  const list = useListing<Entity>(
-    sortedCatalog,
-    (r) => ("nome" in r ? r.nome : "titulo" in r ? r.titulo : ""),
-  );
+  const list = useListing<Entity>(sortedCatalog, (r) => {
+    if (tab.key === "fornecedores") {
+      const sup = r as Supplier;
+      return `${sup.nome} ${sup.nomeFantasia || ""} ${sup.documento || ""} ${sup.contato || ""} ${sup.email || ""}`;
+    }
+    return "nome" in r ? r.nome : "titulo" in r ? r.titulo : "";
+  });
   const head: Record<string, string[]> = {
     clientes: [
       "Cliente",
@@ -1224,6 +1379,13 @@ export function Catalog() {
     ],
     ingredientes: ["Ingrediente", "Compra", "Preço", "Custo padrão", "Ações"],
     materiais: ["Material", "Custo por unidade", "Ações"],
+    fornecedores: [
+      "Fornecedor",
+      "CNPJ / CPF",
+      "Contato",
+      "Notas vinculadas",
+      "Ações",
+    ],
   };
   return (
     <>
@@ -1269,7 +1431,9 @@ export function Catalog() {
                   ? "receita"
                   : tab.kind === "ingredient"
                     ? "ingrediente"
-                    : "material"}
+                    : tab.kind === "material"
+                      ? "material"
+                      : "fornecedor"}
           </Button>
         )}
       </div>
@@ -1277,6 +1441,7 @@ export function Catalog() {
         <Table headings={head[tab.key]} empty={!list.rows.length}>
           {list.rows.map((record) => {
             const customer = record as Customer;
+            const supplier = record as Supplier;
             const product = record as import("./types").Product;
             const recipe = record as Recipe;
             const ingredient = record as import("./types").Ingredient;
@@ -1384,6 +1549,27 @@ export function Catalog() {
                       <strong>{material.nome}</strong>
                     </td>
                     <td className="money">{money(material.custo)}</td>
+                  </>
+                )}
+                {tab.key === "fornecedores" && (
+                  <>
+                    <td>
+                      <strong>{supplier.nome}</strong>
+                      <small>
+                        {[supplier.nomeFantasia, supplier.email]
+                          .filter(Boolean)
+                          .join(" · ") || "Sem complemento"}
+                      </small>
+                    </td>
+                    <td>{supplier.documento || "—"}</td>
+                    <td>{supplier.contato || "—"}</td>
+                    <td>
+                      {
+                        data.despesas.filter(
+                          (e) => e.fornecedorId === supplier.id,
+                        ).length
+                      }
+                    </td>
                   </>
                 )}
                 <td>
@@ -2520,7 +2706,10 @@ export function Reports() {
                 <tr key={e.id}>
                   <td>{dateText(e.data)}</td>
                   <td>{e.descricao}</td>
-                  <td>{e.fornecedor || "—"}</td>
+                  <td>
+                    {resolveExpenseSupplier(e, data.fornecedores || [])
+                      .displayName || "—"}
+                  </td>
                   <td>{e.isNotaFiscal ? e.itensNota?.length || 0 : 1}</td>
                   <td className="money">{money(e.valor)}</td>
                 </tr>

@@ -6,6 +6,7 @@ export type EditorKind =
   | "expense"
   | "invoice"
   | "customer"
+  | "supplier"
   | "product"
   | "ingredient"
   | "material"

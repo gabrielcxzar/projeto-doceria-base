@@ -37,7 +37,7 @@ flowchart LR
 
 `onAuthStateChanged` identifica a conta. `profileFor` consulta `usuarios/{uid}` no servidor e exige papel `admin` ou `viewer` antes de iniciar as assinaturas. O estado é limpo quando muda a sessão; geração/cleanup dos listeners impedem uma resposta antiga de repor dados de outra sessão.
 
-`subscribeData` acompanha as 14 coleções conhecidas (incluindo `recebimentos` e `movimentacoes_estoque`). Atividades são limitadas às 40 mais recentes, por `criadoEm`; a exportação completa consulta todos os documentos dessa coleção. As demais coleções são carregadas sem paginação no servidor. A paginação das tabelas é local, com dez linhas por página, após ordenação e agrupamento em memória.
+`subscribeData` acompanha as 15 coleções conhecidas (incluindo `fornecedores`, `recebimentos` e `movimentacoes_estoque`). Atividades são limitadas às 40 mais recentes, por `criadoEm`; a exportação completa consulta todos os documentos dessa coleção. As demais coleções são carregadas sem paginação no servidor. A paginação das tabelas é local, com dez linhas por página, após ordenação e agrupamento em memória.
 
 As regras executáveis estão em [firestore.rules](../firestore.rules). A interface ajuda a restringir ações, mas a autorização efetiva é feita no Firestore. O perfil de consulta não grava; uma conta sem perfil não consulta os dados comerciais.
 
@@ -50,7 +50,7 @@ As regras executáveis estão em [firestore.rules](../firestore.rules). A interf
 5. Uma transação lê os registros existentes, compara as versões e aplica alterações e uma atividade no mesmo commit.
 6. Um conflito é informado ao usuário; não se confirma sucesso antes do commit. Os listeners atualizam as telas.
 
-Há limite local de 400 mutations por operação. Transações não são enfileiradas offline. Cadastros de clientes, produtos, ingredientes, receitas e materiais são arquivados; as regras impedem sua exclusão física pelo cliente web.
+Há limite local de 400 mutations por operação. Transações não são enfileiradas offline. Cadastros de clientes, produtos, ingredientes, receitas, materiais e fornecedores são arquivados (`isArchivableCollection`); as regras impedem sua exclusão física pelo cliente web.
 
 ## Navegação, ambiente e publicação
 

@@ -23,6 +23,7 @@ Escolha mês, ano ou todo o histórico. O painel distingue total vendido, já re
 3. Monte receitas com ingredientes e rendimento. O sistema converte kg/g e l/ml quando compatíveis.
 4. Cadastre materiais como caixas e embalagens pelo custo unitário.
 5. Monte o produto com uma unidade de cada receita/material selecionado ou uma base manual. Acrescente mão de obra, custos indiretos e preço manual ou markup.
+6. Em **Fornecedores**, cadastre empresas ou fornecedores informais/pessoas físicas (apenas Nome/Razão social é obrigatório; CNPJ/CPF, nome fantasia, contato, e-mail, endereço e observações são opcionais). Todos os cadastros seguem ordem alfabética A–Z.
 
 Depois de alterar o preço de um ingrediente, revise e salve suas receitas e produtos dependentes. Não existe recálculo automático de toda a cadeia.
 
@@ -46,7 +47,7 @@ A agenda inclui todas as entregas, mesmo fora do período escolhido no painel, a
 
 ## Despesas, notas fiscais e estoque
 
-Em **Financeiro**, use **Registrar despesa** para gastos simples (com opção de vincular entrada no estoque para um ingrediente/material) ou **Registrar nota fiscal** para lançar vários itens comprados em um único documento financeiro com fornecedor, número da nota e quantidades rápidas. Itens vinculados a ingredientes ou materiais atualizam automaticamente os saldos na aba **Estoque**. Excluir uma nota fiscal estorna as entradas correspondentes, desde que parte daquele saldo ainda não tenha sido consumida.
+Em **Financeiro**, use **Registrar despesa** para gastos simples (sem exigir fornecedor, com opção de vincular entrada no estoque para um ingrediente/material) ou **Registrar nota fiscal** para lançar vários itens comprados em um único documento financeiro selecionando um fornecedor cadastrado na lista pesquisável (ou criando rapidamente em **+ Novo fornecedor** sem perder os itens da nota), número da nota e quantidades rápidas. Na tabela do Financeiro, cada nota fiscal aparece em uma única linha com seu fornecedor, número da nota, quantidade de itens e valor total; clique em **Exibir itens** para expandir o detalhamento de produtos, quantidades, valores unitários e subtotais. Notas diferentes do mesmo fornecedor permanecem separadas. Filtre por tipo de lançamento, fornecedor, categoria ou pesquise por fornecedor/descrição/número da nota/item. Itens vinculados a ingredientes ou materiais atualizam automaticamente os saldos na aba **Estoque** uma única vez; editar posteriormente o fornecedor ou cabeçalho da nota não gera novas movimentações de estoque, e excluir uma nota estorna as entradas disponíveis.
 
 Na tela **Estoque**, inicie manualmente os saldos atuais existentes (**Iniciar saldo**, sem inventar estoque retroativo), registre **Saída**, faça **Ajuste**, defina **Estoque mínimo** para alertas e acompanhe o **Histórico de movimentações**.
 
@@ -66,7 +67,7 @@ A data de referência é a venda ou entrega. Não existe vencimento contratual d
 
 Em **Relatórios**, filtre o intervalo, cliente (ordenado A–Z) e forma de pagamento. Além das vendas avulsas (incluindo status parcial), o relatório consolida encomendas por entrega, recebimentos efetivos por data do pagamento e compras com saldos atuais de estoque. Há resumo por cliente/produto, CSV e impressão.
 
-Administradores podem usar **Exportar arquivo completo** para baixar um JSON das 14 coleções conhecidas. Guarde em local privado, fora do repositório. Esse arquivo não contém senhas ou infraestrutura e não realiza restauração automática. A exportação não configura uma rotina agendada.
+Administradores podem usar **Exportar arquivo completo** para baixar um JSON das 15 coleções conhecidas. Guarde em local privado, fora do repositório. Esse arquivo não contém senhas ou infraestrutura e não realiza restauração automática. A exportação não configura uma rotina agendada.
 
 ## Problemas comuns
 

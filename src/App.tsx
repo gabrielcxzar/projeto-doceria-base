@@ -47,6 +47,7 @@ import {
   buildExpenseDeletionMutations,
   collectPendingLaunches,
   encodeBackup,
+  isArchivableCollection,
   today,
   versionOf,
 } from "./domain";
@@ -769,13 +770,7 @@ export default function App() {
       {deleting && (
         <Modal
           title={
-            [
-              "clientes",
-              "produtos",
-              "ingredientes",
-              "receitas",
-              "materiais",
-            ].includes(deleting.collection)
+            isArchivableCollection(deleting.collection)
               ? "Arquivar cadastro?"
               : "Excluir registro?"
           }
@@ -786,13 +781,7 @@ export default function App() {
             Confirma a alteração de <strong>{deleting.description}</strong>?
           </p>
           <p className="form-note">
-            {[
-              "clientes",
-              "produtos",
-              "ingredientes",
-              "receitas",
-              "materiais",
-            ].includes(deleting.collection)
+            {isArchivableCollection(deleting.collection)
               ? "O cadastro será arquivado e continuará preservado no histórico. Você poderá reativá-lo em Cadastros."
               : deleting.collection === "despesas" &&
                   (data.movimentacoes_estoque || []).some(
@@ -822,15 +811,7 @@ export default function App() {
                       deleting.record as Expense,
                       data,
                     );
-                  } else if (
-                    [
-                      "clientes",
-                      "produtos",
-                      "ingredientes",
-                      "receitas",
-                      "materiais",
-                    ].includes(deleting.collection)
-                  ) {
+                  } else if (isArchivableCollection(deleting.collection)) {
                     mutations = [
                       {
                         collection: deleting.collection,
@@ -880,13 +861,7 @@ export default function App() {
             >
               {busy
                 ? "Confirmando…"
-                : [
-                      "clientes",
-                      "produtos",
-                      "ingredientes",
-                      "receitas",
-                      "materiais",
-                    ].includes(deleting.collection)
+                : isArchivableCollection(deleting.collection)
                   ? "Arquivar cadastro"
                   : "Excluir registro"}
             </Button>
