@@ -580,3 +580,99 @@ test("encomendas exibem itens e acessórios em linhas separadas nos detalhes agr
   await expect(detailBox.getByText("1× BOLO DE CHOCOLATE · 1× TORTA DE LIMÃO")).toHaveCount(0);
   await expect(detailBox.getByText("Produtos:")).toHaveCount(0);
 });
+
+test("encomendas permite cadastrar produto completo sem perder rascunho, trata erros e funciona na edição", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1#encomendas");
+  await page.getByRole("button", { name: "Nova encomenda" }).click();
+  const orderDialog = page.getByRole("dialog", { name: "Encomenda" });
+
+  // Preenche rascunho completo da encomenda (cliente, data, 1 produto, 1 acessório e observações)
+  await orderDialog.getByLabel("Cliente", { exact: true }).selectOption("c2");
+  await orderDialog.getByLabel("Entrega", { exact: true }).fill("2026-12-20");
+  await orderDialog.getByLabel("Produto cadastrado").selectOption("p1");
+  await orderDialog.getByRole("button", { name: "Adicionar produto" }).click();
+  await orderDialog.getByLabel("Material", { exact: true }).selectOption("m1");
+  await orderDialog.getByLabel("Valor cobrado (R$)").fill("10");
+  await orderDialog.getByRole("button", { name: "Adicionar acessório" }).click();
+  await orderDialog
+    .getByLabel("Observações de preparo, sabor, tamanho e personalização")
+    .fill("Massa de baunilha e laço dourado");
+
+  // 1) Abrir cadastro a partir de Nova Encomenda e cancelar por Escape sem perder nada
+  await orderDialog.getByRole("button", { name: "Cadastrar produto" }).click();
+  let productDialog = page.getByRole("dialog", { name: "Produto" });
+  await expect(productDialog).toBeVisible();
+  await productDialog.getByLabel("Nome", { exact: true }).fill("RASCUNHO TEMPORARIO");
+  await productDialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(productDialog).toHaveCount(0);
+  await expect(orderDialog).toBeVisible();
+  await expect(orderDialog.getByLabel("Cliente", { exact: true })).toHaveValue("c2");
+  await expect(orderDialog.getByLabel("Entrega", { exact: true })).toHaveValue("2026-12-20");
+  await expect(
+    orderDialog.getByLabel("Observações de preparo, sabor, tamanho e personalização"),
+  ).toHaveValue("Massa de baunilha e laço dourado");
+
+  // 2) Abrir novamente, testar bloqueio de nome duplicado e falha simulada de gravação sem perder os formulários
+  await orderDialog.getByRole("button", { name: "Cadastrar produto" }).click();
+  productDialog = page.getByRole("dialog", { name: "Produto" });
+  await productDialog.getByLabel("Nome", { exact: true }).fill("BOLO DE CHOCOLATE");
+  await productDialog.getByLabel("Preço de venda (R$)").fill("95");
+  await productDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(productDialog.getByRole("alert")).toContainText("Já existe um cadastro com esse nome");
+
+  // Corrige nome, preenche composição completa e simula erro na gravação
+  await productDialog.getByLabel("Nome", { exact: true }).fill("BOLO RED VELVET 15CM");
+  await productDialog.getByLabel("Categoria", { exact: true }).selectOption("Bolos");
+  await productDialog.getByLabel(/Brigadeiro de chocolate/).check();
+  await productDialog.getByLabel("Preço de venda (R$)").fill("140");
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
+  });
+  await productDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(productDialog.getByRole("alert")).toContainText("Conecte-se à internet");
+  await expect(productDialog.getByLabel("Nome", { exact: true })).toHaveValue("BOLO RED VELVET 15CM");
+  await expect(orderDialog).toBeVisible();
+
+  // Restaura conexão simulada, salva produto e verifica retorno com seleção automática na encomenda
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => true });
+  });
+  await productDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(productDialog).toHaveCount(0);
+  await expect(orderDialog).toBeVisible();
+  await expect(orderDialog.getByLabel("Produto cadastrado")).toContainText("BOLO RED VELVET 15CM");
+  const selectedText = await orderDialog
+    .getByLabel("Produto cadastrado")
+    .locator("option:checked")
+    .innerText();
+  expect(selectedText).toContain("BOLO RED VELVET 15CM");
+
+  // Inclui o novo produto e confirma preservação dos anteriores (120 + 140 + 10 = R$ 270,00)
+  await orderDialog.getByRole("button", { name: "Adicionar produto" }).click();
+  await expect(orderDialog.getByText("R$ 270,00").first()).toBeVisible();
+  await orderDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(orderDialog).toHaveCount(0);
+
+  // 3) Abrir cadastro a partir de Editar Encomenda, cadastrar outro produto e cancelar sem perder edição
+  const savedOrderRow = page
+    .getByRole("row")
+    .filter({ hasText: "BEATRIZ LIMA" })
+    .filter({ hasText: "BOLO RED VELVET 15CM" });
+  await expect(savedOrderRow).toContainText("270,00");
+  await savedOrderRow.getByRole("button", { name: "Editar encomenda de BEATRIZ LIMA" }).click();
+  const editOrderDialog = page.getByRole("dialog", { name: "Editar Encomenda" });
+  await editOrderDialog.getByRole("button", { name: "Cadastrar produto" }).click();
+  const editProdDialog = page.getByRole("dialog", { name: "Produto" });
+  await editProdDialog.getByLabel("Nome", { exact: true }).fill("DOCINHO PERSONALIZADO");
+  await editProdDialog.getByLabel("Preço de venda (R$)").fill("6");
+  await editProdDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(editProdDialog).toHaveCount(0);
+  await expect(editOrderDialog.getByLabel("Produto cadastrado")).toContainText("DOCINHO PERSONALIZADO");
+  await editOrderDialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+
+  // Viewer não vê ações de edição/cadastro
+  await page.goto("/?demo=viewer#encomendas");
+  await expect(page.getByRole("button", { name: "Nova encomenda" })).toHaveCount(0);
+});

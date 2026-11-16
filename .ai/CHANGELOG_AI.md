@@ -1,5 +1,11 @@
 # Mudanças relevantes por IA
 
+## 2026-11-16 — Cadastro de produto durante o lançamento de encomendas
+
+**Agente:** Antigravity. **Objetivo:** permitir abrir o cadastro completo de produto diretamente em **Nova Encomenda** e **Editar Encomenda** (botão **Cadastrar produto**), retornando automaticamente com o novo item selecionado pelo seu ID real e preservando todo o rascunho da encomenda.
+
+**Mudanças:** reutilização isolada de `Editor` (`kind="product"`) como diálogo empilhado irmão em `src/editors.tsx` com callback `onSaved`, ID determinístico (`createOnly: true`) na criação de produtos e visibilidade restrita a `profile.role === "admin"`, além de ajuste de alinhamento em `src/styles.css`. Testes completos adicionados em `tests/browser/preview.spec.ts` e `tests/browser/firebase.spec.ts` (desktop e mobile, incluindo cancelamento, duplicidade e erro simulado de gravação); documentação atualizada em `docs/manual-de-uso.md` e `specs/008-encomendas-cadastrar-produto/`. **Observação:** mantido localmente na branch `feat/encomendas-cadastrar-produto` sem push em `main`.
+
 ## 2026-11-16 — Exibição linha a linha dos itens nos detalhes das encomendas
 
 **Agente:** Antigravity. **Objetivo:** melhorar a legibilidade de **Ver detalhes** na tela **Encomendas**, listando cada produto e acessório estruturado em uma linha própria com valor discriminado, sem concatenações ou repetições redundantes e preservando compatibilidade com `produtoDescricao` legado.

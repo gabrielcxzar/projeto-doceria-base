@@ -555,3 +555,56 @@ test("nota fiscal mista no emulador grava apenas itens marcados e estorna corret
     page.getByRole("row").filter({ hasText: "Caixa para bolo" }),
   ).toContainText("15 un.");
 });
+
+test("encomenda no emulador cadastra produto novo e o seleciona sem perder itens", async ({
+  page,
+  request,
+}) => {
+  await loginAs(page, "admin");
+  await navigate(page, "Encomendas");
+  await page.getByRole("button", { name: "Nova encomenda" }).click();
+  const orderDialog = page.getByRole("dialog", { name: "Encomenda" });
+
+  await orderDialog.getByLabel("Cliente", { exact: true }).selectOption("c1");
+  await orderDialog.getByLabel("Produto cadastrado").selectOption("p1");
+  await orderDialog.getByRole("button", { name: "Adicionar produto" }).click();
+  await orderDialog
+    .getByLabel("Observações de preparo, sabor, tamanho e personalização")
+    .fill("Com produto cadastrado na hora");
+
+  await orderDialog.getByRole("button", { name: "Cadastrar produto" }).click();
+  const prodDialog = page.getByRole("dialog", { name: "Produto" });
+  await prodDialog.getByLabel("Nome", { exact: true }).fill("TORTA MORANGO EMULADOR");
+  await prodDialog.getByLabel("Preço de venda (R$)").fill("90");
+  await prodDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(prodDialog).toHaveCount(0);
+
+  // Produto persistiu no Firestore e já veio selecionado na encomenda
+  const prods = (
+    await (
+      await request.get(`${firestore}/produtos`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      })
+    ).json()
+  ).documents;
+  expect(prods).toHaveLength(4);
+  const selectedOption = await orderDialog
+    .getByLabel("Produto cadastrado")
+    .locator("option:checked")
+    .innerText();
+  expect(selectedOption).toContain("TORTA MORANGO EMULADOR");
+
+  await orderDialog.getByRole("button", { name: "Adicionar produto" }).click();
+  await expect(orderDialog.getByText("R$ 210,00").first()).toBeVisible();
+  await orderDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(orderDialog).toHaveCount(0);
+
+  const row = page
+    .getByRole("row")
+    .filter({ hasText: "ANA OLIVEIRA" })
+    .filter({ hasText: "TORTA MORANGO EMULADOR" });
+  await expect(row).toContainText("490,00");
+  await row.getByRole("button", { name: "Ver detalhes" }).click();
+  await expect(page.locator(".detail-box")).toContainText("Total: R$ 210,00");
+  await expect(page.locator(".order-detail-line").filter({ hasText: "TORTA MORANGO EMULADOR" })).toContainText("90,00");
+});

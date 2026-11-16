@@ -112,12 +112,14 @@ export default function Editor({
   kind,
   record,
   onClose,
+  onSaved,
 }: {
   kind: EditorKind;
   record?: Entity;
   onClose: () => void;
+  onSaved?: (id: string, data: Record<string, unknown>) => void;
 }) {
-  const { data, save, busy, canWrite } = useBusiness();
+  const { data, profile, save, busy, canWrite } = useBusiness();
   const source = record as unknown as Record<string, unknown> | undefined;
   const [values, setValues] = useState<Record<string, string>>(() => {
     const result = { ...defaultValues[kind] };
@@ -204,6 +206,7 @@ export default function Editor({
   const [accCharged, setAccCharged] = useState<"charged" | "internal">("charged");
   const [accQty, setAccQty] = useState("1");
   const [accPrice, setAccPrice] = useState("0");
+  const [showNewProduct, setShowNewProduct] = useState(false);
 
   // Despesa simples com entrada opcional no estoque
   const [expAddStock, setExpAddStock] = useState(false);
@@ -984,6 +987,10 @@ export default function Editor({
         if (priceMode === "automatic")
           n("margem", "Acréscimo sobre custo", true);
         positive(finalPrice, "Preço de venda");
+        if (!record) {
+          mainId = crypto.randomUUID();
+          createOnly = true;
+        }
         const previous =
           source?.nome && source.nome !== nome ? [String(source.nome)] : [];
         payload = {
@@ -1032,6 +1039,7 @@ export default function Editor({
         ],
         `${record ? "Atualização" : "Cadastro"}: ${titles[kind].toLowerCase()}`,
       );
+      if (mainId) onSaved?.(mainId, payload);
       onClose();
     } catch (error) {
       setError(
@@ -1141,8 +1149,9 @@ export default function Editor({
       : (["unidade"] as const);
 
   return (
-    <Modal
-      title={`${record ? "Editar " : ""}${titles[kind]}`}
+    <>
+      <Modal
+        title={`${record ? "Editar " : ""}${titles[kind]}`}
       subtitle={
         kind === "sale"
           ? "Registre um ou mais produtos para a mesma compra."
@@ -1214,7 +1223,18 @@ export default function Editor({
               {field("clienteId", "Cliente", "text", customerOptions)}
               {field("dataEntrega", "Entrega", "date")}
               <div className="span-2 ingredient-builder">
-                <h3>Produtos da encomenda</h3>
+                <div className="detail-box-head">
+                  <h3>Produtos da encomenda</h3>
+                  {profile.role === "admin" && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setShowNewProduct(true)}
+                    >
+                      <Plus size={16} /> Cadastrar produto
+                    </Button>
+                  )}
+                </div>
                 <div className="order-item-add">
                   <Field label="Produto cadastrado">
                     <select
@@ -2414,6 +2434,18 @@ export default function Editor({
           </Button>
         </footer>
       </form>
-    </Modal>
+      </Modal>
+      {kind === "order" && showNewProduct && profile.role === "admin" && (
+        <Editor
+          key="nested-product"
+          kind="product"
+          onClose={() => setShowNewProduct(false)}
+          onSaved={(savedId, savedPayload) => {
+            setOrderProdId(savedId);
+            setOrderProdPrice(String(savedPayload.valor ?? ""));
+          }}
+        />
+      )}
+    </>
   );
 }
