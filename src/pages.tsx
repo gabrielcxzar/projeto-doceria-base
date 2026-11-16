@@ -900,52 +900,82 @@ export function Orders() {
                     <td colSpan={7}>
                       <div className="detail-box">
                         <ul className="detail-items">
-                          {g.orders.map((o) => (
-                            <li key={o.id} className="detail-item">
-                              <div className="detail-item-main">
-                                <div className="inline-title">
-                                  <strong>{orderSummary(o)}</strong>
-                                  {orderStatus(o)}
+                          {g.orders.map((o, orderIdx) => {
+                            const hasStructured =
+                              (o.itens && o.itens.length > 0) ||
+                              (o.acessorios && o.acessorios.length > 0);
+                            const itemTotalCount =
+                              (o.itens?.length || 0) + (o.acessorios?.length || 0);
+                            return (
+                              <li key={o.id} className="detail-item">
+                                <div className="detail-item-main">
+                                  <div className="inline-title">
+                                    <strong>
+                                      {hasStructured
+                                        ? g.orders.length > 1
+                                          ? `Encomenda ${orderIdx + 1} (${itemTotalCount} ${itemTotalCount === 1 ? "item" : "itens"})`
+                                          : `Itens da encomenda (${itemTotalCount})`
+                                        : o.produtoDescricao}
+                                    </strong>
+                                    {orderStatus(o)}
+                                  </div>
+                                  {hasStructured && (
+                                    <ul className="order-detail-lines">
+                                      {(o.itens || []).map((it, idx) => (
+                                        <li
+                                          key={`${it.produtoId}-${idx}`}
+                                          className="order-detail-line"
+                                        >
+                                          <span className="order-detail-name">
+                                            {it.quantidade}× {it.produtoNome}
+                                          </span>
+                                          <span className="order-detail-price money">
+                                            {money(it.subtotal)}
+                                          </span>
+                                        </li>
+                                      ))}
+                                      {(o.acessorios || []).map((ac, idx) => (
+                                        <li
+                                          key={`acc-${idx}`}
+                                          className="order-detail-line"
+                                        >
+                                          <span className="order-detail-name">
+                                            {ac.quantidade}× {ac.descricao}{" "}
+                                            <small className="muted">
+                                              (
+                                              {ac.cobradoCliente
+                                                ? "acessório cobrado"
+                                                : "uso interno / incluso"}
+                                              )
+                                            </small>
+                                          </span>
+                                          <span className="order-detail-price money">
+                                            {ac.cobradoCliente
+                                              ? money(ac.subtotal)
+                                              : "Incluso"}
+                                          </span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                  {o.observacoes && (
+                                    <small>Obs.: {o.observacoes}</small>
+                                  )}
+                                  <small>
+                                    Total: {money(o.valorTotal)} · Recebido:{" "}
+                                    {money(orderReceived(o))} · A receber:{" "}
+                                    {money(orderRemaining(o))}
+                                  </small>
                                 </div>
-                                {o.itens && o.itens.length > 0 && (
-                                  <small>
-                                    Produtos:{" "}
-                                    {o.itens
-                                      .map(
-                                        (it) =>
-                                          `${it.quantidade} × ${it.produtoNome} (${money(it.subtotal)})`,
-                                      )
-                                      .join(", ")}
-                                  </small>
-                                )}
-                                {o.acessorios && o.acessorios.length > 0 && (
-                                  <small>
-                                    Acessórios:{" "}
-                                    {o.acessorios
-                                      .map(
-                                        (ac) =>
-                                          `${ac.quantidade} × ${ac.descricao} (${ac.cobradoCliente ? `cobrado ${money(ac.subtotal)}` : "incluso/interno"})`,
-                                      )
-                                      .join(", ")}
-                                  </small>
-                                )}
-                                {o.observacoes && (
-                                  <small>Obs.: {o.observacoes}</small>
-                                )}
-                                <small>
-                                  Total: {money(o.valorTotal)} · Recebido:{" "}
-                                  {money(orderReceived(o))} · A receber:{" "}
-                                  {money(orderRemaining(o))}
-                                </small>
-                              </div>
-                              <Actions
-                                kind="order"
-                                collection="encomendas"
-                                record={o}
-                                name={`encomenda de ${o.clienteNome}`}
-                              />
-                            </li>
-                          ))}
+                                <Actions
+                                  kind="order"
+                                  collection="encomendas"
+                                  record={o}
+                                  name={`encomenda de ${o.clienteNome}`}
+                                />
+                              </li>
+                            );
+                          })}
                         </ul>
                       </div>
                     </td>

@@ -136,6 +136,7 @@ test("registra venda e encomenda e atualiza os registros sem recarregar", async 
   await expect(orderRow).toBeVisible();
   await orderRow.getByRole("button", { name: "Ver detalhes" }).click();
   await expect(page.getByText("Obs.: Encomenda de teste com entrada")).toBeVisible();
+  await expect(page.locator(".order-detail-line")).toContainText(["1× BOLO DE CHOCOLATE"]);
 });
 test("viewer e dispositivo offline não oferecem gravações", async ({
   page,
@@ -531,4 +532,51 @@ test("nota fiscal permite escolher por item se adiciona ao estoque mantendo o va
   await expect(
     page.getByRole("row").filter({ hasText: "Caixa para bolo" }),
   ).toContainText("15 un.");
+});
+
+test("encomendas exibem itens e acessórios em linhas separadas nos detalhes agrupados", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1#encomendas");
+
+  // Cria uma nova encomenda multi-produto + acessório cobrado para ANA OLIVEIRA (já possui e1 legado na mesma data)
+  await page.getByRole("button", { name: "Nova encomenda" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Cliente", { exact: true }).selectOption("c1");
+  await dialog.getByLabel("Produto cadastrado").selectOption("p1");
+  await dialog.getByRole("button", { name: "Adicionar produto" }).click();
+  await dialog.getByLabel("Produto cadastrado").selectOption("p3");
+  await dialog.getByRole("button", { name: "Adicionar produto" }).click();
+  await dialog.getByLabel("Material", { exact: true }).selectOption("m1");
+  await dialog.getByLabel("Valor cobrado (R$)").fill("10");
+  await dialog.getByRole("button", { name: "Adicionar acessório" }).click();
+  await dialog.getByLabel("Valor já recebido (R$)").fill("50");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+
+  // Grupo de ANA OLIVEIRA reúne a encomenda legada (R$ 280) e a nova estruturada (120 + 85 + 10 = R$ 215) = R$ 495,00
+  const groupRow = page.getByRole("row").filter({ hasText: "ANA OLIVEIRA" });
+  await expect(groupRow).toContainText("2 encomendas");
+  await expect(groupRow).toContainText("495,00");
+
+  await groupRow.getByRole("button", { name: "Ver detalhes" }).click();
+  const detailBox = page.locator(".detail-box");
+  await expect(detailBox).toBeVisible();
+
+  // Encomenda legada preservada e nova discrimina cada item em sua própria linha sem concatenação com ·
+  await expect(detailBox.getByText("Bolo de aniversário · chocolate e morango")).toBeVisible();
+  await expect(detailBox.getByText(/Encomenda [12] \(3 itens\)/)).toBeVisible();
+
+  const lines = detailBox.locator(".order-detail-line");
+  await expect(lines).toHaveCount(3);
+  await expect(lines.nth(0)).toContainText("1× BOLO DE CHOCOLATE");
+  await expect(lines.nth(0)).toContainText("120,00");
+  await expect(lines.nth(1)).toContainText("1× TORTA DE LIMÃO");
+  await expect(lines.nth(1)).toContainText("85,00");
+  await expect(lines.nth(2)).toContainText("1× Caixa para bolo");
+  await expect(lines.nth(2)).toContainText("10,00");
+
+  // Não repete "Produtos:" nem título concatenado "1× BOLO DE CHOCOLATE · 1× TORTA DE LIMÃO" dentro dos detalhes
+  await expect(detailBox.getByText("1× BOLO DE CHOCOLATE · 1× TORTA DE LIMÃO")).toHaveCount(0);
+  await expect(detailBox.getByText("Produtos:")).toHaveCount(0);
 });

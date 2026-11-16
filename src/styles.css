@@ -2212,6 +2212,35 @@ dialog p {
   color: var(--muted);
   overflow-wrap: anywhere;
 }
+.order-detail-lines {
+  list-style: none;
+  margin: 4px 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.order-detail-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px 12px;
+  padding: 4px 8px;
+  background: var(--cream);
+  border-radius: 6px;
+  font-size: 13px;
+  min-width: 0;
+}
+.order-detail-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.order-detail-price {
+  white-space: nowrap;
+  font-weight: 600;
+}
 .detail-meta {
   display: grid;
   gap: 6px;

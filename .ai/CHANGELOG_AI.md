@@ -1,5 +1,11 @@
 # Mudanças relevantes por IA
 
+## 2026-11-16 — Exibição linha a linha dos itens nos detalhes das encomendas
+
+**Agente:** Antigravity. **Objetivo:** melhorar a legibilidade de **Ver detalhes** na tela **Encomendas**, listando cada produto e acessório estruturado em uma linha própria com valor discriminado, sem concatenações ou repetições redundantes e preservando compatibilidade com `produtoDescricao` legado.
+
+**Mudanças:** refatorado o detalhamento expandido de `Orders` em `src/pages.tsx` e adicionados estilos responsivos `.order-detail-lines`, `.order-detail-line` e `.order-detail-price` em `src/styles.css`. Testes atualizados/ampliados em `tests/browser/preview.spec.ts` e `tests/browser/firebase.spec.ts`; documentação atualizada em `docs/manual-de-uso.md` e `specs/007-encomendas-detalhes-itens/`. **Observação:** mantido localmente na branch `feat/encomendas-detalhes-itens` sem push em `main`.
+
 ## 2026-11-16 — Entrada opcional de estoque por item da nota fiscal
 
 **Agente:** Antigravity. **Objetivo:** permitir que o usuário marque ou desmarque individualmente **[ ] Adicionar ao estoque** por item em **Financeiro > Registrar nota fiscal** (com edição reversível e estorno seguro), mantendo todos os itens e o total financeiro da nota.

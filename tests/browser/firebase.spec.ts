@@ -143,6 +143,8 @@ test("login real no emulador, venda, encomenda, despesa e saída", async ({
   await expect(orderRow).toBeVisible();
   await orderRow.getByRole("button", { name: "Ver detalhes" }).click();
   await expect(page.getByText("Obs.: Bolo validado no emulador")).toBeVisible();
+  await expect(page.locator(".order-detail-line").first()).toContainText("1× BOLO DE CHOCOLATE");
+  await expect(page.locator(".order-detail-line").first()).toContainText("120,00");
   await navigate(page, "Financeiro");
   await page.getByRole("button", { name: "Registrar despesa" }).click();
   dialog = page.getByRole("dialog");
