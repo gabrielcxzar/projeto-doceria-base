@@ -115,3 +115,15 @@ Como evolução independente futura (pendente de aprovação da operação após
 3. Permitir alternar **Adicionar ao estoque** antes de salvar e na edição da nota (estornando via `correcao_nota` apenas o item desmarcado quando houver saldo suficiente e nunca duplicando entradas existentes).
 
 **Consequência:** notas fiscais mistas registram todos os itens no Financeiro com valor total intacto, movimentam o estoque apenas para os itens marcados e garantem estorno líquido exato em edições e exclusões. Evidências em [feature 006](../specs/006-nota-fiscal-estoque-opcional/spec.md).
+
+## ADR-010 — Independência total entre situação operacional da encomenda e quitação financeira
+
+**Status:** aceita, 2026-11-16 (implementada na branch `feat/encomendas-situacao-rapida`).
+
+**Contexto:** ao introduzir a ação rápida unitária **Alterar situação** em **Encomendas**, identificou-se que ainda permaneciam acoplamentos legados em `firestore.rules`, `src/editors.tsx` (`valorEntrada === valorTotal` obrigatório para `Finalizado`) e `src/domain.ts` (`orderReceived`/`orderRemaining` assumindo quitação ao ver `status === "Finalizado"`).
+
+**Decisão:**
+1. Remover o acoplamento em `firestore.rules`, `src/editors.tsx` e `orderReceived`/`orderRemaining` (`src/domain.ts`), de modo que `Finalizado` represente exclusivamente a etapa de produção/entrega e os recebimentos continuem controlados apenas por `valorEntrada` e `recebimentos`.
+2. Disponibilizar a alteração rápida exclusivamente por encomenda individual (na linha avulsa e em cada item expandido de grupos), sem ação em lote sobre agrupamentos, utilizando controle de concorrência `expectedUpdatedAt` e restrição `admin`.
+
+**Consequência:** finalizar produção não cria recebimento automático nem oculta dívidas pendentes em Cobranças. Encomendas históricas `Finalizado` já possuem `valorEntrada === valorTotal` preservado. Evidências em [feature 009](../specs/009-encomendas-situacao-rapida/spec.md).

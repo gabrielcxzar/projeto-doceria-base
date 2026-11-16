@@ -45,8 +45,7 @@ service cloud.firestore {
         && request.resource.data.valorTotal is number && request.resource.data.valorTotal > 0
         && nonnegative(request.resource.data, 'valorEntrada')
         && request.resource.data.valorEntrada <= request.resource.data.valorTotal
-        && request.resource.data.status in ['Pendente', 'Em Produção', 'Finalizado']
-        && (request.resource.data.status != 'Finalizado' || request.resource.data.valorEntrada == request.resource.data.valorTotal);
+        && request.resource.data.status in ['Pendente', 'Em Produção', 'Finalizado'];
       allow delete: if admin();
     }
     match /clientes/{id} {

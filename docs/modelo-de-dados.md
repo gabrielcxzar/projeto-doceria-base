@@ -35,7 +35,7 @@ Contratos observados em [src/types.ts](../src/types.ts), [src/domain.ts](../src/
 
 Venda: `P` pendente, `A` pago, `E` entregue e pago. Pagamentos: `PIX`, `Dinheiro`, `Cartão`, `Transferência`.
 
-Encomenda: `Pendente`, `Em Produção`, `Finalizado`. A finalização exige o recebimento total. A entrada deve ficar entre zero e o total.
+Encomenda: `Pendente`, `Em Produção`, `Finalizado` (situação operacional independente da quitação financeira). A entrada deve ficar entre zero e o total.
 
 Categorias de produto: `Bolos`, `Doces`, `Salgados`, `Bebidas`, `Outros`. Tipos de despesa: `Material`, `Equipamento`, `Marketing`, `Transporte`, `Outros`.
 
@@ -63,7 +63,7 @@ Editar ingrediente não recalcula automaticamente receitas/produtos já salvos. 
 
 - Total de venda = `valor × quantidade`.
 - Vendas `A` e `E` são recebidas integralmente; vendas `P` acumulam `valorPago` conforme recebimentos parciais sem perder o status `P` até a quitação total.
-- Recebido da encomenda = `valorEntrada`, ou `valorTotal` quando `Finalizado`. Saldo = `valorTotal - valorEntrada`, limitado a zero.
+- Recebido da encomenda = `valorEntrada` (limitado entre zero e `valorTotal`). Saldo = `valorTotal - recebido`, limitado a zero (independente da situação operacional `Finalizado`).
 - Vendido = total das vendas + total das encomendas do período.
 - Recebido = soma dos documentos em `recebimentos` cuja `data` pertence ao período + eventual parcela legada já recebida sem `recebimentos` correspondente (atribuída à data da venda ou entrega sem inventar histórico anterior).
 - Resultado de caixa = recebido menos despesas. Não descontar novamente o custo estimado de produção como se todas as compras fossem despesas diferentes.

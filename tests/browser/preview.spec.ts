@@ -676,3 +676,54 @@ test("encomendas permite cadastrar produto completo sem perder rascunho, trata e
   await page.goto("/?demo=viewer#encomendas");
   await expect(page.getByRole("button", { name: "Nova encomenda" })).toHaveCount(0);
 });
+
+test("encomendas permite alteração rápida individual sem alterar recebimentos e funciona em agrupamentos", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1#encomendas");
+
+  // 1) Mudança rápida em encomenda individual (BEATRIZ LIMA: 400,00 total, 200,00 recebido, 200,00 pendente)
+  const beatrizRow = page.getByRole("row").filter({ hasText: "BEATRIZ LIMA" });
+  await beatrizRow
+    .getByRole("button", { name: "Alterar situação da encomenda de BEATRIZ LIMA" })
+    .click();
+  let dialog = page.getByRole("dialog", { name: "Situação da encomenda" });
+  await expect(dialog).toContainText("BEATRIZ LIMA");
+  await expect(dialog).toContainText("Pendente");
+  await dialog.getByLabel("Nova situação").selectOption("Finalizado");
+  await dialog.getByRole("button", { name: "Confirmar", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+
+  // Atualiza status visualmente para Finalizado SEM zerar os R$ 200,00 em aberto
+  await expect(beatrizRow).toContainText("Finalizado");
+  await expect(beatrizRow).toContainText("200,00");
+
+  // 2) Cria segunda encomenda no mesmo dia para ANA OLIVEIRA (já possui e1 Em Produção)
+  await page.getByRole("button", { name: "Nova encomenda" }).click();
+  const orderDialog = page.getByRole("dialog", { name: "Encomenda" });
+  await orderDialog.getByLabel("Cliente", { exact: true }).selectOption("c1");
+  await orderDialog.getByLabel("Produto cadastrado").selectOption("p1");
+  await orderDialog.getByRole("button", { name: "Adicionar produto" }).click();
+  await orderDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(orderDialog).toHaveCount(0);
+
+  const anaGroupRow = page.getByRole("row").filter({ hasText: "ANA OLIVEIRA" });
+  await expect(anaGroupRow).toContainText("Situações diferentes");
+  await anaGroupRow.getByRole("button", { name: "Ver detalhes" }).click();
+
+  // Cada item do grupo tem seu próprio botão unitário; alterar apenas Encomenda 1 para Pendente não muda Encomenda 2
+  const detailItems = page.locator(".detail-item");
+  await expect(detailItems).toHaveCount(2);
+  await page
+    .getByRole("button", { name: "Alterar situação da encomenda 1 de ANA OLIVEIRA" })
+    .click();
+  dialog = page.getByRole("dialog", { name: "Situação da encomenda" });
+  await dialog.getByLabel("Nova situação").selectOption("Finalizado");
+  await dialog.getByRole("button", { name: "Confirmar", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(detailItems.nth(0)).toContainText("Finalizado");
+
+  // Viewer não vê ações de alteração rápida
+  await page.goto("/?demo=viewer#encomendas");
+  await expect(page.getByRole("button", { name: /^Alterar situação/ })).toHaveCount(0);
+});

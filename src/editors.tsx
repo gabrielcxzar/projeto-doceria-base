@@ -671,13 +671,6 @@ export default function Editor({
           status: v("status") as Order["status"],
         };
         validateOrder(orderObj);
-        if (
-          orderObj.status === "Finalizado" &&
-          orderObj.valorEntrada !== orderObj.valorTotal
-        )
-          throw new Error(
-            "Para finalizar, confirme o recebimento total preenchendo o valor já recebido igual ao total.",
-          );
         if (!existingOrder) {
           mainId = crypto.randomUUID();
           createOnly = true;

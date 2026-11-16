@@ -608,3 +608,51 @@ test("encomenda no emulador cadastra produto novo e o seleciona sem perder itens
   await expect(page.locator(".detail-box")).toContainText("Total: R$ 210,00");
   await expect(page.locator(".order-detail-line").filter({ hasText: "TORTA MORANGO EMULADOR" })).toContainText("90,00");
 });
+
+test("alteração rápida de situação em encomenda persiste no emulador sem quitar saldo e detecta conflito", async ({
+  page,
+  request,
+}) => {
+  await loginAs(page, "admin");
+  await navigate(page, "Encomendas");
+
+  // Finalizar BEATRIZ LIMA (200 de 400 pagos) no emulador mantém valorEntrada=200 e zero recebimentos novos
+  const beatrizRow = page.getByRole("row").filter({ hasText: "BEATRIZ LIMA" });
+  await beatrizRow
+    .getByRole("button", { name: "Alterar situação da encomenda de BEATRIZ LIMA" })
+    .click();
+  let dialog = page.getByRole("dialog", { name: "Situação da encomenda" });
+  await dialog.getByLabel("Nova situação").selectOption("Finalizado");
+  await dialog.getByRole("button", { name: "Confirmar", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(beatrizRow).toContainText("Finalizado");
+  await expect(beatrizRow).toContainText("200,00");
+
+  const receiptsRes = await request.get(`${firestore}/recebimentos`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+  });
+  expect((await receiptsRes.json()).documents ?? []).toHaveLength(0);
+
+  // Conflito de concorrência ao alterar situação em diálogo já aberto
+  await beatrizRow
+    .getByRole("button", { name: "Alterar situação da encomenda de BEATRIZ LIMA" })
+    .click();
+  dialog = page.getByRole("dialog", { name: "Situação da encomenda" });
+  const externalPatch = await request.patch(
+    `${firestore}/encomendas/e2?updateMask.fieldPaths=status&updateMask.fieldPaths=atualizadoEm`,
+    {
+      headers: { Authorization: `Bearer ${adminToken}` },
+      data: {
+        fields: {
+          status: { stringValue: "Em Produção" },
+          atualizadoEm: { timestampValue: new Date(Date.now() + 5000).toISOString() },
+        },
+      },
+    },
+  );
+  expect(externalPatch.ok()).toBe(true);
+  await expect(beatrizRow).toContainText("Em Produção");
+  await dialog.getByLabel("Nova situação").selectOption("Pendente");
+  await dialog.getByRole("button", { name: "Confirmar", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("alterado por outra pessoa");
+});

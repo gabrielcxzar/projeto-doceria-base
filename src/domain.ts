@@ -98,14 +98,10 @@ export const saleReceived = (s: Sale) => {
 export const saleRemaining = (s: Sale) =>
   Math.max(0, round(saleTotal(s) - saleReceived(s)));
 
-export const orderRemaining = (o: Order) =>
-  o.status === "Finalizado"
-    ? 0
-    : Math.max(0, round(o.valorTotal - (o.valorEntrada || 0)));
 export const orderReceived = (o: Order) =>
-  o.status === "Finalizado"
-    ? o.valorTotal
-    : Math.min(o.valorTotal, Math.max(0, o.valorEntrada || 0));
+  Math.min(o.valorTotal, Math.max(0, round(o.valorEntrada || 0)));
+export const orderRemaining = (o: Order) =>
+  Math.max(0, round(o.valorTotal - orderReceived(o)));
 
 export const customerMatches = (
   record: { clienteId?: string; clienteNome?: string; pessoa?: string },

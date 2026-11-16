@@ -116,7 +116,7 @@ describe("perfis e dados comerciais", () => {
         setDoc(doc(db, "vendas/invalida"), { ...sale, ...change }),
       );
   });
-  it("rejeita entrada superior ao total e finalização sem pagamento completo", async () => {
+  it("rejeita entrada superior ao total e permite finalizar independente da quitação", async () => {
     const db = env.authenticatedContext("admin").firestore();
     const order = {
       clienteNome: "CLIENTE TESTE",
@@ -131,13 +131,10 @@ describe("perfis e dados comerciais", () => {
       setDoc(doc(db, "encomendas/invalida"), { ...order, valorEntrada: 101 }),
     );
     await assertFails(
-      updateDoc(doc(db, "encomendas/valida"), { status: "Finalizado" }),
+      updateDoc(doc(db, "encomendas/valida"), { status: "Cancelado" }),
     );
     await assertSucceeds(
-      updateDoc(doc(db, "encomendas/valida"), {
-        status: "Finalizado",
-        valorEntrada: 100,
-      }),
+      updateDoc(doc(db, "encomendas/valida"), { status: "Finalizado" }),
     );
   });
   it("gravação atômica inválida não deixa alteração parcial", async () => {

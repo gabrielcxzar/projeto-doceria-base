@@ -79,6 +79,10 @@ describe("valores e datas comerciais", () => {
     expect(
       orderRemaining({ ...order, valorEntrada: 100, status: "Finalizado" }),
     ).toBe(0);
+    // Finalizar produção não quita nem zera saldo pendente automaticamente.
+    expect(
+      orderRemaining({ ...order, valorEntrada: 30, status: "Finalizado" }),
+    ).toBe(70);
   });
 });
 describe("ordenação pt-BR e agrupamentos", () => {
