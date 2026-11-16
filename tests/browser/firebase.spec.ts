@@ -143,6 +143,8 @@ test("login real no emulador, venda, encomenda, despesa e saída", async ({
   await expect(orderRow).toBeVisible();
   await orderRow.getByRole("button", { name: "Ver detalhes" }).click();
   await expect(page.getByText("Obs.: Bolo validado no emulador")).toBeVisible();
+  await expect(page.locator(".order-detail-line").first()).toContainText("1× BOLO DE CHOCOLATE");
+  await expect(page.locator(".order-detail-line").first()).toContainText("120,00");
   await navigate(page, "Financeiro");
   await page.getByRole("button", { name: "Registrar despesa" }).click();
   dialog = page.getByRole("dialog");
@@ -491,4 +493,166 @@ test("nota fiscal com múltiplos itens persiste no emulador e movimenta estoque"
   await expect(
     page.getByRole("row").filter({ hasText: "Caixa para bolo" }),
   ).toContainText("18 un.");
+});
+
+test("nota fiscal mista no emulador grava apenas itens marcados e estorna corretamente na edição", async ({
+  page,
+  request,
+}) => {
+  await loginAs(page, "admin");
+  await navigate(page, "Financeiro");
+  await page.getByRole("button", { name: "Registrar nota fiscal" }).click();
+  let dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Fornecedor *").selectOption("f1");
+  await dialog.getByLabel("Número da nota (opcional)").fill("NF-MISTA");
+
+  // Chocolate: entra no estoque (+1 kg)
+  await dialog.getByLabel("Item cadastrado").selectOption("i1");
+  await dialog.getByRole("button", { name: "1", exact: true }).click();
+  await dialog.getByLabel("Unidade").selectOption("kg");
+  await dialog.getByLabel("Valor unitário (R$)").fill("45");
+  await dialog.getByRole("button", { name: "Adicionar item" }).click();
+
+  // Caixa para bolo: NÃO entra no estoque (desmarcado)
+  await dialog.getByLabel("Adicionar ao estoque", { exact: true }).uncheck();
+  await dialog.getByLabel("Tipo do item").selectOption("material");
+  await dialog.getByLabel("Item cadastrado").selectOption("m1");
+  await dialog.getByRole("button", { name: "2", exact: true }).click();
+  await dialog.getByLabel("Valor unitário (R$)").fill("5");
+  await dialog.getByRole("button", { name: "Adicionar item" }).click();
+
+  await dialog.getByRole("button", { name: "Salvar nota fiscal" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  const mistaRow = page.getByRole("row").filter({ hasText: "NF-MISTA" });
+  await expect(mistaRow).toContainText("55,00");
+
+  // Apenas 1 nova movimentação (de 2 iniciais mv1/mv2 -> 3 total)
+  const movsAfterCreate = await (
+    await request.get(`${firestore}/movimentacoes_estoque`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    })
+  ).json();
+  expect(movsAfterCreate.documents).toHaveLength(3);
+
+  // Ao editar a nota, Chocolate aparece marcado e Caixa aparece desmarcada; desmarcar Chocolate estorna apenas Chocolate
+  await mistaRow.getByRole("button", { name: /Editar Distribuidora ABC/ }).click();
+  dialog = page.getByRole("dialog");
+  const chocCheck = dialog.getByLabel("Adicionar Chocolate meio amargo ao estoque", { exact: true });
+  const matCheck = dialog.getByLabel("Adicionar Caixa para bolo ao estoque", { exact: true });
+  await expect(chocCheck).toBeChecked();
+  await expect(matCheck).not.toBeChecked();
+  await chocCheck.uncheck();
+  await dialog.getByRole("button", { name: "Salvar nota fiscal" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  await expect(page.getByRole("row").filter({ hasText: "NF-MISTA" })).toContainText("55,00");
+  await navigate(page, "Estoque");
+  await expect(
+    page.getByRole("row").filter({ hasText: "Chocolate meio amargo" }),
+  ).toContainText("2.000 g (2 kg)");
+  await expect(
+    page.getByRole("row").filter({ hasText: "Caixa para bolo" }),
+  ).toContainText("15 un.");
+});
+
+test("encomenda no emulador cadastra produto novo e o seleciona sem perder itens", async ({
+  page,
+  request,
+}) => {
+  await loginAs(page, "admin");
+  await navigate(page, "Encomendas");
+  await page.getByRole("button", { name: "Nova encomenda" }).click();
+  const orderDialog = page.getByRole("dialog", { name: "Encomenda" });
+
+  await orderDialog.getByLabel("Cliente", { exact: true }).selectOption("c1");
+  await orderDialog.getByLabel("Produto cadastrado").selectOption("p1");
+  await orderDialog.getByRole("button", { name: "Adicionar produto" }).click();
+  await orderDialog
+    .getByLabel("Observações de preparo, sabor, tamanho e personalização")
+    .fill("Com produto cadastrado na hora");
+
+  await orderDialog.getByRole("button", { name: "Cadastrar produto" }).click();
+  const prodDialog = page.getByRole("dialog", { name: "Produto" });
+  await prodDialog.getByLabel("Nome", { exact: true }).fill("TORTA MORANGO EMULADOR");
+  await prodDialog.getByLabel("Preço de venda (R$)").fill("90");
+  await prodDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(prodDialog).toHaveCount(0);
+
+  // Produto persistiu no Firestore e já veio selecionado na encomenda
+  const prods = (
+    await (
+      await request.get(`${firestore}/produtos`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      })
+    ).json()
+  ).documents;
+  expect(prods).toHaveLength(4);
+  const selectedOption = await orderDialog
+    .getByLabel("Produto cadastrado")
+    .locator("option:checked")
+    .innerText();
+  expect(selectedOption).toContain("TORTA MORANGO EMULADOR");
+
+  await orderDialog.getByRole("button", { name: "Adicionar produto" }).click();
+  await expect(orderDialog.getByText("R$ 210,00").first()).toBeVisible();
+  await orderDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(orderDialog).toHaveCount(0);
+
+  const row = page
+    .getByRole("row")
+    .filter({ hasText: "ANA OLIVEIRA" })
+    .filter({ hasText: "TORTA MORANGO EMULADOR" });
+  await expect(row).toContainText("490,00");
+  await row.getByRole("button", { name: "Ver detalhes" }).click();
+  await expect(page.locator(".detail-box")).toContainText("Total: R$ 210,00");
+  await expect(page.locator(".order-detail-line").filter({ hasText: "TORTA MORANGO EMULADOR" })).toContainText("90,00");
+});
+
+test("alteração rápida de situação em encomenda persiste no emulador sem quitar saldo e detecta conflito", async ({
+  page,
+  request,
+}) => {
+  await loginAs(page, "admin");
+  await navigate(page, "Encomendas");
+
+  // Finalizar BEATRIZ LIMA (200 de 400 pagos) no emulador mantém valorEntrada=200 e zero recebimentos novos
+  const beatrizRow = page.getByRole("row").filter({ hasText: "BEATRIZ LIMA" });
+  await beatrizRow
+    .getByRole("button", { name: "Alterar situação da encomenda de BEATRIZ LIMA" })
+    .click();
+  let dialog = page.getByRole("dialog", { name: "Situação da encomenda" });
+  await dialog.getByLabel("Nova situação").selectOption("Finalizado");
+  await dialog.getByRole("button", { name: "Confirmar", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(beatrizRow).toContainText("Finalizado");
+  await expect(beatrizRow).toContainText("200,00");
+
+  const receiptsRes = await request.get(`${firestore}/recebimentos`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+  });
+  expect((await receiptsRes.json()).documents ?? []).toHaveLength(0);
+
+  // Conflito de concorrência ao alterar situação em diálogo já aberto
+  await beatrizRow
+    .getByRole("button", { name: "Alterar situação da encomenda de BEATRIZ LIMA" })
+    .click();
+  dialog = page.getByRole("dialog", { name: "Situação da encomenda" });
+  const externalPatch = await request.patch(
+    `${firestore}/encomendas/e2?updateMask.fieldPaths=status&updateMask.fieldPaths=atualizadoEm`,
+    {
+      headers: { Authorization: `Bearer ${adminToken}` },
+      data: {
+        fields: {
+          status: { stringValue: "Em Produção" },
+          atualizadoEm: { timestampValue: new Date(Date.now() + 5000).toISOString() },
+        },
+      },
+    },
+  );
+  expect(externalPatch.ok()).toBe(true);
+  await expect(beatrizRow).toContainText("Em Produção");
+  await dialog.getByLabel("Nova situação").selectOption("Pendente");
+  await dialog.getByRole("button", { name: "Confirmar", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("alterado por outra pessoa");
 });

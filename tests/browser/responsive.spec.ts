@@ -170,6 +170,10 @@ test("todas as áreas, cadastros e diálogos mantêm controles acessíveis", asy
       await page.getByRole("button", { name: /^Editar / }).first().click();
       await inspectDialog(page);
     }
+    if (name === "Encomendas") {
+      await page.getByRole("button", { name: /^Alterar situação/ }).first().click();
+      await inspectDialog(page);
+    }
     await page.getByRole("button", { name: /^Excluir / }).first().click();
     await inspectDialog(page);
   }

@@ -24,7 +24,7 @@ Contratos observados em [src/types.ts](../src/types.ts), [src/domain.ts](../src/
 | `produtos`              | `nome`, `categoria`, `valor` unitário, `custoMaterial`, `custoMaoObra`, `custosInvisiveis` percentual, `margem` legado como markup, `tempoPreparo` em minutos, `nomesAnteriores`, `composicaoReceitas` (`id`, `titulo`) e `materiaisUtilizados` (`id`, `nome`).                                                                                                                      |
 | `vendas`                | `data`, `pessoa` (nome do cliente), `clienteId` opcional, `produto` (nome), `produtoId` opcional, `quantidade` inteira positiva, `valor` unitário, `custoUnitario` opcional, `pagamento`, `status`, `pedidoId` opcional (agrupa itens lançados na mesma compra) e `valorPago` opcional para recebimentos parciais.                                                                   |
 | `encomendas`            | `clienteNome`, `clienteId` opcional, `produtoDescricao`, `dataEntrega`, `valorTotal`, `valorEntrada`, `status`, mais campos opcionais estruturados (`itens[]`, `acessorios[]` com `cobradoCliente`, e `observacoes`).                                                                                                                                                                |
-| `despesas`              | `data`, `tipo`, `descricao`, `quantidade` descritiva e `valor` total. Notas fiscais registram `isNotaFiscal`, `fornecedorId`, `fornecedorNome` (snapshot histórico), `fornecedor` (compatibilidade), `numeroNota`, `observacoes` e `itensNota[]`; despesas simples podem vincular `entradaEstoque`.                                                                                                                                                          |
+| `despesas`              | `data`, `tipo`, `descricao`, `quantidade` descritiva e `valor` total. Notas fiscais registram `isNotaFiscal`, `fornecedorId`, `fornecedorNome` (snapshot histórico), `fornecedor` (compatibilidade), `numeroNota`, `observacoes` e `itensNota[]` (cada item com `geraEstoque` e `adicionarEstoque?` individual); despesas simples podem vincular `entradaEstoque`. |
 | `recebimentos`          | `data` efetiva do pagamento, `valor`, `origemTipo` (`venda`, `encomenda`, `pedido_venda`), `origemId`, `vendaIds` opcional, `clienteId`, `clienteNome`, `descricao`, `pagamento`, `tipoBaixa` (`parcial`, `integral`, `quitacao_cliente`, `entrada`, `manual`). Documentos imutáveis após criação (`update: if false`).                                                              |
 | `movimentacoes_estoque` | `data`, `itemTipo` (`ingrediente` ou `material`), `itemId`, `itemNome`, `tipo` (`saldo_inicial`, `entrada`, `saida`, `ajuste`), `direcao` (`entrada` ou `saida`), `quantidade`, `unidade`, `quantidadePadrao`, `deltaPadrao`, `unidadePadrao`, `saldoAnterior`, `saldoPosterior`, `motivo`, `origemTipo` e `origemId` opcionais. Imutável após criação (`update: if false`).          |
 | `cobrancas`     | `clienteNome`, `tipo`, `data` timestamp. Novos registros também gravam `clienteId`; ele é usado pelo matcher, embora ainda não esteja declarado em `Charge`. É histórico de contato, não uma dívida adicional.                                                  |
@@ -35,7 +35,7 @@ Contratos observados em [src/types.ts](../src/types.ts), [src/domain.ts](../src/
 
 Venda: `P` pendente, `A` pago, `E` entregue e pago. Pagamentos: `PIX`, `Dinheiro`, `Cartão`, `Transferência`.
 
-Encomenda: `Pendente`, `Em Produção`, `Finalizado`. A finalização exige o recebimento total. A entrada deve ficar entre zero e o total.
+Encomenda: `Pendente`, `Em Produção`, `Finalizado` (situação operacional independente da quitação financeira). A entrada deve ficar entre zero e o total.
 
 Categorias de produto: `Bolos`, `Doces`, `Salgados`, `Bebidas`, `Outros`. Tipos de despesa: `Material`, `Equipamento`, `Marketing`, `Transporte`, `Outros`.
 
@@ -63,7 +63,7 @@ Editar ingrediente não recalcula automaticamente receitas/produtos já salvos. 
 
 - Total de venda = `valor × quantidade`.
 - Vendas `A` e `E` são recebidas integralmente; vendas `P` acumulam `valorPago` conforme recebimentos parciais sem perder o status `P` até a quitação total.
-- Recebido da encomenda = `valorEntrada`, ou `valorTotal` quando `Finalizado`. Saldo = `valorTotal - valorEntrada`, limitado a zero.
+- Recebido da encomenda = `valorEntrada` (limitado entre zero e `valorTotal`). Saldo = `valorTotal - recebido`, limitado a zero (independente da situação operacional `Finalizado`).
 - Vendido = total das vendas + total das encomendas do período.
 - Recebido = soma dos documentos em `recebimentos` cuja `data` pertence ao período + eventual parcela legada já recebida sem `recebimentos` correspondente (atribuída à data da venda ou entrega sem inventar histórico anterior).
 - Resultado de caixa = recebido menos despesas. Não descontar novamente o custo estimado de produção como se todas as compras fossem despesas diferentes.

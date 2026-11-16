@@ -44,6 +44,7 @@ import {
   formatStock,
   groupOrders,
   groupSales,
+  invoiceItemAddsToStock,
   isArchivableCollection,
   isLowStock,
   money,
@@ -748,10 +749,11 @@ function StatusDialog({
   );
 }
 export function Orders() {
-  const { data, canWrite, edit } = useBusiness();
+  const { data, canWrite, edit, save } = useBusiness();
   const [status, setStatus] = useState("");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [statusTarget, setStatusTarget] = useState<Order | null>(null);
   const filteredOrders = data.encomendas.filter(
     (o) => !status || o.status === status,
   );
@@ -883,6 +885,16 @@ export function Orders() {
                           {isOpen ? "Ocultar" : "Ver detalhes"}
                         </Button>
                       )}
+                      {single && canWrite && (
+                        <button
+                          className="icon-button"
+                          aria-label={`Alterar situação da encomenda de ${single.clienteNome}`}
+                          title="Alterar situação"
+                          onClick={() => setStatusTarget(single)}
+                        >
+                          <Check size={16} />
+                        </button>
+                      )}
                       {single && (
                         <Actions
                           kind="order"
@@ -899,52 +911,98 @@ export function Orders() {
                     <td colSpan={7}>
                       <div className="detail-box">
                         <ul className="detail-items">
-                          {g.orders.map((o) => (
-                            <li key={o.id} className="detail-item">
-                              <div className="detail-item-main">
-                                <div className="inline-title">
-                                  <strong>{orderSummary(o)}</strong>
-                                  {orderStatus(o)}
+                          {g.orders.map((o, orderIdx) => {
+                            const hasStructured =
+                              (o.itens && o.itens.length > 0) ||
+                              (o.acessorios && o.acessorios.length > 0);
+                            const itemTotalCount =
+                              (o.itens?.length || 0) + (o.acessorios?.length || 0);
+                            return (
+                              <li key={o.id} className="detail-item">
+                                <div className="detail-item-main">
+                                  <div className="inline-title">
+                                    <strong>
+                                      {hasStructured
+                                        ? g.orders.length > 1
+                                          ? `Encomenda ${orderIdx + 1} (${itemTotalCount} ${itemTotalCount === 1 ? "item" : "itens"})`
+                                          : `Itens da encomenda (${itemTotalCount})`
+                                        : o.produtoDescricao}
+                                    </strong>
+                                    {orderStatus(o)}
+                                  </div>
+                                  {hasStructured && (
+                                    <ul className="order-detail-lines">
+                                      {(o.itens || []).map((it, idx) => (
+                                        <li
+                                          key={`${it.produtoId}-${idx}`}
+                                          className="order-detail-line"
+                                        >
+                                          <span className="order-detail-name">
+                                            {it.quantidade}× {it.produtoNome}
+                                          </span>
+                                          <span className="order-detail-price money">
+                                            {money(it.subtotal)}
+                                          </span>
+                                        </li>
+                                      ))}
+                                      {(o.acessorios || []).map((ac, idx) => (
+                                        <li
+                                          key={`acc-${idx}`}
+                                          className="order-detail-line"
+                                        >
+                                          <span className="order-detail-name">
+                                            {ac.quantidade}× {ac.descricao}{" "}
+                                            <small className="muted">
+                                              (
+                                              {ac.cobradoCliente
+                                                ? "acessório cobrado"
+                                                : "uso interno / incluso"}
+                                              )
+                                            </small>
+                                          </span>
+                                          <span className="order-detail-price money">
+                                            {ac.cobradoCliente
+                                              ? money(ac.subtotal)
+                                              : "Incluso"}
+                                          </span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                  {o.observacoes && (
+                                    <small>Obs.: {o.observacoes}</small>
+                                  )}
+                                  <small>
+                                    Total: {money(o.valorTotal)} · Recebido:{" "}
+                                    {money(orderReceived(o))} · A receber:{" "}
+                                    {money(orderRemaining(o))}
+                                  </small>
                                 </div>
-                                {o.itens && o.itens.length > 0 && (
-                                  <small>
-                                    Produtos:{" "}
-                                    {o.itens
-                                      .map(
-                                        (it) =>
-                                          `${it.quantidade} × ${it.produtoNome} (${money(it.subtotal)})`,
-                                      )
-                                      .join(", ")}
-                                  </small>
-                                )}
-                                {o.acessorios && o.acessorios.length > 0 && (
-                                  <small>
-                                    Acessórios:{" "}
-                                    {o.acessorios
-                                      .map(
-                                        (ac) =>
-                                          `${ac.quantidade} × ${ac.descricao} (${ac.cobradoCliente ? `cobrado ${money(ac.subtotal)}` : "incluso/interno"})`,
-                                      )
-                                      .join(", ")}
-                                  </small>
-                                )}
-                                {o.observacoes && (
-                                  <small>Obs.: {o.observacoes}</small>
-                                )}
-                                <small>
-                                  Total: {money(o.valorTotal)} · Recebido:{" "}
-                                  {money(orderReceived(o))} · A receber:{" "}
-                                  {money(orderRemaining(o))}
-                                </small>
-                              </div>
-                              <Actions
-                                kind="order"
-                                collection="encomendas"
-                                record={o}
-                                name={`encomenda de ${o.clienteNome}`}
-                              />
-                            </li>
-                          ))}
+                                <div className="row-actions">
+                                  {canWrite && (
+                                    <button
+                                      className="icon-button"
+                                      aria-label={
+                                        g.orders.length > 1
+                                          ? `Alterar situação da encomenda ${orderIdx + 1} de ${o.clienteNome}`
+                                          : `Alterar situação da encomenda de ${o.clienteNome}`
+                                      }
+                                      title="Alterar situação"
+                                      onClick={() => setStatusTarget(o)}
+                                    >
+                                      <Check size={16} />
+                                    </button>
+                                  )}
+                                  <Actions
+                                    kind="order"
+                                    collection="encomendas"
+                                    record={o}
+                                    name={`encomenda de ${o.clienteNome}`}
+                                  />
+                                </div>
+                              </li>
+                            );
+                          })}
                         </ul>
                       </div>
                     </td>
@@ -960,7 +1018,99 @@ export function Orders() {
           setPage={list.setPage}
         />
       </section>
+      {statusTarget && (
+        <OrderStatusDialog
+          order={statusTarget}
+          close={() => setStatusTarget(null)}
+          saveStatus={async (nextStatus) => {
+            await save(
+              [
+                {
+                  collection: "encomendas",
+                  id: statusTarget.id,
+                  expectedUpdatedAt: versionOf(statusTarget),
+                  data: { status: nextStatus },
+                },
+              ],
+              `Situação da encomenda de ${statusTarget.clienteNome}: ${nextStatus}`,
+            );
+            setStatusTarget(null);
+          }}
+        />
+      )}
     </>
+  );
+}
+function OrderStatusDialog({
+  order,
+  close,
+  saveStatus,
+}: {
+  order: Order;
+  close: () => void;
+  saveStatus: (nextStatus: Order["status"]) => Promise<void>;
+}) {
+  const { busy, canWrite } = useBusiness();
+  const [nextStatus, setNextStatus] = useState<Order["status"]>(order.status);
+  const [error, setError] = useState("");
+  const summary =
+    order.itens && order.itens.length > 0
+      ? summarizeOrderItems(order.itens, order.acessorios || [], order.observacoes)
+      : order.produtoDescricao;
+  return (
+    <Modal title="Situação da encomenda" onClose={close} busy={busy}>
+      <div className="detail-meta">
+        <p>
+          <strong>Cliente:</strong> {order.clienteNome}
+        </p>
+        <p>
+          <strong>Encomenda:</strong> {summary}
+        </p>
+        <p>
+          <strong>Entrega:</strong> {dateText(order.dataEntrega)} ·{" "}
+          <strong>Situação atual:</strong> {order.status}
+        </p>
+      </div>
+      <Field label="Nova situação">
+        <select
+          value={nextStatus}
+          onChange={(e) => setNextStatus(e.target.value as Order["status"])}
+        >
+          <option value="Pendente">Pendente</option>
+          <option value="Em Produção">Em Produção</option>
+          <option value="Finalizado">Finalizado</option>
+        </select>
+      </Field>
+      <p className="form-note">
+        Altera apenas a etapa operacional. Valores recebidos e saldo a receber (
+        {money(orderRemaining(order))}) permanecem independentes.
+      </p>
+      {error && (
+        <p role="alert" className="form-error">
+          {error}
+        </p>
+      )}
+      <footer className="modal-footer">
+        <Button variant="secondary" onClick={close} disabled={busy}>
+          Cancelar
+        </Button>
+        <Button
+          disabled={!canWrite || busy}
+          onClick={() => {
+            setError("");
+            void saveStatus(nextStatus).catch((e) =>
+              setError(
+                e instanceof Error
+                  ? e.message
+                  : "Não foi possível atualizar a situação.",
+              ),
+            );
+          }}
+        >
+          {busy ? "Confirmando…" : "Confirmar"}
+        </Button>
+      </footer>
+    </Modal>
   );
 }
 export function Finance() {
@@ -1133,7 +1283,7 @@ export function Finance() {
                         <div className="inline-title">
                           <strong>{sup.displayName || "Fornecedor não informado"}</strong>
                           <Badge tone="neutral">Nota fiscal</Badge>
-                          {e.itensNota?.some((i) => i.geraEstoque) && (
+                          {e.itensNota?.some((i) => invoiceItemAddsToStock(i)) && (
                             <Badge tone="good">Estoque +</Badge>
                           )}
                           {sup.isLegacyUnlinked && (
@@ -1252,7 +1402,9 @@ export function Finance() {
                                           : item.itemTipo === "material"
                                             ? "Material"
                                             : "Avulso"}
-                                        {item.geraEstoque ? " · Estoque +" : ""}
+                                        {invoiceItemAddsToStock(item)
+                                          ? " · Estoque +"
+                                          : " · Sem estoque"}
                                       </small>
                                     </td>
                                     <td>

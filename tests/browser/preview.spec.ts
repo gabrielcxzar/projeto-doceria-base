@@ -136,6 +136,7 @@ test("registra venda e encomenda e atualiza os registros sem recarregar", async 
   await expect(orderRow).toBeVisible();
   await orderRow.getByRole("button", { name: "Ver detalhes" }).click();
   await expect(page.getByText("Obs.: Encomenda de teste com entrada")).toBeVisible();
+  await expect(page.locator(".order-detail-line")).toContainText(["1× BOLO DE CHOCOLATE"]);
 });
 test("viewer e dispositivo offline não oferecem gravações", async ({
   page,
@@ -467,4 +468,262 @@ test("financeiro mantém duas notas do mesmo fornecedor separadas, permite filtr
   await expect(
     page.locator("tbody > tr:not(.detail-row)").filter({ hasText: "Distribuidora ABC" }),
   ).toHaveCount(2);
+});
+
+test("nota fiscal permite escolher por item se adiciona ao estoque mantendo o valor total", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1#financeiro");
+  await page.getByRole("button", { name: "Registrar nota fiscal" }).click();
+  const dialog = page.getByRole("dialog");
+
+  await dialog.getByLabel("Fornecedor *").selectOption("f1");
+  await dialog.getByLabel("Número da nota (opcional)").fill("003");
+
+  // Item 1 (Chocolate): checkbox marcada por padrão -> entra no estoque
+  const addStockCheck = dialog.getByLabel("Adicionar ao estoque", { exact: true });
+  await expect(addStockCheck).toBeChecked();
+  await dialog.getByLabel("Item cadastrado").selectOption("i1");
+  await dialog.getByRole("button", { name: "1", exact: true }).click();
+  await dialog.getByLabel("Unidade").selectOption("kg");
+  await dialog.getByLabel("Valor unitário (R$)").fill("45");
+  await dialog.getByRole("button", { name: "Adicionar item" }).click();
+
+  // Item 2 (Caixa para bolo): usuário desmarca "Adicionar ao estoque"
+  await addStockCheck.uncheck();
+  await expect(addStockCheck).not.toBeChecked();
+  await dialog.getByLabel("Tipo do item").selectOption("material");
+  await dialog.getByLabel("Item cadastrado").selectOption("m1");
+  await dialog.getByRole("button", { name: "2", exact: true }).click();
+  await dialog.getByLabel("Valor unitário (R$)").fill("10");
+  await dialog.getByRole("button", { name: "Adicionar item" }).click();
+
+  // Na lista adicionada, é possível alternar a opção antes de salvar sem mudar o total R$ 65,00
+  await expect(dialog.getByText("R$ 65,00")).toBeVisible();
+  const listMatCheck = dialog.getByLabel("Adicionar Caixa para bolo ao estoque", {
+    exact: true,
+  });
+  await expect(listMatCheck).not.toBeChecked();
+  await listMatCheck.check();
+  await expect(
+    dialog.locator(".composition-list").getByText("Adicionar ao estoque: Sim"),
+  ).toHaveCount(2);
+  await expect(dialog.getByText("R$ 65,00")).toBeVisible();
+  await listMatCheck.uncheck();
+  await expect(listMatCheck).not.toBeChecked();
+  await expect(dialog.getByText("R$ 65,00")).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Salvar nota fiscal" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  const row = page.getByRole("row").filter({ hasText: "NF 003" });
+  await expect(row).toContainText("2 itens");
+  await expect(row).toContainText("65,00");
+  await row.getByRole("button", { name: "Exibir itens" }).click();
+  await expect(page.getByText("Chocolate meio amargo")).toBeVisible();
+  await expect(page.getByText("Caixa para bolo")).toBeVisible();
+  await expect(page.getByText("Total da nota: R$ 65,00")).toBeVisible();
+
+  // Estoque: Chocolate subiu de 2 kg para 3 kg; Caixa para bolo manteve 15 un.
+  await navigate(page, "Estoque");
+  await expect(
+    page.getByRole("row").filter({ hasText: "Chocolate meio amargo" }),
+  ).toContainText("3.000 g (3 kg)");
+  await expect(
+    page.getByRole("row").filter({ hasText: "Caixa para bolo" }),
+  ).toContainText("15 un.");
+});
+
+test("encomendas exibem itens e acessórios em linhas separadas nos detalhes agrupados", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1#encomendas");
+
+  // Cria uma nova encomenda multi-produto + acessório cobrado para ANA OLIVEIRA (já possui e1 legado na mesma data)
+  await page.getByRole("button", { name: "Nova encomenda" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Cliente", { exact: true }).selectOption("c1");
+  await dialog.getByLabel("Produto cadastrado").selectOption("p1");
+  await dialog.getByRole("button", { name: "Adicionar produto" }).click();
+  await dialog.getByLabel("Produto cadastrado").selectOption("p3");
+  await dialog.getByRole("button", { name: "Adicionar produto" }).click();
+  await dialog.getByLabel("Material", { exact: true }).selectOption("m1");
+  await dialog.getByLabel("Valor cobrado (R$)").fill("10");
+  await dialog.getByRole("button", { name: "Adicionar acessório" }).click();
+  await dialog.getByLabel("Valor já recebido (R$)").fill("50");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+
+  // Grupo de ANA OLIVEIRA reúne a encomenda legada (R$ 280) e a nova estruturada (120 + 85 + 10 = R$ 215) = R$ 495,00
+  const groupRow = page.getByRole("row").filter({ hasText: "ANA OLIVEIRA" });
+  await expect(groupRow).toContainText("2 encomendas");
+  await expect(groupRow).toContainText("495,00");
+
+  await groupRow.getByRole("button", { name: "Ver detalhes" }).click();
+  const detailBox = page.locator(".detail-box");
+  await expect(detailBox).toBeVisible();
+
+  // Encomenda legada preservada e nova discrimina cada item em sua própria linha sem concatenação com ·
+  await expect(detailBox.getByText("Bolo de aniversário · chocolate e morango")).toBeVisible();
+  await expect(detailBox.getByText(/Encomenda [12] \(3 itens\)/)).toBeVisible();
+
+  const lines = detailBox.locator(".order-detail-line");
+  await expect(lines).toHaveCount(3);
+  await expect(lines.nth(0)).toContainText("1× BOLO DE CHOCOLATE");
+  await expect(lines.nth(0)).toContainText("120,00");
+  await expect(lines.nth(1)).toContainText("1× TORTA DE LIMÃO");
+  await expect(lines.nth(1)).toContainText("85,00");
+  await expect(lines.nth(2)).toContainText("1× Caixa para bolo");
+  await expect(lines.nth(2)).toContainText("10,00");
+
+  // Não repete "Produtos:" nem título concatenado "1× BOLO DE CHOCOLATE · 1× TORTA DE LIMÃO" dentro dos detalhes
+  await expect(detailBox.getByText("1× BOLO DE CHOCOLATE · 1× TORTA DE LIMÃO")).toHaveCount(0);
+  await expect(detailBox.getByText("Produtos:")).toHaveCount(0);
+});
+
+test("encomendas permite cadastrar produto completo sem perder rascunho, trata erros e funciona na edição", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1#encomendas");
+  await page.getByRole("button", { name: "Nova encomenda" }).click();
+  const orderDialog = page.getByRole("dialog", { name: "Encomenda" });
+
+  // Preenche rascunho completo da encomenda (cliente, data, 1 produto, 1 acessório e observações)
+  await orderDialog.getByLabel("Cliente", { exact: true }).selectOption("c2");
+  await orderDialog.getByLabel("Entrega", { exact: true }).fill("2026-12-20");
+  await orderDialog.getByLabel("Produto cadastrado").selectOption("p1");
+  await orderDialog.getByRole("button", { name: "Adicionar produto" }).click();
+  await orderDialog.getByLabel("Material", { exact: true }).selectOption("m1");
+  await orderDialog.getByLabel("Valor cobrado (R$)").fill("10");
+  await orderDialog.getByRole("button", { name: "Adicionar acessório" }).click();
+  await orderDialog
+    .getByLabel("Observações de preparo, sabor, tamanho e personalização")
+    .fill("Massa de baunilha e laço dourado");
+
+  // 1) Abrir cadastro a partir de Nova Encomenda e cancelar por Escape sem perder nada
+  await orderDialog.getByRole("button", { name: "Cadastrar produto" }).click();
+  let productDialog = page.getByRole("dialog", { name: "Produto" });
+  await expect(productDialog).toBeVisible();
+  await productDialog.getByLabel("Nome", { exact: true }).fill("RASCUNHO TEMPORARIO");
+  await productDialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(productDialog).toHaveCount(0);
+  await expect(orderDialog).toBeVisible();
+  await expect(orderDialog.getByLabel("Cliente", { exact: true })).toHaveValue("c2");
+  await expect(orderDialog.getByLabel("Entrega", { exact: true })).toHaveValue("2026-12-20");
+  await expect(
+    orderDialog.getByLabel("Observações de preparo, sabor, tamanho e personalização"),
+  ).toHaveValue("Massa de baunilha e laço dourado");
+
+  // 2) Abrir novamente, testar bloqueio de nome duplicado e falha simulada de gravação sem perder os formulários
+  await orderDialog.getByRole("button", { name: "Cadastrar produto" }).click();
+  productDialog = page.getByRole("dialog", { name: "Produto" });
+  await productDialog.getByLabel("Nome", { exact: true }).fill("BOLO DE CHOCOLATE");
+  await productDialog.getByLabel("Preço de venda (R$)").fill("95");
+  await productDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(productDialog.getByRole("alert")).toContainText("Já existe um cadastro com esse nome");
+
+  // Corrige nome, preenche composição completa e simula erro na gravação
+  await productDialog.getByLabel("Nome", { exact: true }).fill("BOLO RED VELVET 15CM");
+  await productDialog.getByLabel("Categoria", { exact: true }).selectOption("Bolos");
+  await productDialog.getByLabel(/Brigadeiro de chocolate/).check();
+  await productDialog.getByLabel("Preço de venda (R$)").fill("140");
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
+  });
+  await productDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(productDialog.getByRole("alert")).toContainText("Conecte-se à internet");
+  await expect(productDialog.getByLabel("Nome", { exact: true })).toHaveValue("BOLO RED VELVET 15CM");
+  await expect(orderDialog).toBeVisible();
+
+  // Restaura conexão simulada, salva produto e verifica retorno com seleção automática na encomenda
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => true });
+  });
+  await productDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(productDialog).toHaveCount(0);
+  await expect(orderDialog).toBeVisible();
+  await expect(orderDialog.getByLabel("Produto cadastrado")).toContainText("BOLO RED VELVET 15CM");
+  const selectedText = await orderDialog
+    .getByLabel("Produto cadastrado")
+    .locator("option:checked")
+    .innerText();
+  expect(selectedText).toContain("BOLO RED VELVET 15CM");
+
+  // Inclui o novo produto e confirma preservação dos anteriores (120 + 140 + 10 = R$ 270,00)
+  await orderDialog.getByRole("button", { name: "Adicionar produto" }).click();
+  await expect(orderDialog.getByText("R$ 270,00").first()).toBeVisible();
+  await orderDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(orderDialog).toHaveCount(0);
+
+  // 3) Abrir cadastro a partir de Editar Encomenda, cadastrar outro produto e cancelar sem perder edição
+  const savedOrderRow = page
+    .getByRole("row")
+    .filter({ hasText: "BEATRIZ LIMA" })
+    .filter({ hasText: "BOLO RED VELVET 15CM" });
+  await expect(savedOrderRow).toContainText("270,00");
+  await savedOrderRow.getByRole("button", { name: "Editar encomenda de BEATRIZ LIMA" }).click();
+  const editOrderDialog = page.getByRole("dialog", { name: "Editar Encomenda" });
+  await editOrderDialog.getByRole("button", { name: "Cadastrar produto" }).click();
+  const editProdDialog = page.getByRole("dialog", { name: "Produto" });
+  await editProdDialog.getByLabel("Nome", { exact: true }).fill("DOCINHO PERSONALIZADO");
+  await editProdDialog.getByLabel("Preço de venda (R$)").fill("6");
+  await editProdDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(editProdDialog).toHaveCount(0);
+  await expect(editOrderDialog.getByLabel("Produto cadastrado")).toContainText("DOCINHO PERSONALIZADO");
+  await editOrderDialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+
+  // Viewer não vê ações de edição/cadastro
+  await page.goto("/?demo=viewer#encomendas");
+  await expect(page.getByRole("button", { name: "Nova encomenda" })).toHaveCount(0);
+});
+
+test("encomendas permite alteração rápida individual sem alterar recebimentos e funciona em agrupamentos", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1#encomendas");
+
+  // 1) Mudança rápida em encomenda individual (BEATRIZ LIMA: 400,00 total, 200,00 recebido, 200,00 pendente)
+  const beatrizRow = page.getByRole("row").filter({ hasText: "BEATRIZ LIMA" });
+  await beatrizRow
+    .getByRole("button", { name: "Alterar situação da encomenda de BEATRIZ LIMA" })
+    .click();
+  let dialog = page.getByRole("dialog", { name: "Situação da encomenda" });
+  await expect(dialog).toContainText("BEATRIZ LIMA");
+  await expect(dialog).toContainText("Pendente");
+  await dialog.getByLabel("Nova situação").selectOption("Finalizado");
+  await dialog.getByRole("button", { name: "Confirmar", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+
+  // Atualiza status visualmente para Finalizado SEM zerar os R$ 200,00 em aberto
+  await expect(beatrizRow).toContainText("Finalizado");
+  await expect(beatrizRow).toContainText("200,00");
+
+  // 2) Cria segunda encomenda no mesmo dia para ANA OLIVEIRA (já possui e1 Em Produção)
+  await page.getByRole("button", { name: "Nova encomenda" }).click();
+  const orderDialog = page.getByRole("dialog", { name: "Encomenda" });
+  await orderDialog.getByLabel("Cliente", { exact: true }).selectOption("c1");
+  await orderDialog.getByLabel("Produto cadastrado").selectOption("p1");
+  await orderDialog.getByRole("button", { name: "Adicionar produto" }).click();
+  await orderDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(orderDialog).toHaveCount(0);
+
+  const anaGroupRow = page.getByRole("row").filter({ hasText: "ANA OLIVEIRA" });
+  await expect(anaGroupRow).toContainText("Situações diferentes");
+  await anaGroupRow.getByRole("button", { name: "Ver detalhes" }).click();
+
+  // Cada item do grupo tem seu próprio botão unitário; alterar apenas Encomenda 1 para Pendente não muda Encomenda 2
+  const detailItems = page.locator(".detail-item");
+  await expect(detailItems).toHaveCount(2);
+  await page
+    .getByRole("button", { name: "Alterar situação da encomenda 1 de ANA OLIVEIRA" })
+    .click();
+  dialog = page.getByRole("dialog", { name: "Situação da encomenda" });
+  await dialog.getByLabel("Nova situação").selectOption("Finalizado");
+  await dialog.getByRole("button", { name: "Confirmar", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(detailItems.nth(0)).toContainText("Finalizado");
+
+  // Viewer não vê ações de alteração rápida
+  await page.goto("/?demo=viewer#encomendas");
+  await expect(page.getByRole("button", { name: /^Alterar situação/ })).toHaveCount(0);
 });

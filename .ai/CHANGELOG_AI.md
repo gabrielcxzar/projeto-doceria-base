@@ -1,5 +1,29 @@
 # Mudanças relevantes por IA
 
+## 2026-11-16 — Ação rápida individual para situação de encomendas e desacoplamento financeiro
+
+**Agente:** Antigravity. **Objetivo:** adicionar ação rápida unitária **Alterar situação** em **Encomendas** (na linha individual e em cada encomenda dentro de **Ver detalhes**), mantendo a etapa de produção totalmente independente da quitação financeira.
+
+**Mudanças:** adicionado `OrderStatusDialog` e botão individual restrito a administradores (`canWrite`) em `src/pages.tsx`, atualizando somente `status` com `expectedUpdatedAt`. Removida a exigência legada de `valorEntrada == valorTotal` para `Finalizado` em `firestore.rules`, `src/editors.tsx` e nos cálculos `orderReceived`/`orderRemaining` em `src/domain.ts`. Testes atualizados/adicionados em `src/domain.test.ts`, `tests/rules.test.ts`, `tests/browser/preview.spec.ts`, `tests/browser/firebase.spec.ts` e `tests/browser/responsive.spec.ts`; documentação atualizada (`docs/`, `specs/009-encomendas-situacao-rapida/`). **Observação:** mantido localmente na branch `feat/encomendas-situacao-rapida` sem push em `main`.
+
+## 2026-11-16 — Cadastro de produto durante o lançamento de encomendas
+
+**Agente:** Antigravity. **Objetivo:** permitir abrir o cadastro completo de produto diretamente em **Nova Encomenda** e **Editar Encomenda** (botão **Cadastrar produto**), retornando automaticamente com o novo item selecionado pelo seu ID real e preservando todo o rascunho da encomenda.
+
+**Mudanças:** reutilização isolada de `Editor` (`kind="product"`) como diálogo empilhado irmão em `src/editors.tsx` com callback `onSaved`, ID determinístico (`createOnly: true`) na criação de produtos e visibilidade restrita a `profile.role === "admin"`, além de ajuste de alinhamento em `src/styles.css`. Testes completos adicionados em `tests/browser/preview.spec.ts` e `tests/browser/firebase.spec.ts` (desktop e mobile, incluindo cancelamento, duplicidade e erro simulado de gravação); documentação atualizada em `docs/manual-de-uso.md` e `specs/008-encomendas-cadastrar-produto/`. **Observação:** mantido localmente na branch `feat/encomendas-cadastrar-produto` sem push em `main`.
+
+## 2026-11-16 — Exibição linha a linha dos itens nos detalhes das encomendas
+
+**Agente:** Antigravity. **Objetivo:** melhorar a legibilidade de **Ver detalhes** na tela **Encomendas**, listando cada produto e acessório estruturado em uma linha própria com valor discriminado, sem concatenações ou repetições redundantes e preservando compatibilidade com `produtoDescricao` legado.
+
+**Mudanças:** refatorado o detalhamento expandido de `Orders` em `src/pages.tsx` e adicionados estilos responsivos `.order-detail-lines`, `.order-detail-line` e `.order-detail-price` em `src/styles.css`. Testes atualizados/ampliados em `tests/browser/preview.spec.ts` e `tests/browser/firebase.spec.ts`; documentação atualizada em `docs/manual-de-uso.md` e `specs/007-encomendas-detalhes-itens/`. **Observação:** mantido localmente na branch `feat/encomendas-detalhes-itens` sem push em `main`.
+
+## 2026-11-16 — Entrada opcional de estoque por item da nota fiscal
+
+**Agente:** Antigravity. **Objetivo:** permitir que o usuário marque ou desmarque individualmente **[ ] Adicionar ao estoque** por item em **Financeiro > Registrar nota fiscal** (com edição reversível e estorno seguro), mantendo todos os itens e o total financeiro da nota.
+
+**Mudanças:** adicionado `adicionarEstoque?: boolean` em `ExpenseInvoiceItem` (`src/types.ts`); funções puras `invoiceItemAddsToStock`, `invoiceItemNetStockDelta`, `expenseHasActiveStockEntries`, `buildInvoiceMutations` e soma líquida incluindo `correcao_nota` em `buildExpenseDeletionMutations` (`src/domain.ts`, `src/App.tsx`); checkbox **Adicionar ao estoque** marcada por padrão no construtor de item e controle individual por item na lista adicionada/edição em `src/editors.tsx`, com distinção visual em `src/pages.tsx` e `src/styles.css`. Testes adicionados/atualizados em `src/domain.test.ts`, `tests/browser/preview.spec.ts` e `tests/browser/firebase.spec.ts`; documentação e Spec Kit atualizados (`docs/`, `specs/006-nota-fiscal-estoque-opcional/`). **Observação:** mantido na branch `feat/nota-fiscal-estoque-opcional` sem push em `main`.
+
 ## 2026-11-16 — Cadastro de fornecedores e agrupamento de notas fiscais no Financeiro
 
 **Agente:** Antigravity. **Objetivo:** implementar a 6ª aba **Fornecedores** em Cadastros, exigir seleção de fornecedor cadastrado ao registrar novas notas fiscais (com criação rápida inline) e exibir cada nota fiscal no Financeiro como linha única com expansão responsiva **Exibir itens** e filtros por fornecedor e tipo de lançamento.
