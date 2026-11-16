@@ -167,7 +167,7 @@ test("exporta todas as coleções e IDs em JSON", async ({ page }) => {
   const chunks: Buffer[] = [];
   for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
   const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-  expect(Object.keys(parsed.collections)).toHaveLength(14);
+  expect(Object.keys(parsed.collections)).toHaveLength(15);
   expect(parsed.collections.clientes[0].id).toBe("c1");
 });
 
@@ -310,20 +310,161 @@ test("financeiro registra nota fiscal e atualiza saldo na tela de estoque", asyn
   await page.goto("/?demo=1#financeiro");
   await page.getByRole("button", { name: "Registrar nota fiscal" }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Fornecedor (opcional)").fill("Atacadão Doce");
+
+  // Adiciona item primeiro e depois cria fornecedor inline sem perder os itens da nota.
   await dialog.getByLabel("Item cadastrado").selectOption("i1");
   await dialog.getByRole("button", { name: "2", exact: true }).click();
   await dialog.getByLabel("Unidade").selectOption("kg");
   await dialog.getByLabel("Valor unitário (R$)").fill("42");
   await dialog.getByRole("button", { name: "Adicionar item" }).click();
   await expect(dialog.getByText("R$ 84,00").first()).toBeVisible();
+
+  // Tentar salvar sem selecionar fornecedor mantém o modal aberto pela obrigatoriedade.
+  await dialog.getByRole("button", { name: "Salvar nota fiscal" }).click();
+  await expect(dialog).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Novo fornecedor" }).click();
+  await dialog.getByLabel("Nome / Razão social *").fill("Atacadão Doce");
+  await dialog.getByRole("button", { name: "Salvar fornecedor" }).click();
+  await expect(dialog.getByLabel("Fornecedor *")).toContainText("Atacadão Doce");
+  await expect(
+    dialog.locator(".composition-list").getByText("Chocolate meio amargo"),
+  ).toBeVisible();
+
   await dialog.getByRole("button", { name: "Salvar nota fiscal" }).click();
   await expect(dialog).not.toBeVisible();
-  await expect(
-    page.getByRole("row").filter({ hasText: "Nota fiscal (1)" }),
-  ).toBeVisible();
+  const noteRow = page.getByRole("row").filter({ hasText: "Atacadão Doce" });
+  await expect(noteRow).toContainText("1 item");
+  await expect(noteRow).toContainText("84,00");
+  await noteRow.getByRole("button", { name: "Exibir itens" }).click();
+  await expect(page.getByText("Total da nota: R$ 84,00")).toBeVisible();
+  await noteRow.getByRole("button", { name: "Ocultar itens" }).click();
+  await expect(page.getByText("Total da nota: R$ 84,00")).toHaveCount(0);
+
   await navigate(page, "Estoque");
   await expect(
     page.getByRole("row").filter({ hasText: "Chocolate meio amargo" }),
   ).toContainText("4.000 g (4 kg)");
+});
+
+test("fornecedores têm aba dedicada, ordenação A-Z, busca, edição, arquivamento e vínculo estável", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1#cadastros");
+  const tabNames = await page.getByRole("tab").allInnerTexts();
+  expect(tabNames.map((t) => t.replace(/\d+$/, "").trim())).toEqual([
+    "Clientes",
+    "Produtos",
+    "Receitas",
+    "Ingredientes",
+    "Materiais",
+    "Fornecedores",
+  ]);
+  await page.getByRole("tab", { name: /^Fornecedores/ }).click();
+  await page.getByRole("button", { name: "Cadastrar fornecedor" }).click();
+  let dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Nome / Razão social", { exact: true }).fill("Abastecedora Central");
+  await dialog.getByLabel("Nome fantasia (opcional)").fill("Central Doces");
+  await dialog.getByLabel("Telefone / WhatsApp (opcional)").fill("71991112222");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+
+  // Ordenação alfabética A-Z: Abastecedora Central antes de Distribuidora ABC
+  const firstSupplier = await page
+    .locator("tbody tr")
+    .first()
+    .locator("td")
+    .first()
+    .innerText();
+  expect(firstSupplier).toContain("Abastecedora Central");
+
+  // Busca, edição (renomear Distribuidora ABC) e preservação do snapshot histórico no Financeiro
+  await page
+    .getByRole("button", { name: "Editar Distribuidora ABC", exact: true })
+    .click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Nome / Razão social", { exact: true }).fill("ABC Alimentos Ltda");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+
+  // Arquivar Embalagens Bahia e reativar em Mostrar arquivados
+  await page
+    .getByRole("button", { name: "Arquivar Embalagens Bahia", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Arquivar cadastro", exact: true })
+    .click();
+  await expect(page.getByText("Embalagens Bahia")).toHaveCount(0);
+
+  await navigate(page, "Financeiro");
+  // Fornecedor arquivado e renomeado não quebram histórico nem seleção de nova nota
+  const historicalRow = page
+    .getByRole("row")
+    .filter({ hasText: "Distribuidora ABC" });
+  await expect(historicalRow).toContainText("NF 001");
+  await expect(historicalRow).toContainText("Cadastro atual: ABC Alimentos Ltda");
+
+  await page.getByRole("button", { name: "Registrar nota fiscal" }).click();
+  dialog = page.getByRole("dialog");
+  const selectText = await dialog.getByLabel("Fornecedor *").innerText();
+  expect(selectText).not.toContain("Embalagens Bahia");
+  await dialog.getByRole("button", { name: "Fechar janela", exact: true }).click();
+
+  await navigate(page, "Cadastros");
+  await page.getByRole("tab", { name: /^Fornecedores/ }).click();
+  await page.getByLabel("Mostrar arquivados").check();
+  await page.getByRole("button", { name: "Reativar Embalagens Bahia" }).click();
+  await page.getByLabel("Mostrar arquivados").uncheck();
+  await expect(page.getByText("Embalagens Bahia")).toBeVisible();
+});
+
+test("financeiro mantém duas notas do mesmo fornecedor separadas, permite filtros e despesa simples sem fornecedor", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1#financeiro");
+
+  // Registra uma segunda nota para Distribuidora ABC (f1) com 2 itens
+  await page.getByRole("button", { name: "Registrar nota fiscal" }).click();
+  let dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Fornecedor *").selectOption("f1");
+  await dialog.getByLabel("Número da nota (opcional)").fill("002");
+  await dialog.getByLabel("Tipo do item").selectOption("outro");
+  await dialog.getByLabel("Descrição do item").fill("Gás cozinha");
+  await dialog.getByRole("button", { name: "1", exact: true }).click();
+  await dialog.getByLabel("Valor unitário (R$)").fill("115");
+  await dialog.getByRole("button", { name: "Adicionar item" }).click();
+  await dialog.getByLabel("Descrição do item").fill("Taxa entrega");
+  await dialog.getByRole("button", { name: "1", exact: true }).click();
+  await dialog.getByLabel("Valor unitário (R$)").fill("15");
+  await dialog.getByRole("button", { name: "Adicionar item" }).click();
+  await dialog.getByRole("button", { name: "Salvar nota fiscal" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  // Ambas as notas do mesmo fornecedor aparecem em linhas independentes
+  await expect(page.getByRole("row").filter({ hasText: "NF 001" })).toHaveCount(1);
+  await expect(page.getByRole("row").filter({ hasText: "NF 002" })).toHaveCount(1);
+
+  const nf2Row = page.getByRole("row").filter({ hasText: "NF 002" });
+  await nf2Row.getByRole("button", { name: "Exibir itens" }).click();
+  await expect(page.getByText("Total da nota: R$ 130,00")).toBeVisible();
+
+  // Despesa simples continua funcionando sem fornecedor
+  await page.getByRole("button", { name: "Registrar despesa" }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Descrição", { exact: true }).fill("Passagem de ônibus");
+  await dialog.getByLabel("Total pago (R$)").fill("18");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    page.getByRole("row").filter({ hasText: "Passagem de ônibus" }),
+  ).toContainText("Despesa simples");
+
+  // Filtro por tipo de lançamento e fornecedor
+  await page.getByLabel("Filtrar tipo de lançamento").selectOption("invoice");
+  await expect(page.getByRole("row").filter({ hasText: "Passagem de ônibus" })).toHaveCount(0);
+  await page.getByLabel("Filtrar fornecedor").selectOption("f1");
+  await expect(
+    page.locator("tbody > tr:not(.detail-row)").filter({ hasText: "Distribuidora ABC" }),
+  ).toHaveCount(2);
 });

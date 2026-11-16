@@ -1,5 +1,6 @@
 import type {
   BaseUnit,
+  CollectionName,
   Customer,
   DataStore,
   DateValue,
@@ -16,6 +17,7 @@ import type {
   RecordBase,
   Sale,
   StockUnit,
+  Supplier,
 } from "./types";
 
 const ptBrCollator = new Intl.Collator("pt-BR", {
@@ -826,6 +828,105 @@ export function buildExpenseDeletionMutations(
   });
 
   return mutations;
+}
+
+export function isArchivableCollection(collection: CollectionName) {
+  return [
+    "clientes",
+    "fornecedores",
+    "produtos",
+    "ingredientes",
+    "receitas",
+    "materiais",
+  ].includes(collection);
+}
+
+export function validateSupplierInput(input: {
+  nome: string;
+  nomeFantasia?: string;
+  documento?: string;
+  contato?: string;
+  email?: string;
+  endereco?: string;
+  observacoes?: string;
+}) {
+  const nome = (input.nome || "").trim();
+  if (!nome) throw new Error("Informe o nome ou razão social do fornecedor.");
+  const nomeFantasia = (input.nomeFantasia || "").trim();
+  const documento = (input.documento || "").trim();
+  if (documento) {
+    const digits = documento.replace(/\D/g, "");
+    if (digits.length !== 11 && digits.length !== 14) {
+      throw new Error(
+        "CNPJ/CPF deve ter 11 (CPF) ou 14 (CNPJ) dígitos, ou ficar em branco.",
+      );
+    }
+  }
+  const contato = (input.contato || "").trim();
+  if (contato && contato.replace(/\D/g, "").length < 8) {
+    throw new Error("Informe um telefone/WhatsApp válido ou deixe em branco.");
+  }
+  const email = (input.email || "").trim().toLowerCase();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error("Informe um e-mail válido ou deixe em branco.");
+  }
+  return {
+    nome,
+    nomeFantasia,
+    documento,
+    contato,
+    email,
+    endereco: (input.endereco || "").trim(),
+    observacoes: (input.observacoes || "").trim(),
+  };
+}
+
+export function resolveExpenseSupplier(
+  expense: Pick<
+    Expense,
+    "fornecedorId" | "fornecedorNome" | "fornecedor" | "isNotaFiscal"
+  >,
+  suppliers: readonly Supplier[],
+) {
+  // Vínculo estrito por ID: nunca associar notas antigas automaticamente por semelhança de nome.
+  const linked = expense.fornecedorId
+    ? suppliers.find((s) => s.id === expense.fornecedorId)
+    : undefined;
+  const snapshotName = (
+    expense.fornecedorNome ||
+    expense.fornecedor ||
+    ""
+  ).trim();
+  const displayName = snapshotName || linked?.nome || "";
+  const renamedTo =
+    linked && snapshotName && linked.nome !== snapshotName ? linked.nome : "";
+  const isLegacyUnlinked = Boolean(expense.isNotaFiscal && !expense.fornecedorId);
+  return {
+    linked,
+    snapshotName,
+    displayName,
+    renamedTo,
+    isLegacyUnlinked,
+    searchableText: [
+      displayName,
+      linked?.nome,
+      linked?.nomeFantasia,
+      linked?.documento,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  };
+}
+
+export function expenseMatchesSupplierFilter(
+  expense: Pick<Expense, "fornecedorId" | "isNotaFiscal">,
+  supplierFilter: string,
+) {
+  if (!supplierFilter) return true;
+  if (supplierFilter === "__sem_vinculo__") {
+    return Boolean(expense.isNotaFiscal && !expense.fornecedorId);
+  }
+  return expense.fornecedorId === supplierFilter;
 }
 
 export function chargeMessage(name: string, pending: number, type: string) {

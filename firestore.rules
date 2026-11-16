@@ -54,6 +54,11 @@ service cloud.firestore {
       allow create, update: if admin() && text(request.resource.data, 'nome') && request.resource.data.contato is string;
       allow delete: if false; // Arquivar preserva os vínculos históricos.
     }
+    match /fornecedores/{id} {
+      allow read: if authorized();
+      allow create, update: if admin() && text(request.resource.data, 'nome');
+      allow delete: if false; // Arquivar preserva os vínculos históricos.
+    }
     match /produtos/{id} {
       allow read: if authorized();
       allow create, update: if admin() && text(request.resource.data, 'nome')
@@ -90,9 +95,21 @@ service cloud.firestore {
     }
     match /despesas/{id} {
       allow read: if authorized();
-      allow create, update: if admin() && date(request.resource.data, 'data') && text(request.resource.data, 'descricao')
+      allow create: if admin() && date(request.resource.data, 'data') && text(request.resource.data, 'descricao')
         && request.resource.data.tipo in ['Material', 'Equipamento', 'Marketing', 'Transporte', 'Outros']
-        && request.resource.data.valor is number && request.resource.data.valor > 0;
+        && request.resource.data.valor is number && request.resource.data.valor > 0
+        && (!('isNotaFiscal' in request.resource.data) || request.resource.data.isNotaFiscal is bool)
+        && (!('fornecedorId' in request.resource.data) || request.resource.data.fornecedorId is string)
+        && (!('fornecedorNome' in request.resource.data) || request.resource.data.fornecedorNome is string)
+        && (!('isNotaFiscal' in request.resource.data)
+          || request.resource.data.isNotaFiscal != true
+          || (text(request.resource.data, 'fornecedorId') && text(request.resource.data, 'fornecedorNome')));
+      allow update: if admin() && date(request.resource.data, 'data') && text(request.resource.data, 'descricao')
+        && request.resource.data.tipo in ['Material', 'Equipamento', 'Marketing', 'Transporte', 'Outros']
+        && request.resource.data.valor is number && request.resource.data.valor > 0
+        && (!('isNotaFiscal' in request.resource.data) || request.resource.data.isNotaFiscal is bool)
+        && (!('fornecedorId' in request.resource.data) || request.resource.data.fornecedorId is string)
+        && (!('fornecedorNome' in request.resource.data) || request.resource.data.fornecedorNome is string);
       allow delete: if admin();
     }
     match /recebimentos/{id} {

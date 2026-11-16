@@ -3,6 +3,7 @@ import type { Timestamp } from "firebase/firestore";
 export const collections = [
   "usuarios",
   "clientes",
+  "fornecedores",
   "produtos",
   "vendas",
   "encomendas",
@@ -40,6 +41,16 @@ export interface Customer extends RecordBase {
   observacoes?: string;
   totalGasto?: number;
   ultimaCompra?: string | null;
+}
+export interface Supplier extends RecordBase {
+  nome: string;
+  nomesAnteriores?: string[];
+  nomeFantasia?: string;
+  documento?: string;
+  contato?: string;
+  email?: string;
+  endereco?: string;
+  observacoes?: string;
 }
 export interface Ingredient extends RecordBase {
   nome: string;
@@ -159,6 +170,8 @@ export interface Expense extends RecordBase {
   quantidade: string;
   valor: number;
   isNotaFiscal?: boolean;
+  fornecedorId?: string;
+  fornecedorNome?: string;
   fornecedor?: string;
   numeroNota?: string;
   observacoes?: string;
@@ -227,6 +240,7 @@ export interface StockMovement extends RecordBase {
 export interface DataStore {
   usuarios: UserProfile[];
   clientes: Customer[];
+  fornecedores: Supplier[];
   produtos: Product[];
   vendas: Sale[];
   encomendas: Order[];
@@ -243,6 +257,7 @@ export interface DataStore {
 export const emptyData = (): DataStore => ({
   usuarios: [],
   clientes: [],
+  fornecedores: [],
   produtos: [],
   vendas: [],
   encomendas: [],

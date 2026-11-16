@@ -88,3 +88,17 @@ Como evolução independente futura (pendente de aprovação da operação após
 1. **Rendimento e frações:** usar a composição de `produtos` (`composicaoReceitas` e `materiaisUtilizados`) e dividir os insumos de cada receita pelo `rendimento`, multiplicando pelas quantidades produzidas/vendidas, com validação de incompatibilidade entre produtos com base apenas manual (`custoMaterial`) e conversões (`kg`/`g`, `l`/`ml`, `unidade`).
 2. **Gatilho configurável:** definir por decisão de negócio se a baixa ocorre ao registrar a `venda`, ao mover uma `encomenda` para `"Em Produção"` / `"Finalizado"`, ou por confirmação explícita ("Dar baixa da produção") para evitar duplicidade caso a confeitaria produza em lotes antecipados.
 3. **Estorno e divergência:** prever estorno/reversão em cancelamentos, perdas operacionais e alertas claros caso o produto ainda não tenha ficha técnica vinculada ou o saldo em estoque esteja insuficiente ou não iniciado.
+
+## ADR-008 — Cadastro de fornecedores, snapshot histórico e agrupamento por nota fiscal no Financeiro
+
+**Status:** aceita, 2026-11-16 (implementada na branch `feat/fornecedores-notas-fiscais`).
+
+**Contexto:** com notas fiscais multi-item já persistidas em um documento único de `despesas`, o sistema precisava padronizar o cadastro de fornecedores (formais ou informais), tornar o fornecedor obrigatório somente em novas notas fiscais (sem bloquear despesas simples ou notas antigas) e exibir cada nota em uma linha resumida expansível no Financeiro.
+
+**Decisão:**
+1. Adicionar a coleção de primeiro nível `fornecedores` (arquivável logicamente com `delete: if false`), exibida como sexta aba em Cadastros em ordem alfabética `pt-BR`.
+2. Gravar `fornecedorId` e `fornecedorNome` (além de `fornecedor` por compatibilidade) nas novas notas fiscais; exibir o snapshot histórico original mesmo que o fornecedor seja renomeado ou arquivado, mantendo vínculo de filtros e consultas pelo `fornecedorId`.
+3. Não auto-vincular registros legados sem `fornecedorId` por semelhança textual; permitir edição manual de cabeçalho/vínculo sem gerar novas movimentações em `movimentacoes_estoque`.
+4. Manter agrupamento estritamente por nota fiscal (documento em `despesas`), nunca unindo notas distintas do mesmo fornecedor ou data, com expansão responsiva **Exibir itens** sobre `itensNota[]`.
+
+**Consequência:** nenhuma nota histórica perde seus dados originais, despesas simples continuam dispensando fornecedor e a exportação JSON passa a abranger 15 coleções. Evidências em [feature 005](../specs/005-fornecedores-notas-fiscais/spec.md).

@@ -298,4 +298,85 @@ describe("perfis e dados comerciais", () => {
     await assertFails(deleteDoc(doc(viewerDb, "movimentacoes_estoque/m1")));
     await assertSucceeds(deleteDoc(doc(adminDb, "movimentacoes_estoque/m1")));
   });
+  it("valida fornecedores e obrigatoriedade condicional de fornecedor em notas fiscais", async () => {
+    const adminDb = env.authenticatedContext("admin").firestore();
+    const viewerDb = env.authenticatedContext("viewer").firestore();
+
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "despesas/nf-legada"), {
+        data: "2026-10-01",
+        tipo: "Material",
+        descricao: "NF antiga sem id",
+        quantidade: "1 item",
+        valor: 50,
+        isNotaFiscal: true,
+        fornecedor: "Fornecedor Legado",
+      });
+    });
+
+    await assertSucceeds(
+      setDoc(doc(adminDb, "fornecedores/f1"), {
+        nome: "Distribuidora Teste",
+      }),
+    );
+    await assertFails(
+      setDoc(doc(viewerDb, "fornecedores/fv"), { nome: "Bloqueado" }),
+    );
+    await assertSucceeds(getDoc(doc(viewerDb, "fornecedores/f1")));
+    await assertFails(
+      setDoc(doc(adminDb, "fornecedores/f-vazio"), { nome: "" }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(adminDb, "fornecedores/f1"), { arquivado: true }),
+    );
+    await assertFails(deleteDoc(doc(adminDb, "fornecedores/f1")));
+
+    // Despesa simples funciona sem fornecedor.
+    await assertSucceeds(
+      setDoc(doc(adminDb, "despesas/d-simples"), {
+        data: "2026-11-16",
+        tipo: "Material",
+        descricao: "Frete avulso",
+        quantidade: "1",
+        valor: 25,
+      }),
+    );
+
+    // Nova nota fiscal exige fornecedorId e fornecedorNome.
+    await assertFails(
+      setDoc(doc(adminDb, "despesas/nf-sem-forn"), {
+        data: "2026-11-16",
+        tipo: "Material",
+        descricao: "NF incompleta",
+        quantidade: "1 item",
+        valor: 100,
+        isNotaFiscal: true,
+      }),
+    );
+    await assertSucceeds(
+      setDoc(doc(adminDb, "despesas/nf-ok"), {
+        data: "2026-11-16",
+        tipo: "Material",
+        descricao: "NF 10 · Distribuidora Teste",
+        quantidade: "2 itens",
+        valor: 100,
+        isNotaFiscal: true,
+        fornecedorId: "f1",
+        fornecedorNome: "Distribuidora Teste",
+      }),
+    );
+
+    // Nota histórica sem vínculo continua editável e também pode receber vínculo manual.
+    await assertSucceeds(
+      updateDoc(doc(adminDb, "despesas/nf-legada"), {
+        observacoes: "Conferida",
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(adminDb, "despesas/nf-legada"), {
+        fornecedorId: "f1",
+        fornecedorNome: "Distribuidora Teste",
+      }),
+    );
+  });
 });
